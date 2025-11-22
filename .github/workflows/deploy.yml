@@ -1,0 +1,28 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Deploy to server
+      uses: appleboy/ssh-action@master
+      with:
+        host: 91.84.124.245
+        username: root
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          cd /root
+          git pull origin main
+          source whisper_env/bin/activate
+          pip install -r requirements.txt --quiet
+          python manage.py collectstatic --noinput
+          python manage.py migrate --noinput
+          systemctl restart whisper-transcribe.service
+          systemctl reload nginx || true
+          echo 'Deployment completed successfully'
