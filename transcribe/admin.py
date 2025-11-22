@@ -30,7 +30,7 @@ class TranscriptionAdmin(admin.ModelAdmin):
         'public_token_short', 'extract_screenshots', 'whisper_model',
         'signature', 'upload_session'
     )
-    list_filter = ('status', 'uploaded_at', 'extract_screenshots', 'whisper_model', 'has_password')
+    list_filter = ('status', 'uploaded_at', 'extract_screenshots', 'whisper_model')
     search_fields = ('filename', 'transcribed_text', 'ip_address', 'signature', 'public_token', 'upload_session')
     readonly_fields = (
         'uploaded_at', 'ip_address', 'file_size', 'transcribed_text', 
