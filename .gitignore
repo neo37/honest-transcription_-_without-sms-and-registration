@@ -94,3 +94,4 @@ temp_repo/
 *.backup
 
 whisper_transcribe/
+.ssh/
