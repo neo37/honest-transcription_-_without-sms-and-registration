@@ -182,163 +182,6 @@
             position: relative;
         }
         
-        .donate-wrapper {
-            position: absolute;
-            top: 50%;
-            right: 20px;
-            transform: translateY(-50%);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 5px;
-        }
-        
-        .donate-btn {
-            background: #6bcf7f;
-            color: #000;
-            padding: 10px 20px;
-            border: 4px solid #000;
-            font-weight: 900;
-            font-size: clamp(12px, 2vw, 16px);
-            text-transform: uppercase;
-            cursor: pointer;
-            box-shadow: 4px 4px 0 #000;
-            transition: all 0.2s;
-            animation: donatePulse 2s ease-in-out infinite;
-        }
-        
-        .donate-btn:hover {
-            transform: translate(2px, 2px);
-            box-shadow: 2px 2px 0 #000;
-            background: #ffd93d;
-        }
-        
-        .donate-subtitle {
-            font-size: 9px;
-            color: #000;
-            font-weight: 700;
-            text-transform: lowercase;
-            animation: textDanceSmall 1.5s ease-in-out infinite;
-            white-space: nowrap;
-        }
-        
-        @keyframes donatePulse {
-            0%, 100% {
-                box-shadow: 4px 4px 0 #000, 0 0 0 rgba(107, 207, 127, 0.7);
-            }
-            50% {
-                box-shadow: 4px 4px 0 #000, 0 0 20px rgba(107, 207, 127, 0.9);
-            }
-        }
-        
-        @keyframes textDanceSmall {
-            0%, 100% {
-                transform: translateY(0) rotate(0deg);
-            }
-            25% {
-                transform: translateY(-2px) rotate(-1deg);
-            }
-            50% {
-                transform: translateY(0) rotate(0deg);
-            }
-            75% {
-                transform: translateY(-2px) rotate(1deg);
-            }
-        }
-        
-        .donate-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.9);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .donate-modal.active {
-            display: flex;
-        }
-        
-        .donate-modal-content {
-            background: #fff;
-            padding: 40px;
-            border: 6px solid #000;
-            box-shadow: 12px 12px 0 #000;
-            max-width: 500px;
-            width: 90%;
-            text-align: center;
-            position: relative;
-        }
-        
-        .donate-modal-close {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            background: #ff6b6b;
-            color: #000;
-            border: 3px solid #000;
-            width: 35px;
-            height: 35px;
-            font-weight: 900;
-            font-size: 20px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 3px 3px 0 #000;
-        }
-        
-        .donate-modal-close:hover {
-            transform: translate(2px, 2px);
-            box-shadow: 1px 1px 0 #000;
-        }
-        
-        .donate-modal-content h3 {
-            margin: 0 0 20px 0;
-            font-weight: 900;
-            text-transform: uppercase;
-            font-size: clamp(20px, 4vw, 28px);
-            color: #000;
-        }
-        
-        .donate-modal-content p {
-            margin-bottom: 25px;
-            font-weight: 700;
-            color: #000;
-            font-size: clamp(14px, 2.5vw, 18px);
-        }
-        
-        .donate-qr-code {
-            max-width: 100%;
-            width: 300px;
-            height: auto;
-            border: 4px solid #000;
-            box-shadow: 4px 4px 0 #000;
-            margin: 0 auto 20px;
-            display: block;
-        }
-        
-        @media (max-width: 768px) {
-            .donate-wrapper {
-                position: static;
-                transform: none;
-                margin-top: 10px;
-                display: inline-block;
-            }
-            
-            .donate-modal-content {
-                padding: 30px 20px;
-            }
-            
-            .donate-qr-code {
-                width: 250px;
-            }
-        }
-        
         .header h1 {
             font-size: clamp(12.6px, 2.2vw, 22.68px);
             font-weight: 900;
@@ -1206,21 +1049,6 @@
         <div class="header">
             <h1>честная транскрибация<br>переговоров</h1>
             <div class="subtitle">переведём ваше аудио или вкс видео в текст. честный перевод, без регистрации и сис</div>
-            <div class="donate-wrapper">
-                <button class="donate-btn" onclick="showDonateModal()">💚 донать по СПБ</button>
-                <div class="donate-subtitle">никаких переводов</div>
-            </div>
-        </div>
-        
-        <!-- Модальное окно для доната -->
-        <div class="donate-modal" id="donateModal">
-            <div class="donate-modal-content">
-                <button class="donate-modal-close" onclick="closeDonateModal()">×</button>
-                <h3>💚 поддержать проект</h3>
-                <p>система быстрых платежей</p>
-                <img src="/static/photo_2025-05-15_09-49-34.jpg" alt="QR код для доната" class="donate-qr-code" id="donateQR">
-                <p style="font-size: 14px; opacity: 0.8; margin-top: 15px;">сканируй qr для оплаты</p>
-            </div>
         </div>
         
         <div class="upload-section">
@@ -1708,23 +1536,6 @@
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 closePasswordModal();
-                closeDonateModal();
-            }
-        });
-        
-        // Модальное окно для доната
-        function showDonateModal() {
-            document.getElementById('donateModal').classList.add('active');
-        }
-        
-        function closeDonateModal() {
-            document.getElementById('donateModal').classList.remove('active');
-        }
-        
-        // Закрытие модального окна доната по клику вне его
-        document.getElementById('donateModal')?.addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeDonateModal();
             }
         });
         
