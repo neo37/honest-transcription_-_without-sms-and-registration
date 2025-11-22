@@ -93,3 +93,4 @@ temp_repo/
 *.bak
 *.backup
 
+whisper_transcribe/
