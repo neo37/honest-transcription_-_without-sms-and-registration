@@ -19,12 +19,158 @@
             padding: 20px;
         }
         
-        .container {
-            max-width: 1200px;
+        .main-wrapper {
+            display: flex;
+            gap: 20px;
+            max-width: 1400px;
             margin: 0 auto;
+        }
+        
+        .container {
+            flex: 1;
             background: #fff;
             border: 4px solid #000;
             box-shadow: 8px 8px 0 #000;
+        }
+        
+        .sidebar {
+            width: 300px;
+            background: #fff;
+            border: 4px solid #000;
+            box-shadow: 8px 8px 0 #000;
+            padding: 20px;
+            position: sticky;
+            top: 20px;
+            height: fit-content;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+        }
+        
+        .sidebar-title {
+            font-size: 18px;
+            font-weight: 900;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #000;
+            padding-bottom: 10px;
+        }
+        
+        .sidebar-group {
+            margin-bottom: 20px;
+        }
+        
+        .sidebar-group label {
+            display: block;
+            font-weight: 700;
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: #000;
+        }
+        
+        .sidebar-group input,
+        .sidebar-group select {
+            width: 100%;
+            padding: 10px;
+            border: 3px solid #000;
+            font-weight: 700;
+            font-size: 14px;
+            background: #fff;
+        }
+        
+        .sidebar-group .info-text {
+            font-size: 11px;
+            margin-top: 5px;
+            opacity: 0.8;
+            font-weight: 600;
+        }
+        
+        .sidebar-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+        
+        .sidebar-checkbox input[type="checkbox"] {
+            width: auto;
+            height: 20px;
+            cursor: pointer;
+        }
+        
+        .burger-menu {
+            display: none;
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1001;
+            background: #ff6b6b;
+            border: 4px solid #000;
+            width: 50px;
+            height: 50px;
+            cursor: pointer;
+            box-shadow: 4px 4px 0 #000;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 900;
+        }
+        
+        .burger-menu:hover {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0 #000;
+        }
+        
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+        }
+        
+        .sidebar-overlay.active {
+            display: block;
+        }
+        
+        @media (max-width: 1024px) {
+            .main-wrapper {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                position: static;
+                max-height: none;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .burger-menu {
+                display: flex;
+            }
+            
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: -100%;
+                width: 280px;
+                height: 100vh;
+                z-index: 1002;
+                transition: left 0.3s ease;
+                max-height: 100vh;
+                overflow-y: auto;
+            }
+            
+            .sidebar.active {
+                left: 0;
+            }
+            
+            body {
+                padding: 80px 10px 10px 10px;
+            }
         }
         
         .header {
@@ -194,12 +340,14 @@
         }
         
         .header h1 {
-            font-size: clamp(20px, 3.5vw, 36px);
+            font-size: clamp(12.6px, 2.2vw, 22.68px);
             font-weight: 900;
             margin-bottom: 5px;
             text-transform: uppercase;
             letter-spacing: -1px;
             animation: textDance 2s ease-in-out infinite;
+            text-align: left;
+            line-height: 1.2;
         }
         
         .header .subtitle {
@@ -973,7 +1121,7 @@
         
         @media (max-width: 768px) {
             body {
-                padding: 10px;
+                padding: 80px 10px 10px 10px;
             }
             
             .container {
@@ -1015,9 +1163,48 @@
     <!-- /Yandex.Metrika counter -->
 </head>
 <body>
-    <div class="container">
+    <div class="burger-menu" id="burgerMenu" onclick="toggleSidebar()">☰</div>
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+    
+    <div class="main-wrapper">
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-title">⚙️ настройки</div>
+            
+            <div class="sidebar-group">
+                <label class="sidebar-checkbox">
+                    <input type="checkbox" id="extract_screenshots" name="extract_screenshots">
+                    <span>вынуть скрины из видео (1 раз в минуту)</span>
+                </label>
+            </div>
+            
+            <div class="sidebar-group">
+                <label for="whisper_model">модель для транскрибации:</label>
+                <select id="whisper_model" name="whisper_model">
+                    <option value="base" selected>Base (баланс, по умолчанию)</option>
+                    <option value="tiny">Tiny (быстрая, низкое качество)</option>
+                    <option value="small">Small (хорошее качество)</option>
+                    <option value="medium">Medium (высокое качество)</option>
+                    <option value="large-v2">Large-v2 (лучшее качество, медленно)</option>
+                    <option value="large-v3">Large-v3 (лучшее качество, медленно)</option>
+                </select>
+                <div class="info-text">выберите модель: быстрая = меньше точность, медленная = больше точность</div>
+            </div>
+            
+            <div class="sidebar-group">
+                <label for="signature">подпись (необязательно):</label>
+                <input type="text" id="signature" name="signature" placeholder="введите подпись...">
+            </div>
+            
+            <div class="sidebar-group">
+                <label for="password_phrase">фраза-пароль (необязательно):</label>
+                <input type="text" id="password_phrase" name="password_phrase" placeholder="введите фразу-пароль для защиты..." value="{% if is_logged_in %}{{ active_phrase }}{% endif %}">
+                <div class="info-text">если указать фразу-пароль, транскрипция будет видна только тем, кто войдет по этой фразе</div>
+            </div>
+        </div>
+        
+        <div class="container">
         <div class="header">
-            <h1>честная транскрибация ваших переговоров</h1>
+            <h1>честная транскрибация<br>переговоров</h1>
             <div class="subtitle">переведём ваше аудио или вкс видео в текст. честный перевод, без регистрации и сис</div>
             <div class="donate-wrapper">
                 <button class="donate-btn" onclick="showDonateModal()">💚 донать по СПБ</button>
@@ -1051,35 +1238,6 @@
                         <input type="file" id="file" name="file" accept="audio/*,video/*" multiple required style="display: none;">
                         <div class="file-list" id="fileList"></div>
                     </div>
-                    <div class="form-group">
-                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                            <input type="checkbox" id="extract_screenshots" name="extract_screenshots" style="width: auto; height: 20px; cursor: pointer;">
-                            <span>вынуть скрины из видео (1 раз в минуту)</span>
-                        </label>
-                    </div>
-                    <div class="form-group">
-                        <label for="whisper_model">модель для транскрибации:</label>
-                        <select id="whisper_model" name="whisper_model" style="width: 100%; padding: 12px; border: 4px solid #000; font-weight: 700; font-size: 16px; background: #fff;">
-                            <option value="base" selected>Base (баланс, по умолчанию)</option>
-                            <option value="tiny">Tiny (быстрая, низкое качество)</option>
-                            <option value="small">Small (хорошее качество)</option>
-                            <option value="medium">Medium (высокое качество)</option>
-                            <option value="large-v2">Large-v2 (лучшее качество, медленно)</option>
-                            <option value="large-v3">Large-v3 (лучшее качество, медленно)</option>
-                        </select>
-                        <div class="info-text" style="margin-top: 5px;">выберите модель: быстрая = меньше точность, медленная = больше точность</div>
-                    </div>
-                    <div class="form-group" style="display: flex; gap: 15px; align-items: flex-end;">
-                        <div style="flex: 1;">
-                            <label for="signature">подпись (необязательно):</label>
-                            <input type="text" id="signature" name="signature" placeholder="введите подпись...">
-                        </div>
-                        <div style="flex: 1;">
-                            <label for="password_phrase">фраза-пароль (необязательно):</label>
-                            <input type="text" id="password_phrase" name="password_phrase" placeholder="введите фразу-пароль для защиты...">
-                        </div>
-                    </div>
-                    <div class="info-text" style="margin-top: 5px; margin-bottom: 15px;">если указать фразу-пароль, транскрипция будет видна только тем, кто войдет по этой фразе</div>
                     <button type="submit" class="btn" id="submitBtn">
                         <span id="btnText">загрузить и транскрибировать</span>
                         <span id="btnSpinner" style="display: none;" class="spinner"></span>
@@ -1480,6 +1638,13 @@
             const sizes = ['Bytes', 'KB', 'MB', 'GB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+        
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
         }
         
         // Управление информацией о диске

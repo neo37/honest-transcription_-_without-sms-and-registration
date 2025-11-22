@@ -16,28 +16,39 @@ import shutil
 logger = logging.getLogger(__name__)
 
 
-# Глобальная переменная для модели Whisper (загружается один раз)
-whisper_model = None
+# Кэш моделей Whisper (загружаются по требованию)
+whisper_models_cache = {}
 model_lock = threading.Lock()
 
 
-def get_whisper_model():
-    """Получить или загрузить модель Whisper"""
+def get_whisper_model(model_name='base'):
+    """Получить модель Whisper (загружается по требованию, кэшируется)"""
     import logging
     logger = logging.getLogger(__name__)
     
-    global whisper_model
-    if whisper_model is None:
+    global whisper_models_cache
+    
+    if model_name not in whisper_models_cache:
         with model_lock:
-            if whisper_model is None:
-                # Используем базовую модель для скорости (можно изменить на base, small, medium, large)
-                # Для слабого сервера используем base или small
-                # compute_type="int8" - быстрее, но менее точно
-                # compute_type="float16" - медленнее, но точнее (если есть GPU)
-                logger.info("Загрузка модели Whisper...")
-                whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
-                logger.info("Модель Whisper загружена")
-    return whisper_model
+            if model_name not in whisper_models_cache:
+                logger.info(f"Загрузка модели Whisper: {model_name}...")
+                try:
+                    whisper_models_cache[model_name] = WhisperModel(
+                        model_name, 
+                        device="cpu", 
+                        compute_type="int8"
+                    )
+                    logger.info(f"Модель Whisper {model_name} загружена")
+                except Exception as e:
+                    logger.error(f"Ошибка загрузки модели {model_name}: {e}")
+                    # Fallback на base если модель не загрузилась
+                    if model_name != 'base':
+                        logger.info("Используем модель base как fallback")
+                        whisper_models_cache[model_name] = get_whisper_model('base')
+                    else:
+                        raise
+    
+    return whisper_models_cache[model_name]
 
 
 def index(request):
@@ -78,7 +89,7 @@ def index(request):
     return render(request, 'transcribe/index.html', {
         'transcriptions': transcriptions,
         'is_logged_in': active_password_phrase is not None,
-        'active_phrase': active_password_phrase,
+        'active_phrase': active_password_phrase if active_password_phrase else '',
         'disk_info': disk_info
     })
 

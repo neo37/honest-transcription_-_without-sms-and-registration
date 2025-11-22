@@ -31,11 +31,49 @@ db.sqlite3
 db.sqlite3-journal
 /staticfiles/
 /media/
+/var/www/
 
 # Whisper models cache
+.cache/
+*.cache
 .cache/huggingface/
 .cache/motd.legal-displayed
 .cache/pip/
+
+# Large files and models
+*.bin
+*.pt
+*.pth
+*.onnx
+*.h5
+*.pb
+*.tflite
+*.model
+models/
+checkpoints/
+weights/
+
+# Media files
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.mp3
+*.wav
+*.flac
+*.ogg
+*.m4a
+*.wma
+*.aac
+*.webm
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+*.gz
 
 # IDE
 .vscode/
@@ -52,4 +90,6 @@ Thumbs.db
 *.tmp
 *.temp
 temp_repo/
+*.bak
+*.backup
 
