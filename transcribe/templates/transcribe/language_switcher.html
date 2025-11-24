@@ -1,0 +1,17 @@
+{% load i18n %}
+<div class="language-switcher" style="position: fixed; top: 20px; right: 20px; z-index: 10000; background: #fff; border: 4px solid #000; box-shadow: 4px 4px 0 #000; padding: 10px; display: flex; gap: 10px; align-items: center; font-family: Arial, sans-serif;">
+    <form action="{% url 'set_language' %}" method="post" style="margin: 0; display: flex; gap: 10px; align-items: center;">
+        {% csrf_token %}
+        <input name="next" type="hidden" value="{{ request.path }}" />
+        <label style="font-weight: 700; font-size: 14px; color: #000; margin-right: 5px;">🌐</label>
+        <select name="language" onchange="this.form.submit()" style="padding: 8px 12px; border: 3px solid #000; font-weight: 700; font-size: 14px; background: #fff; cursor: pointer; text-transform: uppercase; min-width: 120px;">
+            {% get_current_language as CURRENT_LANGUAGE %}
+            {% get_available_languages as LANGUAGES %}
+            {% for lang_code, lang_name in LANGUAGES %}
+                <option value="{{ lang_code }}" {% if lang_code == CURRENT_LANGUAGE %}selected{% endif %}>
+                    {% if lang_code == 'ru' %}🇷🇺 Русский{% else %}🇬🇧 English{% endif %}
+                </option>
+            {% endfor %}
+        </select>
+    </form>
+</div>

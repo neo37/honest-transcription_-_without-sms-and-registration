@@ -1,0 +1,253 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-11-24 05:08+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=4; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
+"n%10<=4 && (n%100<12 || n%100>14) ? 1 : n%10==0 || (n%10>=5 && n%10<=9) || "
+"(n%100>=11 && n%100<=14)? 2 : 3);\n"
+
+#: transcribe/templates/transcribe/detail.html:503
+msgid "назад"
+msgstr "назад"
+
+#: transcribe/templates/transcribe/detail.html:504
+msgid "для навигации"
+msgstr "для навигации"
+
+#: transcribe/templates/transcribe/detail.html:512
+msgid "копировать ссылку"
+msgstr "копировать ссылку"
+
+#: transcribe/templates/transcribe/detail.html:570
+msgid "предыдущая"
+msgstr "предыдущая"
+
+#: transcribe/templates/transcribe/detail.html:571
+msgid "следующая"
+msgstr "следующая"
+
+#: transcribe/templates/transcribe/index.html:8
+#, fuzzy
+#| msgid "честная транскрибация"
+msgid "Честная транскрибация ваших переговоров"
+msgstr "честная транскрибация"
+
+#: transcribe/templates/transcribe/index.html:1017
+msgid "настройки"
+msgstr "настройки"
+
+#: transcribe/templates/transcribe/index.html:1022
+msgid "вынуть скрины из видео (1 раз в минуту)"
+msgstr "вынуть скрины из видео (1 раз в минуту)"
+
+#: transcribe/templates/transcribe/index.html:1027
+msgid "модель для транскрибации:"
+msgstr "модель для транскрибации:"
+
+#: transcribe/templates/transcribe/index.html:1029
+msgid "Base (баланс, по умолчанию)"
+msgstr "Base (баланс, по умолчанию)"
+
+#: transcribe/templates/transcribe/index.html:1030
+msgid "Tiny (быстрая, низкое качество)"
+msgstr "Tiny (быстрая, низкое качество)"
+
+#: transcribe/templates/transcribe/index.html:1031
+msgid "Small (хорошее качество)"
+msgstr "Small (хорошее качество)"
+
+#: transcribe/templates/transcribe/index.html:1032
+msgid "Medium (высокое качество)"
+msgstr "Medium (высокое качество)"
+
+#: transcribe/templates/transcribe/index.html:1033
+msgid "Large-v2 (лучшее качество, медленно)"
+msgstr "Large-v2 (лучшее качество, медленно)"
+
+#: transcribe/templates/transcribe/index.html:1034
+msgid "Large-v3 (лучшее качество, медленно)"
+msgstr "Large-v3 (лучшее качество, медленно)"
+
+#: transcribe/templates/transcribe/index.html:1036
+msgid "выберите модель: быстрая = меньше точность, медленная = больше точность"
+msgstr "выберите модель: быстрая = меньше точность, медленная = больше точность"
+"выберите модель: быстрая = меньше точность, медленная = больше точность"
+
+#: transcribe/templates/transcribe/index.html:1040
+msgid "подпись (необязательно):"
+msgstr "подпись (необязательно):"
+
+#: transcribe/templates/transcribe/index.html:1041
+msgid "введите подпись..."
+msgstr "введите подпись..."
+
+#: transcribe/templates/transcribe/index.html:1045
+msgid "фраза-пароль (необязательно):"
+msgstr "фраза-пароль (необязательно):"
+
+#: transcribe/templates/transcribe/index.html:1046
+msgid "введите фразу-пароль для защиты..."
+msgstr "введите фразу-пароль для защиты..."
+
+#: transcribe/templates/transcribe/index.html:1047
+msgid ""
+"если указать фразу-пароль, транскрипция будет видна только тем, кто войдет "
+"по этой фразе"
+msgstr ""
+
+#: transcribe/templates/transcribe/index.html:1053
+msgid "честная транскрибация"
+msgstr "честная транскрибация"
+
+#: transcribe/templates/transcribe/index.html:1053
+msgid "переговоров"
+msgstr "переговоров"
+
+#: transcribe/templates/transcribe/index.html:1054
+msgid ""
+"переведём ваше аудио или вкс видео в текст. честный перевод, без регистрации "
+"и сис"
+msgstr ""
+
+#: transcribe/templates/transcribe/index.html:1066
+#: transcribe/templates/transcribe/index.html:1292
+msgid "перетащите файлы сюда"
+msgstr "перетащите файлы сюда"
+
+#: transcribe/templates/transcribe/index.html:1067
+#: transcribe/templates/transcribe/index.html:1292
+msgid "или нажмите для выбора"
+msgstr "или нажмите для выбора"
+
+#: transcribe/templates/transcribe/index.html:1073
+#: transcribe/templates/transcribe/index.html:1450
+msgid "загрузить и транскрибировать"
+msgstr "загрузить и транскрибировать"
+
+#: transcribe/templates/transcribe/index.html:1082
+msgid "вход по фразе-паролю"
+msgstr "вход по фразе-паролю"
+
+#: transcribe/templates/transcribe/index.html:1084
+msgid "вход:"
+msgstr "вход:"
+
+#: transcribe/templates/transcribe/index.html:1091
+msgid "фраза-пароль:"
+msgstr "фраза-пароль:"
+
+#: transcribe/templates/transcribe/index.html:1092
+msgid "введите фразу..."
+msgstr "введите фразу..."
+
+#: transcribe/templates/transcribe/index.html:1094
+msgid "войти"
+msgstr "войти"
+
+#: transcribe/templates/transcribe/index.html:1096
+msgid ""
+"войдите по фразе-паролю, чтобы видеть только транскрипции, загруженные с "
+"этой фразой"
+msgstr ""
+
+#: transcribe/templates/transcribe/index.html:1101
+msgid "вы вошли по фразе-паролю. видны только транскрипции с этой фразой."
+msgstr "вы вошли по фразе-паролю. видны только транскрипции с этой фразой."
+
+#: transcribe/templates/transcribe/index.html:1103
+msgid "выйти"
+msgstr "выйти"
+
+#: transcribe/templates/transcribe/index.html:1123
+#: transcribe/templates/transcribe/index.html:1145
+#: transcribe/templates/transcribe/index.html:1403
+msgid "обрабатывается"
+msgstr "обрабатывается"
+
+#: transcribe/templates/transcribe/index.html:1136
+msgid "последние транскрипции"
+msgstr "последние транскрипции"
+
+#: transcribe/templates/transcribe/index.html:1144
+msgid "ожидает"
+msgstr "ожидает"
+
+#: transcribe/templates/transcribe/index.html:1146
+#: transcribe/templates/transcribe/index.html:1424
+msgid "завершено"
+msgstr "завершено"
+
+#: transcribe/templates/transcribe/index.html:1147
+#: transcribe/templates/transcribe/index.html:1174
+#: transcribe/templates/transcribe/index.html:1370
+#: transcribe/templates/transcribe/index.html:1373
+#: transcribe/templates/transcribe/index.html:1379
+#: transcribe/templates/transcribe/index.html:1388
+#: transcribe/templates/transcribe/index.html:1434
+#: transcribe/templates/transcribe/index.html:1436
+#: transcribe/templates/transcribe/index.html:1437
+#: transcribe/templates/transcribe/index.html:1522
+#: transcribe/templates/transcribe/index.html:1527
+#: transcribe/templates/transcribe/index.html:1590
+#: transcribe/templates/transcribe/index.html:1593
+#: transcribe/templates/transcribe/index.html:1622
+#: transcribe/templates/transcribe/index.html:1625
+msgid "ошибка"
+msgstr "ошибка"
+
+#: transcribe/templates/transcribe/index.html:1164
+msgid "читать полностью →"
+msgstr "читать полностью →"
+
+#: transcribe/templates/transcribe/index.html:1165
+msgid "скачать текст"
+msgstr "скачать текст"
+
+#: transcribe/templates/transcribe/index.html:1181
+msgid "пока нет транскрипций. загрузите первый файл!"
+msgstr "пока нет транскрипций. загрузите первый файл!"
+
+#: transcribe/templates/transcribe/index.html:1190
+msgid "свободно на диске"
+msgstr "свободно на диске"
+
+#: transcribe/templates/transcribe/index.html:1200
+msgid "использовано:"
+msgstr "использовано:"
+
+#: transcribe/templates/transcribe/index.html:1202
+msgid "очистить весь диск"
+msgstr "очистить весь диск"
+
+#: transcribe/templates/transcribe/index.html:1209
+msgid "очистка диска"
+msgstr "очистка диска"
+
+#: transcribe/templates/transcribe/index.html:1210
+msgid "введите пароль суперадмина для подтверждения:"
+msgstr "введите пароль суперадмина для подтверждения:"
+
+#: transcribe/templates/transcribe/index.html:1211
+msgid "пароль суперадмина"
+msgstr "пароль суперадмина"
+
+#: transcribe/templates/transcribe/index.html:1213
+msgid "очистить"
+msgstr "очистить"
+
+#: transcribe/templates/transcribe/index.html:1214
+msgid "отмена"
+msgstr "отмена"
