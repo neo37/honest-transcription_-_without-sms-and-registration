@@ -1,0 +1,16 @@
+[Unit]
+Description=Image Generator API
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/image_generator
+Environment="PATH=/root/image_generator/venv/bin"
+ExecStart=/root/image_generator/venv/bin/uvicorn app:app --host 0.0.0.0 --port 8001
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+
