@@ -57,7 +57,7 @@
 ### Способ 2: Через командную строку
 
 ```bash
-./run_visual_tests_local.sh
+./scripts/run_visual_tests_local.sh
 ```
 
 ### Способ 3: Напрямую через pytest

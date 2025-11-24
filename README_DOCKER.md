@@ -24,7 +24,7 @@ docker-compose up -d
 # Запустить все тесты с отчётом
 make test-report
 # или
-./run_tests.sh
+./scripts/run_tests.sh
 
 # Или просто запустить тесты
 make test

@@ -5,7 +5,7 @@
 ### 1. Остановка существующих контейнеров
 
 ```bash
-./stop_containers.sh
+./scripts/stop_containers.sh
 ```
 
 ### 2. Запуск приложения
@@ -34,7 +34,7 @@ docker-compose up -d web
 docker-compose run --rm test
 
 # Или через скрипт
-./run_tests.sh
+./scripts/run_tests.sh
 ```
 
 ## Визуальные тесты (Selenium)

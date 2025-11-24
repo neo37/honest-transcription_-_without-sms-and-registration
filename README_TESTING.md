@@ -79,7 +79,7 @@ pytest transcribe/tests/ --html=test-reports/report.html --self-contained-html -
 docker-compose run --rm test
 
 # Или через скрипт
-./run_tests.sh
+./scripts/run_tests.sh
 ```
 
 ## Структура тестов

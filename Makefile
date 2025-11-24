@@ -23,7 +23,7 @@ test:
 	docker-compose run --rm test
 
 test-report:
-	./run_tests.sh
+	./scripts/run_tests.sh
 
 migrate:
 	docker-compose run --rm web python manage.py migrate
