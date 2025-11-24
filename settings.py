@@ -24,9 +24,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-2^@h4ith$3#5v7wqxd%=+#-gl0%v!3z6we$d6@$6=_#jrhm@2q'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = ['*', 'audio.repa.rest', 'voice.repa.rest', '91.84.124.245']
+ALLOWED_HOSTS = ["voice.repa.rest", "91.84.124.245", "localhost"]
 
 # Настройки для работы за прокси (Nginx)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -126,9 +126,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
-STATIC_ROOT = '/var/www/staticfiles'
+STATIC_ROOT = "/var/www/staticfiles"
 
-MEDIA_ROOT = '/var/www/media'
+MEDIA_ROOT = "/var/www/media"
 MEDIA_URL = '/media/'
 
 # Создаем директорию для скриншотов если её нет
