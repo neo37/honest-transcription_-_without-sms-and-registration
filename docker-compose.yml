@@ -1,0 +1,56 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: whisper-transcribe-web
+    container_name: whisper_transcribe_web
+    restart: unless-stopped
+    volumes:
+      - .:/app  # Монтируем весь код для hot-reload
+      - ./db.sqlite3:/app/db.sqlite3
+      - ./media:/app/media
+      - ./staticfiles:/app/staticfiles
+      - /tmp:/tmp  # Для скриншотов визуальных тестов
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=django-insecure-dev-key-change-in-production
+      - PYTHONUNBUFFERED=1
+      - DJANGO_SETTINGS_MODULE=whisper_transcribe.settings
+    command: python manage.py runserver 0.0.0.0:8000 --noreload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: whisper_transcribe_test
+    volumes:
+      - .:/app
+      - ./test-results:/app/test-results
+      - ./test-reports:/app/test-reports
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=django-insecure-test-key
+      - PYTHONUNBUFFERED=1
+      - DJANGO_SETTINGS_MODULE=whisper_transcribe.settings
+    command: >
+      sh -c "
+        python manage.py migrate --noinput &&
+        python manage.py collectstatic --noinput &&
+        pytest transcribe/tests/ --verbose --junitxml=test-results/junit.xml --html=test-reports/report.html --self-contained-html --cov=transcribe --cov-report=html:test-reports/coverage --cov-report=term || exit 1
+      "
+    profiles:
+      - test
+
+volumes:
+  media:
+  staticfiles:
+

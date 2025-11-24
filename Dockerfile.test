@@ -1,0 +1,33 @@
+FROM python:3.11-slim
+
+# Установка системных зависимостей
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Создание рабочей директории
+WORKDIR /app
+
+# Копирование requirements
+COPY requirements.txt /app/
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Копирование dev requirements
+COPY requirements-dev.txt /app/
+RUN pip install --no-cache-dir -r requirements-dev.txt
+
+# Копирование кода приложения
+COPY . /app/
+
+# Создание директорий для медиа, статики и отчётов
+RUN mkdir -p /app/media/screenshots /app/staticfiles /app/test-results /app/test-reports
+
+# Установка прав
+RUN chmod +x /app/manage.py
+
+# Команда по умолчанию для тестов
+CMD ["pytest", "transcribe/tests/", "--verbose"]
+
+

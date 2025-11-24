@@ -1,0 +1,1024 @@
+{% load i18n %}
+{% load static %}
+<!DOCTYPE html>
+{% get_current_language as CURRENT_LANGUAGE %}
+<html lang="{{ CURRENT_LANGUAGE }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="{% static 'transcribe/favicon.ico' %}">
+    <link rel="icon" type="image/png" href="{% static 'transcribe/favicon.png' %}">
+    <title>{{ transcription.filename }} - Транскрипция</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Arial Black', Arial, sans-serif;
+            background: #000;
+            color: #fff;
+            overflow-x: hidden;
+        }
+        
+        .comic-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .slide {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            transition: opacity 0.5s ease;
+        }
+        
+        .slide.active {
+            display: flex;
+            z-index: 10;
+        }
+        
+        .slide.prev {
+            display: flex;
+            z-index: 5;
+            opacity: 0;
+        }
+        
+        .slide.next {
+            display: flex;
+            z-index: 5;
+            opacity: 0;
+        }
+        .nav-btn {
+            position: fixed;
+            bottom: 20px;
+            padding: 20px 30px;
+            font-size: 18px;
+            font-weight: 900;
+            border: 4px solid #000;
+            background: #fff;
+            color: #000;
+            cursor: pointer;
+            z-index: 1000;
+            box-shadow: 4px 4px 0 #000;
+            transition: all 0.1s;
+            min-width: 120px;
+            min-height: 60px;
+            touch-action: manipulation;
+        }
+        
+        
+        
+        .nav-btn.next {
+            right: 20px;
+        }
+        
+        .nav-btn:hover:not(:disabled) {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0 #000;
+        }
+        
+        .nav-btn:active:not(:disabled) {
+            transform: translate(4px, 4px);
+            box-shadow: 0 0 0 #000;
+        }
+        
+        .nav-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        
+        .slide-content {
+            max-width: 1200px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            align-items: center;
+        }
+        
+        .slide-image {
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+            max-height: 60vh;
+            object-fit: contain;
+            border: 6px solid #fff;
+            box-shadow: 0 0 30px rgba(255,255,255,0.3);
+            border-radius: 10px;
+            background: #000;
+        }
+        
+        .slide-text {
+            background: rgba(255,255,255,0.95);
+            color: #000;
+            padding: 30px 40px;
+            border-radius: 20px;
+            font-size: clamp(18px, 3vw, 28px);
+            font-weight: 700;
+            line-height: 1.6;
+            text-align: center;
+            border: 4px solid #000;
+            box-shadow: 8px 8px 0 #000;
+            max-width: 900px;
+            width: 100%;
+            position: relative;
+        }
+        
+        .slide-text::before {
+            content: '"';
+            font-size: 120px;
+            position: absolute;
+            top: -40px;
+            left: 20px;
+            color: rgba(0,0,0,0.1);
+            font-family: serif;
+        }
+        
+        .slide-number {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #ff6b6b;
+            color: #000;
+            padding: 10px 20px;
+            border: 4px solid #000;
+            font-weight: 900;
+            font-size: 20px;
+            box-shadow: 4px 4px 0 #000;
+        }
+        
+        .navigation {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            z-index: 100;
+        }
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        .slide-counter {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: #fff;
+            padding: 10px 20px;
+            border: 3px solid #fff;
+            font-weight: 700;
+            font-size: 16px;
+            z-index: 100;
+        }
+        
+        .back-link {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: #fff;
+            color: #000;
+            padding: 12px 24px;
+            border: 4px solid #000;
+            text-decoration: none;
+            font-weight: 900;
+            font-size: 16px;
+            box-shadow: 4px 4px 0 #000;
+            z-index: 100;
+            transition: all 0.1s;
+        }
+        
+        .back-link:hover {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0 #000;
+        }
+        
+        .timestamp {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.8);
+            color: #fff;
+            padding: 8px 16px;
+            border: 2px solid #fff;
+            font-weight: 700;
+            font-size: 14px;
+        }
+        
+        @media (max-width: 768px) {
+            .comic-container {
+                overflow-x: hidden;
+            }
+            
+            .slide {
+                padding: 15px;
+                justify-content: flex-start;
+                padding-top: 60px;
+            }
+            
+            .slide-content {
+                max-width: 100%;
+                gap: 20px;
+            }
+            
+            .slide-text {
+                padding: 20px 15px;
+                font-size: clamp(16px, 4vw, 20px);
+                line-height: 1.5;
+                max-width: 100%;
+            }
+            
+            .slide-image {
+                max-width: 100%;
+                max-height: 40vh;
+                border-width: 4px;
+            }
+            
+            .slide-number {
+                top: 10px;
+                right: 10px;
+                padding: 6px 12px;
+                font-size: 14px;
+                border-width: 3px;
+            }
+            
+            
+            
+            .navigation {
+                bottom: 15px;
+                flex-direction: column;
+                width: 90%;
+                max-width: 300px;
+            }
+            
+            
+            
+            .slide-counter {
+                bottom: 120px;
+                font-size: 14px;
+                padding: 8px 16px;
+            }
+            
+            .back-link {
+                top: 10px;
+                left: 10px;
+                padding: 8px 16px;
+                font-size: 14px;
+                border-width: 3px;
+            }
+            
+            .keyboard-hint {
+                top: 10px;
+                right: 10px;
+                padding: 8px 12px;
+                font-size: 10px;
+                border-width: 2px;
+            }
+            
+            .share-section {
+                top: 50px;
+                left: 10px;
+                right: 10px;
+                max-width: none;
+                width: auto;
+                padding: 12px;
+            }
+            
+            .share-title {
+                font-size: 12px;
+            }
+            
+            .share-url {
+                font-size: 10px;
+                padding: 8px;
+            }
+            
+            .share-btn {
+                padding: 6px 12px;
+                font-size: 11px;
+            }
+            
+            .download-buttons {
+                top: 50px;
+                right: 10px;
+                max-width: 150px;
+            }
+            
+            .download-btn {
+                padding: 8px 12px;
+                font-size: 11px;
+                border-width: 3px;
+            }
+            
+            .timestamp {
+                bottom: 10px;
+                left: 10px;
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .slide {
+                padding: 10px;
+                padding-top: 50px;
+            }
+            
+            .slide-text {
+                padding: 15px 12px;
+                font-size: 16px;
+            }
+            
+            .slide-image {
+                max-height: 35vh;
+            }
+            
+            
+            
+            .slide-counter {
+                bottom: 110px;
+                font-size: 12px;
+            }
+            
+            .share-section {
+                top: 40px;
+                padding: 10px;
+            }
+            
+            .download-buttons {
+                top: 40px;
+                right: 5px;
+                max-width: 140px;
+            }
+        }
+        
+        .keyboard-hint {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            color: #fff;
+            padding: 10px 15px;
+            border: 2px solid #fff;
+            font-size: 12px;
+            font-weight: 600;
+            z-index: 100;
+        }
+        
+        .share-section {
+            position: fixed;
+            top: 120px;
+            left: 20px;
+            background: rgba(0,0,0,0.9);
+            color: #fff;
+            padding: 15px;
+            border: 4px solid #fff;
+            z-index: 100;
+            max-width: 300px;
+        }
+        
+        .share-title {
+            font-weight: 900;
+            margin-bottom: 10px;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+        
+        .share-url {
+            background: #000;
+            color: #6bcf7f;
+            padding: 10px;
+            border: 2px solid #fff;
+            font-size: 12px;
+            word-break: break-all;
+            margin-bottom: 10px;
+            font-family: monospace;
+        }
+        
+        .share-btn {
+            background: #6bcf7f;
+            color: #000;
+            border: 3px solid #000;
+            padding: 8px 15px;
+            font-weight: 900;
+            font-size: 12px;
+            cursor: pointer;
+            text-transform: uppercase;
+            width: 100%;
+            box-shadow: 3px 3px 0 #000;
+        }
+        
+        .share-btn:hover {
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0 #000;
+        }
+        
+        .download-buttons {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 100;
+        }
+        
+        .download-btn {
+            background: #6bcf7f;
+            color: #000;
+            padding: 12px 20px;
+            border: 4px solid #000;
+            text-decoration: none;
+            font-weight: 900;
+            font-size: 14px;
+            text-transform: uppercase;
+            box-shadow: 4px 4px 0 #000;
+            transition: all 0.1s;
+            white-space: nowrap;
+        }
+        
+        .download-btn:hover {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0 #000;
+        }
+        
+        .download-btn.download-text {
+            background: #4d9de0;
+        }
+        
+        .download-btn.download-images {
+            background: #ffd93d;
+        }
+        
+        .download-btn.download-session {
+            background: #ff6b6b;
+        }
+    
+        @media (max-width: 768px) {
+            .nav-btn {
+                bottom: 15px !important;
+                padding: 30px 25px !important;
+                font-size: 22px !important;
+                min-width: 150px !important;
+                min-height: 80px !important;
+                border-width: 5px !important;
+            }
+            
+            
+            
+            .nav-btn.next {
+                right: 15px !important;
+            }
+        }
+
+        
+
+        .nav-btn.prev {
+            display: none !important;
+            visibility: hidden !important;
+        }
+        
+        /* Центрируем кнопку next, так как prev скрыта */
+        .navigation {
+            justify-content: center !important;
+        }
+        
+        .nav-btn.next {
+            position: fixed !important;
+            bottom: 20px !important;
+            right: auto !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+        }
+        
+        /* Бургер-меню */
+        .burger-menu {
+            display: none;
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 2000;
+            background: #fff;
+            border: 4px solid #000;
+            width: 50px;
+            height: 50px;
+            cursor: pointer;
+            box-shadow: 4px 4px 0 #000;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 900;
+            color: #000;
+        }
+        
+        .burger-menu:hover {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0 #000;
+        }
+        
+        .burger-menu.active {
+            background: #ff6b6b;
+        }
+        
+        .mobile-menu {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 1999;
+            overflow-y: auto;
+            padding: 80px 20px 20px 20px;
+        }
+        
+        .mobile-menu.active {
+            display: block;
+        }
+        
+        .mobile-menu-content {
+            background: #fff;
+            color: #000;
+            padding: 30px;
+            border: 4px solid #000;
+            box-shadow: 8px 8px 0 #000;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        
+        .mobile-menu-section {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #000;
+        }
+        
+        .mobile-menu-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        
+        .mobile-menu-title {
+            font-weight: 900;
+            font-size: 18px;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+            color: #000;
+        }
+        
+        .mobile-menu-item {
+            display: block;
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            background: #f5f5f5;
+            border: 3px solid #000;
+            text-decoration: none;
+            color: #000;
+            font-weight: 700;
+            font-size: 14px;
+            transition: all 0.1s;
+        }
+        
+        .mobile-menu-item:hover {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0 #000;
+            background: #ffd93d;
+        }
+        
+        .mobile-menu-btn {
+            width: 100%;
+            padding: 12px;
+            border: 3px solid #000;
+            font-weight: 900;
+            text-transform: uppercase;
+            cursor: pointer;
+            background: #6bcf7f;
+            color: #000;
+            margin-top: 10px;
+        }
+        
+        .mobile-menu-btn:hover {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0 #000;
+        }
+        
+        .mobile-menu-url {
+            background: #000;
+            color: #6bcf7f;
+            padding: 10px;
+            border: 2px solid #000;
+            font-size: 11px;
+            word-break: break-all;
+            margin-bottom: 10px;
+            font-family: monospace;
+        }
+        
+        @media (max-width: 768px) {
+            .nav-btn.next {
+                bottom: 15px !important;
+                min-width: 200px !important;
+                min-height: 80px !important;
+                font-size: 24px !important;
+            }
+            
+            /* Показываем бургер-меню на мобильных */
+            .burger-menu {
+                display: flex;
+            }
+            
+            /* Скрываем навигационные элементы на мобильных */
+            .back-link,
+            .keyboard-hint,
+            .share-section,
+            .download-buttons,
+            .slide-counter,
+            .language-switcher {
+                display: none !important;
+            }
+            
+            /* Показываем их только в меню */
+            .mobile-menu .back-link,
+            .mobile-menu .keyboard-hint,
+            .mobile-menu .share-section,
+            .mobile-menu .download-buttons,
+            .mobile-menu .slide-counter {
+                display: block !important;
+                position: static !important;
+                transform: none !important;
+                margin-bottom: 15px;
+            }
+        }
+</style>
+</head>
+<body>
+    {% include 'transcribe/language_switcher.html' %}
+    
+    <!-- Бургер-меню для мобильных -->
+    <div class="burger-menu" id="burgerMenu" onclick="toggleMobileMenu()">☰</div>
+    
+    <!-- Мобильное меню -->
+    <div class="mobile-menu" id="mobileMenu">
+        <div class="mobile-menu-content">
+            <!-- Переключение языка -->
+            <div class="mobile-menu-section">
+                <div class="mobile-menu-title">🌐 {% trans "язык" %}</div>
+                <form action="{% url 'set_language' %}" method="post" style="margin: 0;">
+                    {% csrf_token %}
+                    <input name="next" type="hidden" value="{{ request.path }}" />
+                    <select name="language" onchange="this.form.submit()" style="width: 100%; padding: 12px 15px; border: 3px solid #000; font-weight: 700; font-size: 14px; background: #fff; cursor: pointer; text-transform: uppercase; margin-top: 10px;">
+                        {% get_current_language as CURRENT_LANGUAGE %}
+                        {% get_available_languages as LANGUAGES %}
+                        {% for lang_code, lang_name in LANGUAGES %}
+                            <option value="{{ lang_code }}" {% if lang_code == CURRENT_LANGUAGE %}selected{% endif %}>
+                                {% if lang_code == 'ru' %}🇷🇺 Русский{% else %}🇬🇧 English{% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+            
+            <!-- Назад -->
+            <div class="mobile-menu-section">
+                <div class="mobile-menu-title">📍 {% trans "навигация" %}</div>
+                <a href="{% url 'index' %}" class="mobile-menu-item">← {% trans "назад" %}</a>
+                <div style="padding: 12px 15px; background: #f5f5f5; border: 3px solid #000; font-size: 12px; font-weight: 600;">
+                    ← → {% trans "для навигации" %}
+                </div>
+            </div>
+            
+            <!-- Счетчик слайдов -->
+            <div class="mobile-menu-section">
+                <div class="mobile-menu-title">📊 {% trans "прогресс" %}</div>
+                <div style="padding: 12px 15px; background: #f5f5f5; border: 3px solid #000; font-size: 16px; font-weight: 900; text-align: center;">
+                    <span id="mobileCurrentSlide">1</span> / <span id="mobileTotalSlides">{{ total_slides }}</span>
+                </div>
+            </div>
+            
+            <!-- Кнопки скачивания -->
+            <div class="mobile-menu-section">
+                <div class="mobile-menu-title">💾 {% trans "скачать" %}</div>
+                {% if is_public_access %}
+                <a href="{% url 'download_text_public' transcription.public_token %}" class="mobile-menu-item">
+                    📄 {% trans "скачать текст" %}
+                </a>
+                {% if transcription.screenshots.count > 0 %}
+                <a href="{% url 'download_screenshots_public' transcription.public_token %}" class="mobile-menu-item">
+                    🖼️ {% trans "скачать скриншоты (zip)" %}
+                </a>
+                {% endif %}
+                {% else %}
+                <a href="{% url 'download_text' transcription.id %}" class="mobile-menu-item">
+                    📄 {% trans "скачать текст" %}
+                </a>
+                {% if transcription.screenshots.count > 0 %}
+                <a href="{% url 'download_screenshots' transcription.id %}" class="mobile-menu-item">
+                    🖼️ {% trans "скачать скриншоты (zip)" %}
+                </a>
+                {% endif %}
+                {% if upload_session and related_transcriptions %}
+                <a href="{% url 'download_session_text' upload_session %}" class="mobile-menu-item">
+                    📚 {% trans "скачать весь текст сессии" %}
+                </a>
+                {% endif %}
+                {% endif %}
+            </div>
+            
+            <!-- Публичная ссылка -->
+            {% if has_password and public_url_with_password %}
+            <div class="mobile-menu-section">
+                <div class="mobile-menu-title">🔗 {% trans "поделиться ссылкой" %}</div>
+                <div style="font-size: 11px; margin-bottom: 10px; opacity: 0.8;">{% trans "ссылка с паролем (для доступа):" %}</div>
+                <div class="mobile-menu-url" id="mobileShareUrlWithPassword">{{ public_url_with_password }}</div>
+                <button class="mobile-menu-btn" onclick="copyShareUrl('mobileShareUrlWithPassword', this)">
+                    {% trans "копировать ссылку" %}
+                </button>
+            </div>
+            {% endif %}
+            
+            <!-- Логи транскрибации -->
+            {% if transcription_logs %}
+            <div class="mobile-menu-section">
+                <div class="mobile-menu-title">📋 Логи транскрибации</div>
+                <div style="background: #000; color: #6bcf7f; padding: 15px; border: 3px solid #000; font-size: 11px; font-family: monospace; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-word;">{{ transcription_logs }}</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="comic-container">
+        <!-- Десктопные элементы (скрыты на мобильных) -->
+        <a href="{% url 'index' %}" class="back-link">← {% trans "назад" %}</a>
+        <div class="keyboard-hint">← → {% trans "для навигации" %}</div>
+        
+        <!-- Секция для публичной ссылки (только с паролем) -->
+        {% if has_password and public_url_with_password %}
+        <div class="share-section">
+            <div class="share-title">🔗 поделиться ссылкой</div>
+            <div style="font-size: 11px; margin-bottom: 5px; opacity: 0.8;">ссылка с паролем (для доступа):</div>
+            <div class="share-url" id="shareUrlWithPassword">{{ public_url_with_password }}</div>
+            <button class="share-btn" onclick="copyShareUrl('shareUrlWithPassword', this)" style="margin-top: 5px;">{% trans "копировать ссылку" %}</button>
+        </div>
+        {% endif %}
+        
+        <!-- Логи транскрибации -->
+        {% if transcription_logs %}
+        <div class="share-section" style="top: 300px; max-height: 400px; overflow-y: auto;">
+            <div class="share-title">📋 Логи транскрибации</div>
+            <div style="background: #000; color: #6bcf7f; padding: 10px; border: 2px solid #fff; font-size: 10px; font-family: monospace; white-space: pre-wrap; word-break: break-word; max-height: 350px; overflow-y: auto;">{{ transcription_logs }}</div>
+        </div>
+        {% endif %}
+        
+        <!-- Кнопки скачивания -->
+        <div class="download-buttons">
+            {% if is_public_access %}
+            <a href="{% url 'download_text_public' transcription.public_token %}" class="download-btn download-text">
+                📄 скачать текст
+            </a>
+            {% if transcription.screenshots.count > 0 %}
+            <a href="{% url 'download_screenshots_public' transcription.public_token %}" class="download-btn download-images">
+                🖼️ скачать скриншоты (zip)
+            </a>
+            {% endif %}
+            {% else %}
+            <a href="{% url 'download_text' transcription.id %}" class="download-btn download-text">
+                📄 скачать текст
+            </a>
+            {% if transcription.screenshots.count > 0 %}
+            <a href="{% url 'download_screenshots' transcription.id %}" class="download-btn download-images">
+                🖼️ скачать скриншоты (zip)
+            </a>
+            {% endif %}
+            {% if upload_session and related_transcriptions %}
+            <a href="{% url 'download_session_text' upload_session %}" class="download-btn download-session">
+                📚 скачать весь текст сессии
+            </a>
+            {% endif %}
+            {% endif %}
+        </div>
+        
+        {% for slide in slides %}
+        <div class="slide {% if forloop.first %}active{% endif %}" data-slide="{{ slide.number }}">
+            <div class="slide-number">{{ slide.number }} / {{ total_slides }}</div>
+            
+            <div class="slide-content">
+                {% if slide.screenshot %}
+                <img src="{{ MEDIA_URL }}{{ slide.screenshot.image_path }}" 
+                     alt="Скриншот {{ slide.timestamp }}s" 
+                     class="slide-image">
+                {% if slide.timestamp %}
+                <div class="timestamp">{{ slide.timestamp|floatformat:0 }} сек</div>
+                {% endif %}
+                {% endif %}
+                
+                {% if slide.text %}
+                <div class="slide-text">{{ slide.text }}</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        
+        <div class="slide-counter">
+            <span id="currentSlide">1</span> / <span id="totalSlides">{{ total_slides }}</span>
+        </div>
+        
+        <div class="navigation">
+            
+            <button class="nav-btn next" id="nextBtn" onclick="nextSlide()">{% trans "следующая" %} →</button>
+        </div>
+    </div>
+    
+    <script>
+        let currentSlideIndex = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        const currentSlideSpan = document.getElementById('currentSlide');
+        
+        function showSlide(index) {
+            // Убираем активный класс со всех слайдов
+            slides.forEach(slide => {
+                slide.classList.remove('active', 'prev', 'next');
+            });
+            
+            // Показываем текущий слайд
+            if (slides[index]) {
+                slides[index].classList.add('active');
+            }
+            
+            // Обновляем кнопки (с проверкой на существование)
+            const prevBtnElement = document.getElementById('prevBtn');
+            const nextBtnElement = document.getElementById('nextBtn');
+            if (prevBtnElement) {
+                prevBtnElement.disabled = index === 0;
+            }
+            if (nextBtnElement) {
+                nextBtnElement.disabled = index === totalSlides - 1;
+            }
+            
+            // Обновляем счетчик
+            if (currentSlideSpan) {
+                currentSlideSpan.textContent = index + 1;
+            }
+            
+            // Обновляем счетчик в мобильном меню
+            const mobileCurrentSlide = document.getElementById('mobileCurrentSlide');
+            if (mobileCurrentSlide) {
+                mobileCurrentSlide.textContent = index + 1;
+            }
+        }
+        
+        function nextSlide() {
+            if (currentSlideIndex < totalSlides - 1) {
+                currentSlideIndex++;
+                showSlide(currentSlideIndex);
+            }
+        }
+        
+        function previousSlide() {
+            if (currentSlideIndex > 0) {
+                currentSlideIndex--;
+                showSlide(currentSlideIndex);
+            }
+        }
+        
+        // Клавиатурная навигация
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                e.preventDefault();
+                nextSlide();
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                previousSlide();
+            }
+        });
+        
+        // Инициализация
+        showSlide(0);
+        
+        // Клик по слайду для перехода вперед
+        document.querySelectorAll('.slide').forEach(slide => {
+            slide.addEventListener('click', (e) => {
+                if (e.target === slide || e.target.closest('.slide-content')) {
+                    if (currentSlideIndex < totalSlides - 1) {
+                        nextSlide();
+                    }
+                }
+            });
+        });
+        
+        // Копирование публичной ссылки
+        function copyShareUrl(elementId, btnElement) {
+            const urlElement = document.getElementById(elementId);
+            if (!urlElement) {
+                console.error('Элемент не найден:', elementId);
+                return;
+            }
+            
+            const url = urlElement.textContent.trim();
+            const btn = btnElement || document.querySelector('.share-btn');
+            
+            // Используем современный API
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(() => {
+                    const originalText = btn.textContent;
+                    btn.textContent = '✓ скопировано!';
+                    btn.style.background = '#6bcf7f';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.style.background = '#6bcf7f';
+                    }, 2000);
+                }).catch((err) => {
+                    console.error('Ошибка копирования:', err);
+                    fallbackCopy(url, btn);
+                });
+            } else {
+                // Fallback для старых браузеров
+                fallbackCopy(url, btn);
+            }
+        }
+        
+        function fallbackCopy(text, btn) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    const originalText = btn.textContent;
+                    btn.textContent = '✓ скопировано!';
+                    btn.style.background = '#6bcf7f';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.style.background = '#6bcf7f';
+                    }, 2000);
+                } else {
+                    // Показываем текст для ручного копирования
+                    prompt('Скопируйте ссылку вручную:', text);
+                }
+            } catch (err) {
+                console.error('Ошибка fallback копирования:', err);
+                prompt('Скопируйте ссылку вручную:', text);
+            }
+            
+            document.body.removeChild(textArea);
+        }
+        
+        // Управление мобильным меню
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobileMenu');
+            const burger = document.getElementById('burgerMenu');
+            menu.classList.toggle('active');
+            burger.classList.toggle('active');
+        }
+        
+        // Закрытие меню при клике вне его
+        document.getElementById('mobileMenu').addEventListener('click', function(e) {
+            if (e.target === this) {
+                toggleMobileMenu();
+            }
+        });
+        
+        // Закрытие меню по Escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const menu = document.getElementById('mobileMenu');
+                if (menu.classList.contains('active')) {
+                    toggleMobileMenu();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
+
