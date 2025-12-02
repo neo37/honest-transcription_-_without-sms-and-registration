@@ -5,9 +5,12 @@ from . import views_test
 urlpatterns = [
     path('', views.index, name='index'),
     path('upload/', views.upload_file, name='upload_file'),
+    path('upload-url/', views.upload_from_url, name='upload_from_url'),
     path('login/', views.login_with_phrase, name='login_phrase'),
     path('logout/', views.logout_phrase, name='logout_phrase'),
     path('transcription/<int:transcription_id>/', views.transcription_detail, name='transcription_detail'),
+    path('transcription/<int:transcription_id>/view/', views.transcription_view, name='transcription_view'),
+    path('public/<str:public_token>/view/', views.transcription_view, {'public_token': True}, name='transcription_view_public'),
     path('public/<str:public_token>/', views.transcription_detail, name='transcription_public'),
     path('transcription/<int:transcription_id>/status/', views.transcription_status, name='transcription_status'),
     path('transcription/<int:transcription_id>/confirm-language/', views.confirm_language, name='confirm_language'),

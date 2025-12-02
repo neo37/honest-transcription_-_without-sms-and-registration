@@ -1175,6 +1175,22 @@
         })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js?id=105456934', 'ym');
 
         ym(105456934, 'init', { ssr: true, webvisor: true, clickmap: true, ecommerce: "dataLayer", accurateTrackBounce: true, trackLinks: true });
+        // Загрузка по URL
+        const urlInput = document.getElementById('urlInput');
+        const uploadUrlBtn = document.getElementById('uploadUrlBtn');
+        const urlBtnText = document.getElementById('urlBtnText');
+        const urlBtnSpinner = document.getElementById('urlBtnSpinner');
+        
+        if (uploadUrlBtn && urlInput) {
+            function resetUrlForm() {
+                if (uploadUrlBtn) uploadUrlBtn.disabled = false;
+                if (urlBtnText) urlBtnText.textContent = 'Загрузить по ссылке';
+                if (urlBtnSpinner) urlBtnSpinner.style.display = 'none';
+            }
+            
+            uploadUrlBtn.addEventListener('click', async () => {                const url = urlInput.value.trim();                if (!url) {                    showMessage('Пожалуйста, укажите ссылку', 'error');                    return;                }                                if (userBalance !== null && userBalance === 0) {                    showPaymentModal({                        requires_payment: true,                        message: 'У вас закончился баланс транскрибаций. Для продолжения требуется оплата.'                    });                    return;                }                                uploadUrlBtn.disabled = true;                urlBtnText.textContent = 'Загрузка...';                urlBtnSpinner.style.display = 'inline-block';                message.classList.remove('active');                                // Показываем прогресс загрузки                if (uploadProgress) {                    uploadProgress.classList.add('active');                    updateUploadProgress(0, 'Скачивание файла по ссылке...');                }                                try {                    const response = await fetch('/upload-url/', {                        method: 'POST',                        headers: {                            'Content-Type': 'application/json',                            'X-CSRFToken': document.querySelector("[name=csrfmiddlewaretoken]").value                        },                        body: JSON.stringify({                            urls: [url],                            user_uuid: userUUID,                            extract_screenshots: document.getElementById('extract_screenshots')?.checked || false,                            whisper_model: document.getElementById('whisper_model')?.value || 'base'                        })                    });                                        // Обновляем прогресс                    if (uploadProgress) {                        updateUploadProgress(50, 'Файл скачан, обработка...');                    }                                        const data = await response.json();                                        if (response.status === 402 || (data.requires_payment)) {                        if (uploadProgress) uploadProgress.classList.remove('active');                        showPaymentModal(data);                        resetUrlForm();                        return;                    }                                        if (!response.ok) {                        if (uploadProgress) uploadProgress.classList.remove('active');                        throw new Error(data.error || 'Ошибка загрузки');                    }                                        if (uploadProgress) {                        updateUploadProgress(100, 'Файл успешно загружен!');                        setTimeout(() => {                            uploadProgress.classList.remove('active');                        }, 1000);                    }                                        if (data.success && data.transcription_ids && data.transcription_ids.length > 0) {                        showMessage('Файл загружен!', 'success');                        urlInput.value = '';                        startTranscriptionProgress(data.transcription_ids[0], 'Файл по ссылке', 0);                        resetUrlForm();                    } else {                        throw new Error(data.error || 'Неизвестная ошибка');                    }                } catch (error) {                    console.error('Ошибка загрузки по URL:', error);                    if (uploadProgress) {                        uploadProgress.classList.remove('active');                    }                    showMessage('Ошибка загрузки', 'error');                    resetUrlForm();                }
+            });
+        }
     </script>
     <noscript>
         <div><img src="https://mc.yandex.ru/watch/105456934" style="position:absolute; left:-9999px;" alt="" /></div>
@@ -1252,6 +1268,15 @@
                             <input type="file" id="file" name="file" accept="audio/*,video/*" multiple
                                 style="display: none;">
                             <div class="file-list" id="fileList"></div>
+                        <div class="url-upload-section" style="margin-top: 20px; padding: 15px; border: 3px solid #000; background: #fff;">
+                            <div style="font-weight: 700; margin-bottom: 10px;">{% trans "Или укажите ссылку на файл:" %}</div>
+                            <input type="text" id="urlInput" placeholder="https://cloud.mail.ru/public/... или прямая ссылка на видео/аудио" 
+                                   style="width: 100%; padding: 10px; border: 3px solid #000; font-size: 14px; margin-bottom: 10px;">
+                            <button type="button" id="uploadUrlBtn" class="btn" style="width: 100%;">
+                                <span id="urlBtnText">{% trans "Загрузить по ссылке" %}</span>
+                                <span id="urlBtnSpinner" style="display: none;" class="spinner"></span>
+                            </button>
+                        </div>
                         </div>
                         <button type="submit" class="btn" id="submitBtn">
                             <span id="btnText">{% trans "загрузить и транскрибировать" %}</span>
@@ -2565,8 +2590,4 @@
                 closeLanguageModal();
             }
         });
-    </script>
-
-</body>
-
-</html>
+        // Загрузка по URL

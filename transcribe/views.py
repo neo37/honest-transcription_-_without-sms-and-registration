@@ -1606,3 +1606,227 @@ def clear_disk(request):
         logger.error(f"Ошибка при очистке диска: {e}", exc_info=True)
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
+
+def transcription_view(request, transcription_id=None, public_token=None):
+    """Адаптивная HTML страница с чередованием слайдов и текста"""
+    from django.conf import settings
+    from django.http import HttpResponse
+    from django.shortcuts import render
+    from .models import Transcription
+    import re
+    
+    try:
+        if public_token and public_token is not True:
+            transcription = Transcription.objects.get(public_token=public_token)
+            password_token = request.GET.get('p', None)
+            if password_token and transcription.password_phrase_hash:
+                import hashlib
+                expected_token = hashlib.sha256(f"{transcription.public_token}_{transcription.password_phrase_hash}".encode()).hexdigest()[:16]
+                if password_token != expected_token:
+                    return HttpResponse("Доступ запрещен", status=403)
+            elif transcription.password_phrase_hash:
+                return HttpResponse("Доступ запрещен", status=403)
+        elif transcription_id:
+            transcription = Transcription.objects.get(id=transcription_id)
+            active_password_phrase = request.session.get('password_phrase', None)
+            if transcription.password_phrase_hash:
+                if not active_password_phrase or not transcription.check_password_phrase(active_password_phrase):
+                    return HttpResponse("Доступ запрещен", status=403)
+        else:
+            return HttpResponse("Транскрипция не найдена", status=404)
+        
+        screenshots = list(transcription.screenshots.all().order_by('order', 'timestamp'))
+        screenshot_count = len(screenshots)
+        
+        text_blocks = []
+        if transcription.transcribed_text:
+            if screenshot_count > 0:
+                text = transcription.transcribed_text.strip()
+                sentences = re.split(r'([.!?]+(?:\s|$))', text)
+                clean_sentences = []
+                for i in range(0, len(sentences), 2):
+                    if i < len(sentences):
+                        sentence = sentences[i] + (sentences[i+1] if i+1 < len(sentences) else "")
+                        if sentence.strip():
+                            clean_sentences.append(sentence.strip())
+                
+                if clean_sentences:
+                    sentences_per_block = max(1, len(clean_sentences) // screenshot_count) if screenshot_count > 0 else 1
+                    for i in range(screenshot_count):
+                        start_idx = i * sentences_per_block
+                        end_idx = (i + 1) * sentences_per_block if i < screenshot_count - 1 else len(clean_sentences)
+                        block_text = " ".join(clean_sentences[start_idx:end_idx])
+                        text_blocks.append(block_text)
+                else:
+                    chars_per_block = max(1, len(text) // screenshot_count) if screenshot_count > 0 else len(text)
+                    for i in range(screenshot_count):
+                        start_idx = i * chars_per_block
+                        end_idx = (i + 1) * chars_per_block if i < screenshot_count - 1 else len(text)
+                        text_blocks.append(text[start_idx:end_idx])
+            else:
+                text_blocks.append(transcription.transcribed_text)
+        
+        slides = []
+        for i in range(screenshot_count):
+            slides.append({'type': 'screenshot', 'screenshot': screenshots[i], 'number': len(slides) + 1})
+            text_content = text_blocks[i] if i < len(text_blocks) else ""
+            slides.append({'type': 'text', 'text': text_content, 'number': len(slides) + 1})
+        
+        if screenshot_count == 0 and text_blocks:
+            for i, text_block in enumerate(text_blocks):
+                slides.append({'type': 'text', 'text': text_block, 'number': i + 1})
+        
+        return render(request, 'transcribe/view.html', {
+            'transcription': transcription,
+            'slides': slides,
+            'total_slides': len(slides),
+            'MEDIA_URL': settings.MEDIA_URL,
+        })
+    except Transcription.DoesNotExist:
+        return HttpResponse("Транскрипция не найдена", status=404)
+
+@require_http_methods(["POST"])
+def upload_from_url(request):
+    """Обработка загрузки файлов по URL (поддерживает cloud.mail.ru и прямые ссылки)"""
+    import json
+    import uuid
+    import shutil
+    from django.http import JsonResponse
+    from .models import Transcription, IPUploadCount, UUIDUploadCount
+    from .utils import get_client_ip, validate_whisper_model
+    from .upload_url import download_from_url
+    from django.conf import settings
+    import os
+    import threading
+    from .views import process_file
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        try:
+            body = json.loads(request.body)
+            urls = body.get('urls', [])
+            if isinstance(urls, str):
+                urls = [urls]
+        except:
+            urls = request.POST.getlist('urls')
+            if isinstance(urls, str):
+                urls = [urls.split(',')] if ',' in urls else [urls]
+        
+        if not urls or len(urls) == 0:
+            return JsonResponse({'error': 'URL не указан'}, status=400)
+        
+        ip_address = get_client_ip(request)
+        
+        try:
+            user_uuid = body.get('user_uuid', '') if 'body' in locals() else request.POST.get('user_uuid', '')
+        except:
+            user_uuid = request.POST.get('user_uuid', '')
+        
+        if not user_uuid:
+            return JsonResponse({'error': 'UUID не передан'}, status=400)
+        
+        ip_counter = IPUploadCount.get_or_create_for_ip(ip_address)
+        ip_monthly_count = ip_counter.get_monthly_count()
+        uuid_counter = UUIDUploadCount.get_or_create_for_uuid(user_uuid)
+        uuid_monthly_count = uuid_counter.get_monthly_count()
+        ip_balance = ip_counter.balance if ip_counter else 0
+        uuid_balance = uuid_counter.balance if uuid_counter else 0
+        has_balance = ip_balance > 0 or uuid_balance > 0
+        requires_payment = False
+        if ip_monthly_count >= 2 and not ip_counter.is_paid and not has_balance:
+            requires_payment = True
+        elif uuid_monthly_count >= 2 and not uuid_counter.is_paid and not has_balance:
+            requires_payment = True
+        
+        if requires_payment:
+            return JsonResponse({
+                'error': 'Для продолжения использования сервиса требуется оплата 12 рублей. Пожалуйста, произведите оплату.',
+                'requires_payment': True,
+                'ip_count': ip_monthly_count,
+                'uuid_count': uuid_monthly_count,
+                'ip_balance': ip_balance,
+                'uuid_balance': uuid_balance
+            }, status=402)
+        
+        try:
+            signature = body.get('signature', '') if 'body' in locals() else request.POST.get('signature', '')
+            password_phrase = body.get('password_phrase', '') if 'body' in locals() else request.POST.get('password_phrase', '')
+            extract_screenshots = body.get('extract_screenshots', False) if 'body' in locals() else request.POST.get('extract_screenshots') == 'on'
+            whisper_model, _ = validate_whisper_model(body.get('whisper_model', 'base') if 'body' in locals() else request.POST.get('whisper_model', 'base'))
+        except:
+            signature = request.POST.get('signature', '')
+            password_phrase = request.POST.get('password_phrase', '')
+            extract_screenshots = request.POST.get('extract_screenshots') == 'on'
+            whisper_model, _ = validate_whisper_model(request.POST.get('whisper_model', 'base'))
+        
+        password_phrase_hash = None
+        if password_phrase:
+            password_phrase_hash = Transcription.hash_password_phrase(password_phrase)
+        
+        upload_session = str(uuid.uuid4())
+        transcription_ids = []
+        
+        for url in urls:
+            url = url.strip()
+            if not url:
+                continue
+            
+            try:
+                temp_file_path, filename = download_from_url(url)
+                file_size = os.path.getsize(temp_file_path)
+                if file_size == 0:
+                    os.unlink(temp_file_path)
+                    continue
+                
+                uploads_base_dir = os.path.join(settings.MEDIA_ROOT, 'uploads')
+                os.makedirs(uploads_base_dir, exist_ok=True)
+                file_uuid = str(uuid.uuid4())
+                uploads_dir = os.path.join(uploads_base_dir, file_uuid)
+                os.makedirs(uploads_dir, exist_ok=True)
+                file_ext = os.path.splitext(filename)[1]
+                original_filename = f"original{file_ext}"
+                original_file_path = os.path.join(uploads_dir, original_filename)
+                shutil.copy2(temp_file_path, original_file_path)
+                os.unlink(temp_file_path)
+                
+                transcription = Transcription.objects.create(
+                    filename=filename,
+                    ip_address=ip_address,
+                    user_uuid=user_uuid,
+                    signature=signature,
+                    password_phrase_hash=password_phrase_hash,
+                    file_size=file_size,
+                    extract_screenshots=extract_screenshots,
+                    whisper_model=whisper_model,
+                    status='pending',
+                    upload_session=upload_session,
+                    original_file_path=original_file_path
+                )
+                
+                transcription_ids.append(transcription.id)
+                ip_counter.increment_upload()
+                uuid_counter.increment_upload()
+                
+                thread = threading.Thread(target=process_file, args=(transcription.id, original_file_path))
+                thread.daemon = True
+                thread.start()
+                
+            except Exception as e:
+                logger.error(f"Ошибка при обработке URL {url}: {e}", exc_info=True)
+                continue
+        
+        if not transcription_ids:
+            return JsonResponse({'error': 'Не удалось загрузить ни один файл'}, status=400)
+        
+        return JsonResponse({
+            'success': True,
+            'transcription_ids': transcription_ids,
+            'upload_session': upload_session,
+            'message': f'Загружено файлов: {len(transcription_ids)}'
+        })
+        
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке по URL: {e}", exc_info=True)
+        return JsonResponse({'error': f'Ошибка при загрузке: {str(e)}'}, status=500)
