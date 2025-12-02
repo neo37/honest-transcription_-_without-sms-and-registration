@@ -25,6 +25,18 @@ class Transcription(models.Model):
     transcribed_text = models.TextField(verbose_name="Транскрибированный текст")
     file_size = models.BigIntegerField(verbose_name="Размер файла (байты)")
     extract_screenshots = models.BooleanField(default=False, verbose_name="Извлечь скриншоты")
+    screenshot_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Ожидает'),
+            ('processing', 'Извлекаем слайды'),
+            ('completed', 'Слайды готовы'),
+            ('skipped', 'Пропущено'),
+            ('error', 'Ошибка'),
+        ],
+        default='pending',
+        verbose_name="Статус извлечения скриншотов"
+    )
     upload_session = models.CharField(max_length=100, blank=True, null=True, verbose_name="Сессия загрузки")
     whisper_model = models.CharField(max_length=20, choices=WHISPER_MODELS, default='base', verbose_name="Модель Whisper")
     status = models.CharField(

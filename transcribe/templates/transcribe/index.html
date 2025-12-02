@@ -3,6 +3,7 @@
 <!DOCTYPE html>
 {% get_current_language as CURRENT_LANGUAGE %}
 <html lang="{{ CURRENT_LANGUAGE }}">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,7 +16,7 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Arial Black', Arial, sans-serif;
             background: #fff;
@@ -28,60 +29,60 @@
             margin: 0;
             transition: all 0.3s ease;
         }
-        
+
         /* Красный интерфейс при балансе 0 */
         body.zero-balance {
             background: #ffebee !important;
         }
-        
+
         body.zero-balance .container,
         body.zero-balance .sidebar {
             border-color: #d32f2f !important;
             box-shadow: 8px 8px 0 #d32f2f !important;
         }
-        
+
         body.zero-balance .header {
             background: #d32f2f !important;
             border-color: #b71c1c !important;
         }
-        
+
         body.zero-balance .upload-area {
             border-color: #d32f2f !important;
             background: #ffebee !important;
         }
-        
+
         body.zero-balance .btn-primary {
             background: #d32f2f !important;
             border-color: #b71c1c !important;
         }
-        
+
         body.zero-balance .btn-primary:hover {
             background: #b71c1c !important;
         }
-        
+
         body.zero-balance .sidebar-group input,
         body.zero-balance .sidebar-group select {
             border-color: #d32f2f !important;
         }
-        
+
         body.zero-balance .transcription-item {
             border-color: #d32f2f !important;
         }
-        
+
         .main-wrapper {
             display: flex;
             gap: 20px;
             max-width: 1400px;
             margin: 0 auto;
         }
-        
+
         .container {
             flex: 1;
             background: #fff;
             border: 4px solid #000;
             box-shadow: 8px 8px 0 #000;
         }
-        
+
         .sidebar {
             width: 300px;
             background: #fff;
@@ -94,7 +95,7 @@
             max-height: calc(100vh - 40px);
             overflow-y: auto;
         }
-        
+
         .sidebar-title {
             font-size: 18px;
             font-weight: 900;
@@ -103,11 +104,11 @@
             border-bottom: 3px solid #000;
             padding-bottom: 10px;
         }
-        
+
         .sidebar-group {
             margin-bottom: 20px;
         }
-        
+
         .sidebar-group label {
             display: block;
             font-weight: 700;
@@ -115,7 +116,7 @@
             margin-bottom: 8px;
             color: #000;
         }
-        
+
         .sidebar-group input,
         .sidebar-group select {
             width: 100%;
@@ -125,27 +126,27 @@
             font-size: 14px;
             background: #fff;
         }
-        
+
         .sidebar-group .info-text {
             font-size: 11px;
             margin-top: 5px;
             opacity: 0.8;
             font-weight: 600;
         }
-        
+
         .sidebar-checkbox {
             display: flex;
             align-items: center;
             gap: 10px;
             cursor: pointer;
         }
-        
+
         .sidebar-checkbox input[type="checkbox"] {
             width: auto;
             height: 20px;
             cursor: pointer;
         }
-        
+
         .burger-menu {
             display: none;
             position: fixed;
@@ -163,12 +164,12 @@
             font-size: 24px;
             font-weight: 900;
         }
-        
+
         .burger-menu:hover {
             transform: translate(2px, 2px);
             box-shadow: 2px 2px 0 #000;
         }
-        
+
         .sidebar-overlay {
             display: none;
             position: fixed;
@@ -179,28 +180,28 @@
             background: rgba(0, 0, 0, 0.7);
             z-index: 1000;
         }
-        
+
         .sidebar-overlay.active {
             display: block;
         }
-        
+
         @media (max-width: 1024px) {
             .main-wrapper {
                 flex-direction: column;
             }
-            
+
             .sidebar {
                 width: 100%;
                 position: static;
                 max-height: none;
             }
         }
-        
+
         @media (max-width: 768px) {
             .burger-menu {
                 display: flex;
             }
-            
+
             .sidebar {
                 position: fixed;
                 top: 0;
@@ -212,16 +213,16 @@
                 max-height: 100vh;
                 overflow-y: auto;
             }
-            
+
             .sidebar.active {
                 left: 0;
             }
-            
+
             body {
                 padding: 80px 10px 10px 10px;
             }
         }
-        
+
         .header {
             background: #ff6b6b;
             color: #000;
@@ -230,7 +231,7 @@
             border-bottom: 4px solid #000;
             position: relative;
         }
-        
+
         .header h1 {
             font-size: clamp(12.6px, 2.2vw, 22.68px);
             font-weight: 900;
@@ -241,7 +242,7 @@
             text-align: left;
             line-height: 1.2;
         }
-        
+
         .header .subtitle {
             font-size: clamp(11px, 1.5vw, 14px);
             font-weight: 600;
@@ -249,42 +250,50 @@
             text-transform: lowercase;
             animation: textPulse 3s ease-in-out infinite;
         }
-        
+
         @keyframes textDance {
-            0%, 100% {
+
+            0%,
+            100% {
                 transform: translateY(0) rotate(0deg) scale(1);
                 text-shadow: 2px 2px 0 #000, 4px 4px 0 #ffd93d;
             }
+
             25% {
                 transform: translateY(-3px) rotate(-1deg) scale(1.02);
                 text-shadow: 3px 3px 0 #000, 6px 6px 0 #6bcf7f, 8px 8px 0 #ffd93d;
             }
+
             50% {
                 transform: translateY(0) rotate(0deg) scale(1);
                 text-shadow: 2px 2px 0 #000, 4px 4px 0 #ffd93d;
             }
+
             75% {
                 transform: translateY(-3px) rotate(1deg) scale(1.02);
                 text-shadow: 3px 3px 0 #000, 6px 6px 0 #4d9de0, 8px 8px 0 #ffd93d;
             }
         }
-        
+
         @keyframes textPulse {
-            0%, 100% {
+
+            0%,
+            100% {
                 opacity: 0.8;
                 transform: translateY(0);
             }
+
             50% {
                 opacity: 1;
                 transform: translateY(-2px);
             }
         }
-        
+
         .upload-section {
             padding: 30px;
             border-bottom: 4px solid #000;
         }
-        
+
         /* Секция входа */
         .login-section {
             background: #ffd93d;
@@ -293,11 +302,11 @@
             margin-bottom: 20px;
             box-shadow: 4px 4px 0 #000;
         }
-        
+
         .login-section.logged-in {
             background: #6bcf7f;
         }
-        
+
         .login-header {
             display: flex;
             justify-content: space-between;
@@ -306,14 +315,14 @@
             flex-wrap: wrap;
             gap: 10px;
         }
-        
+
         .login-title {
             font-weight: 900;
             color: #000;
             font-size: clamp(16px, 3vw, 20px);
             text-transform: uppercase;
         }
-        
+
         .login-status {
             padding: 8px 16px;
             border: 3px solid #000;
@@ -322,19 +331,19 @@
             background: #000;
             color: #fff;
         }
-        
+
         .login-form {
             display: flex;
             gap: 10px;
             align-items: flex-end;
             flex-wrap: wrap;
         }
-        
+
         .login-form-group {
             flex: 1;
             min-width: 200px;
         }
-        
+
         .login-form-group label {
             display: block;
             margin-bottom: 8px;
@@ -343,7 +352,7 @@
             font-size: 14px;
             text-transform: uppercase;
         }
-        
+
         .login-form-group input {
             width: 100%;
             padding: 12px;
@@ -354,14 +363,15 @@
             background: #fff;
             box-shadow: 3px 3px 0 #000;
         }
-        
+
         .login-form-group input:focus {
             outline: none;
             box-shadow: 5px 5px 0 #000;
             transform: translate(-2px, -2px);
         }
-        
-        .btn-login, .btn-logout {
+
+        .btn-login,
+        .btn-logout {
             padding: 12px 24px;
             border: 3px solid #000;
             font-size: 16px;
@@ -371,45 +381,47 @@
             transition: all 0.1s;
             box-shadow: 4px 4px 0 #000;
         }
-        
+
         .btn-login {
             background: #6bcf7f;
             color: #000;
         }
-        
+
         .btn-logout {
             background: #ff6b6b;
             color: #000;
         }
-        
-        .btn-login:hover, .btn-logout:hover {
+
+        .btn-login:hover,
+        .btn-logout:hover {
             transform: translate(2px, 2px);
             box-shadow: 2px 2px 0 #000;
         }
-        
-        .btn-login:active, .btn-logout:active {
+
+        .btn-login:active,
+        .btn-logout:active {
             transform: translate(4px, 4px);
             box-shadow: 0 0 0 #000;
         }
-        
+
         .info-text {
             font-size: 12px;
             color: #000;
             margin-top: 10px;
             font-weight: 600;
         }
-        
+
         .upload-form-wrapper {
             margin-bottom: 30px;
         }
-        
+
         .upload-form {
             background: #fff;
             padding: 30px;
             border: 4px solid #000;
             box-shadow: 4px 4px 0 #000;
         }
-        
+
         .upload-area {
             border: 4px dashed #000;
             padding: 60px 20px;
@@ -420,36 +432,36 @@
             margin-bottom: 20px;
             position: relative;
         }
-        
+
         .upload-area:hover {
             background: #ffd93d;
             transform: translate(-2px, -2px);
             box-shadow: 4px 4px 0 #000;
         }
-        
+
         .upload-area.dragover {
             background: #6bcf7f;
             border-color: #000;
             transform: scale(1.02);
         }
-        
+
         .upload-icon {
             font-size: 64px;
             margin-bottom: 20px;
         }
-        
+
         .upload-text {
             font-size: 18px;
             font-weight: 700;
             color: #000;
             line-height: 1.6;
         }
-        
+
         .file-list {
             margin-top: 20px;
             text-align: left;
         }
-        
+
         .file-item {
             background: #fff;
             border: 3px solid #000;
@@ -460,20 +472,20 @@
             align-items: center;
             font-weight: 700;
         }
-        
+
         .file-item-name {
             flex: 1;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        
+
         .file-item-size {
             margin-left: 15px;
             color: #666;
             font-size: 14px;
         }
-        
+
         .file-item-remove {
             background: #ff6b6b;
             color: #000;
@@ -483,15 +495,15 @@
             font-weight: 900;
             margin-left: 10px;
         }
-        
+
         .file-item-remove:hover {
             transform: scale(1.1);
         }
-        
+
         .form-group {
             margin-bottom: 25px;
         }
-        
+
         .form-group label {
             display: block;
             margin-bottom: 10px;
@@ -500,7 +512,7 @@
             font-size: 16px;
             text-transform: uppercase;
         }
-        
+
         .form-group input[type="file"],
         .form-group input[type="text"] {
             width: 100%;
@@ -513,14 +525,14 @@
             box-shadow: 3px 3px 0 #000;
             transition: all 0.1s;
         }
-        
+
         .form-group input[type="file"]:focus,
         .form-group input[type="text"]:focus {
             outline: none;
             box-shadow: 5px 5px 0 #000;
             transform: translate(-2px, -2px);
         }
-        
+
         /* Прогресс-бары */
         .upload-progress-container {
             display: none;
@@ -530,11 +542,11 @@
             border: 3px solid #000;
             box-shadow: 4px 4px 0 #000;
         }
-        
+
         .upload-progress-container.active {
             display: block;
         }
-        
+
         .upload-progress-label {
             font-weight: 900;
             margin-bottom: 15px;
@@ -542,7 +554,7 @@
             font-size: 18px;
             text-transform: uppercase;
         }
-        
+
         .upload-progress-bar {
             width: 100%;
             height: 40px;
@@ -552,7 +564,7 @@
             position: relative;
             box-shadow: 3px 3px 0 #000;
         }
-        
+
         .upload-progress-fill {
             height: 100%;
             background: linear-gradient(90deg, #6bcf7f 0%, #4d9de0 50%, #6bcf7f 100%);
@@ -570,16 +582,17 @@
             position: relative;
             overflow: hidden;
         }
-        
+
         @keyframes progressShine {
             0% {
                 background-position: 200% 0;
             }
+
             100% {
                 background-position: -200% 0;
             }
         }
-        
+
         .upload-progress-text {
             margin-top: 15px;
             text-align: center;
@@ -587,7 +600,7 @@
             font-size: 14px;
             font-weight: 700;
         }
-        
+
         .transcription-progress-container {
             display: none;
             margin-top: 20px;
@@ -596,11 +609,11 @@
             border: 4px solid #000;
             box-shadow: 4px 4px 0 #000;
         }
-        
+
         .transcription-progress-container.active {
             display: block;
         }
-        
+
         .transcription-progress-header {
             display: flex;
             justify-content: space-between;
@@ -609,47 +622,54 @@
             flex-wrap: wrap;
             gap: 10px;
         }
-        
+
         .transcription-progress-title {
             font-weight: 900;
             color: #000;
             font-size: clamp(16px, 3vw, 20px);
             text-transform: uppercase;
         }
-        
+
         .transcription-status {
             padding: 8px 16px;
             border: 3px solid #000;
             font-size: 14px;
             font-weight: 900;
         }
-        
+
         .status-pending {
             background: #ffd93d;
             color: #000;
         }
-        
+
         .status-processing {
             background: #4d9de0;
             color: #000;
             animation: pulse 1s infinite;
         }
-        
+
         .status-completed {
             background: #6bcf7f;
             color: #000;
         }
-        
+
         .status-error {
             background: #ff6b6b;
             color: #000;
         }
-        
+
         @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
         }
-        
+
         .transcription-progress-bar {
             width: 100%;
             height: 35px;
@@ -660,7 +680,7 @@
             margin-bottom: 10px;
             box-shadow: 3px 3px 0 #000;
         }
-        
+
         .transcription-progress-fill {
             height: 100%;
             background: #6bcf7f;
@@ -668,7 +688,7 @@
             transition: width 0.5s ease;
             border-right: 3px solid #000;
         }
-        
+
         .transcription-progress-text {
             text-align: center;
             color: #000;
@@ -676,7 +696,7 @@
             font-weight: 700;
             margin-top: 10px;
         }
-        
+
         .spinner {
             display: inline-block;
             width: 20px;
@@ -686,11 +706,13 @@
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
-        
+
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
-        
+
         .btn {
             background: #6bcf7f;
             color: #000;
@@ -705,26 +727,26 @@
             text-transform: uppercase;
             box-shadow: 6px 6px 0 #000;
         }
-        
+
         .btn:hover:not(:disabled) {
             transform: translate(4px, 4px);
             box-shadow: 2px 2px 0 #000;
         }
-        
+
         .btn:active:not(:disabled) {
             transform: translate(6px, 6px);
             box-shadow: 0 0 0 #000;
         }
-        
+
         .btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
         }
-        
+
         .transcriptions-section {
             padding: 30px;
         }
-        
+
         .transcriptions-section h2 {
             margin-bottom: 25px;
             color: #000;
@@ -735,7 +757,7 @@
             padding-bottom: 10px;
             animation: textDance 2s ease-in-out infinite;
         }
-        
+
         .transcription-item {
             background: #fff;
             padding: 25px;
@@ -744,12 +766,12 @@
             box-shadow: 6px 6px 0 #000;
             transition: all 0.1s;
         }
-        
+
         .transcription-item:hover {
             transform: translate(4px, 4px);
             box-shadow: 2px 2px 0 #000;
         }
-        
+
         .transcription-header {
             display: flex;
             justify-content: space-between;
@@ -758,20 +780,20 @@
             flex-wrap: wrap;
             gap: 10px;
         }
-        
+
         .transcription-filename {
             font-weight: 900;
             color: #000;
             font-size: clamp(16px, 3vw, 20px);
             text-transform: uppercase;
         }
-        
+
         .transcription-date {
             color: #000;
             font-size: 14px;
             font-weight: 700;
         }
-        
+
         .transcription-meta {
             display: flex;
             gap: 20px;
@@ -781,7 +803,7 @@
             font-weight: 700;
             flex-wrap: wrap;
         }
-        
+
         .status-badge {
             display: inline-block;
             padding: 8px 16px;
@@ -790,7 +812,7 @@
             font-weight: 900;
             text-transform: uppercase;
         }
-        
+
         .transcription-preview {
             margin-top: 15px;
             padding: 20px;
@@ -801,7 +823,7 @@
             font-weight: 600;
             line-height: 1.8;
         }
-        
+
         .view-full {
             display: inline-block;
             margin-top: 15px;
@@ -813,14 +835,14 @@
             border-bottom: 3px solid #000;
             padding-bottom: 2px;
         }
-        
+
         .view-full:hover {
             background: #ffd93d;
             padding: 5px 10px;
             border: 3px solid #000;
             box-shadow: 3px 3px 0 #000;
         }
-        
+
         .message {
             padding: 20px;
             margin-bottom: 20px;
@@ -829,21 +851,21 @@
             font-weight: 700;
             box-shadow: 4px 4px 0 #000;
         }
-        
+
         .message.success {
             background: #6bcf7f;
             color: #000;
         }
-        
+
         .message.error {
             background: #ff6b6b;
             color: #000;
         }
-        
+
         .message.active {
             display: block;
         }
-        
+
         .empty-state {
             text-align: center;
             color: #000;
@@ -854,7 +876,7 @@
             background: #f5f5f5;
             box-shadow: 4px 4px 0 #000;
         }
-        
+
         .disk-info {
             position: fixed;
             bottom: 20px;
@@ -871,15 +893,15 @@
             transition: all 0.3s ease;
             min-width: 250px;
         }
-        
+
         .disk-info.collapsed {
             padding: 10px 15px;
         }
-        
+
         .disk-info.collapsed .disk-info-content {
             display: none;
         }
-        
+
         .disk-info-header {
             display: flex;
             justify-content: space-between;
@@ -887,13 +909,13 @@
             cursor: pointer;
             margin-bottom: 10px;
         }
-        
+
         .disk-info-title {
             text-transform: uppercase;
             font-size: 12px;
             flex: 1;
         }
-        
+
         .disk-info-toggle {
             background: #fff;
             color: #000;
@@ -904,34 +926,34 @@
             cursor: pointer;
             margin-left: 10px;
         }
-        
+
         .disk-info-toggle:hover {
             background: #ffd93d;
         }
-        
+
         .disk-info-content {
             transition: opacity 0.3s;
         }
-        
+
         .disk-info-language-section {
             margin-bottom: 10px;
         }
-        
+
         .disk-info-language-section select {
             color: #fff !important;
         }
-        
+
         .disk-info-language-section select option {
             background: #000;
             color: #fff;
         }
-        
+
         .disk-info-value {
             font-size: 18px;
             color: #6bcf7f;
             margin-bottom: 8px;
         }
-        
+
         .disk-bar {
             width: 100%;
             height: 20px;
@@ -940,21 +962,21 @@
             margin-top: 8px;
             overflow: hidden;
         }
-        
+
         .disk-bar-fill {
             height: 100%;
             background: #6bcf7f;
             transition: width 0.3s;
         }
-        
+
         .disk-bar-fill.warning {
             background: #ffd93d;
         }
-        
+
         .disk-bar-fill.danger {
             background: #ff6b6b;
         }
-        
+
         .disk-clear-btn {
             margin-top: 10px;
             background: #ff6b6b;
@@ -968,12 +990,12 @@
             width: 100%;
             box-shadow: 3px 3px 0 #fff;
         }
-        
+
         .disk-clear-btn:hover {
             transform: translate(2px, 2px);
             box-shadow: 1px 1px 0 #fff;
         }
-        
+
         .password-modal {
             display: none;
             position: fixed;
@@ -986,11 +1008,11 @@
             align-items: center;
             justify-content: center;
         }
-        
+
         .password-modal.active {
             display: flex;
         }
-        
+
         .password-modal-content {
             background: #fff;
             padding: 30px;
@@ -999,13 +1021,13 @@
             max-width: 400px;
             width: 90%;
         }
-        
+
         .password-modal-content h3 {
             margin: 0 0 20px 0;
             font-weight: 900;
             text-transform: uppercase;
         }
-        
+
         .password-modal-content input {
             width: 100%;
             padding: 12px;
@@ -1014,12 +1036,12 @@
             font-weight: 700;
             margin-bottom: 15px;
         }
-        
+
         .password-modal-buttons {
             display: flex;
             gap: 10px;
         }
-        
+
         .password-modal-btn {
             flex: 1;
             padding: 12px;
@@ -1028,15 +1050,15 @@
             text-transform: uppercase;
             cursor: pointer;
         }
-        
+
         .password-modal-btn.confirm {
             background: #ff6b6b;
         }
-        
+
         .password-modal-btn.cancel {
             background: #6bcf7f;
         }
-        
+
         /* Модальное окно для оплаты */
         .payment-modal {
             display: none;
@@ -1050,11 +1072,11 @@
             align-items: center;
             justify-content: center;
         }
-        
+
         .payment-modal.active {
             display: flex;
         }
-        
+
         .payment-modal-content {
             background: #fff;
             padding: 30px;
@@ -1063,24 +1085,24 @@
             max-width: 500px;
             width: 90%;
         }
-        
+
         .payment-modal-content h3 {
             margin: 0 0 20px 0;
             font-weight: 900;
             text-transform: uppercase;
         }
-        
+
         .payment-modal-content .form-group {
             margin-bottom: 20px;
         }
-        
+
         .payment-modal-content .form-group label {
             display: block;
             margin-bottom: 8px;
             font-weight: 700;
             font-size: 14px;
         }
-        
+
         .payment-modal-content .form-group input {
             width: 100%;
             padding: 12px;
@@ -1089,13 +1111,13 @@
             font-weight: 700;
             box-sizing: border-box;
         }
-        
+
         .payment-modal-buttons {
             display: flex;
             gap: 10px;
             margin-top: 20px;
         }
-        
+
         .payment-modal-btn {
             flex: 1;
             padding: 12px;
@@ -1105,78 +1127,81 @@
             cursor: pointer;
             font-size: 16px;
         }
-        
+
         .payment-modal-btn.confirm {
             background: #6bcf7f;
         }
-        
+
         .payment-modal-btn.cancel {
             background: #ff6b6b;
         }
-        
+
         @media (max-width: 768px) {
             body {
                 padding: 80px 10px 10px 10px;
             }
-            
+
             .container {
                 border-width: 3px;
                 box-shadow: 4px 4px 0 #000;
             }
-            
+
             .header {
                 padding: 25px 20px;
             }
-            
+
             .upload-section,
             .transcriptions-section {
                 padding: 20px;
             }
-            
+
             .form-group input,
             .btn {
                 font-size: 16px;
             }
-            
+
             .transcription-item {
                 padding: 15px;
             }
         }
-        
     </style>
     <!-- Yandex.Metrika counter -->
     <script type="text/javascript">
-        (function(m,e,t,r,i,k,a){
-            m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
-            m[i].l=1*new Date();
-            for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
-            k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
-        })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=105456934', 'ym');
+        (function (m, e, t, r, i, k, a) {
+            m[i] = m[i] || function () { (m[i].a = m[i].a || []).push(arguments) };
+            m[i].l = 1 * new Date();
+            for (var j = 0; j < document.scripts.length; j++) { if (document.scripts[j].src === r) { return; } }
+            k = e.createElement(t), a = e.getElementsByTagName(t)[0], k.async = 1, k.src = r, a.parentNode.insertBefore(k, a)
+        })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js?id=105456934', 'ym');
 
-        ym(105456934, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", accurateTrackBounce:true, trackLinks:true});
+        ym(105456934, 'init', { ssr: true, webvisor: true, clickmap: true, ecommerce: "dataLayer", accurateTrackBounce: true, trackLinks: true });
     </script>
-    <noscript><div><img src="https://mc.yandex.ru/watch/105456934" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+    <noscript>
+        <div><img src="https://mc.yandex.ru/watch/105456934" style="position:absolute; left:-9999px;" alt="" /></div>
+    </noscript>
     <!-- /Yandex.Metrika counter -->
 </head>
+
 <body>
     <div class="burger-menu" id="burgerMenu" onclick="toggleSidebar()">☰</div>
     <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
-    
+
     <div class="main-wrapper">
         <div class="sidebar" id="sidebar">
             <div class="sidebar-title">⚙️ {% trans "настройки" %}</div>
-            <div style="padding: 10px; background: #f5f5f5; border: 2px solid #000; margin: 10px 0; font-size: 12px; font-weight: 700;">
+            <div
+                style="padding: 10px; background: #f5f5f5; border: 2px solid #000; margin: 10px 0; font-size: 12px; font-weight: 700;">
                 <div style="margin-bottom: 5px;">UUID пользователя:</div>
                 <div id="userUUIDDisplay" style="font-family: monospace; word-break: break-all; color: #4d9de0;"></div>
             </div>
-            
+
             <div class="sidebar-group">
                 <label class="sidebar-checkbox">
                     <input type="checkbox" id="extract_screenshots" name="extract_screenshots">
-                    <span>{% trans "вынуть скрины из видео (1 раз в минуту)" %}</span>
+                    <span>{% trans "вынуть скрины из видео (умная детекция слайдов)" %}</span>
                 </label>
             </div>
-            
+
             <div class="sidebar-group">
                 <label for="whisper_model">{% trans "модель для транскрибации:" %}</label>
                 <select id="whisper_model" name="whisper_model">
@@ -1187,358 +1212,414 @@
                     <option value="large-v2">{% trans "Large-v2 (лучшее качество, медленно)" %}</option>
                     <option value="large-v3">{% trans "Large-v3 (лучшее качество, медленно)" %}</option>
                 </select>
-                <div class="info-text">{% trans "выберите модель: быстрая = меньше точность, медленная = больше точность" %}</div>
+                <div class="info-text">{% trans "выберите модель: быстрая = меньше точность, медленная = больше
+                    точность" %}</div>
             </div>
-            
+
             <div class="sidebar-group">
                 <label for="signature">{% trans "подпись (необязательно):" %}</label>
-                <input type="text" id="signature" name="signature" placeholder="{% trans "введите подпись..." %}">
+                <input type="text" id="signature" name="signature" placeholder="{% trans " введите подпись..." %}">
             </div>
-            
+
             <div class="sidebar-group">
                 <label for="password_phrase">{% trans "фраза-пароль (необязательно):" %}</label>
-                <input type="text" id="password_phrase" name="password_phrase" placeholder="{% trans "введите фразу-пароль для защиты..." %}" value="{% if is_logged_in %}{{ active_phrase }}{% endif %}">
-                <div class="info-text">{% trans "если указать фразу-пароль, транскрипция будет видна только тем, кто войдет по этой фразе" %}</div>
+                <input type="text" id="password_phrase" name="password_phrase" placeholder="{% trans " введите
+                    фразу-пароль для защиты..." %}" value="{% if is_logged_in %}{{ active_phrase }}{% endif %}">
+                <div class="info-text">{% trans "если указать фразу-пароль, транскрипция будет видна только тем, кто
+                    войдет по этой фразе" %}</div>
             </div>
         </div>
-        
+
         <div class="container">
-        <div class="header">
-            <h1>{% trans "честная транскрибация" %}<br>{% trans "переговоров" %}</h1>
-            <div class="subtitle">{% trans "переведём ваше аудио или вкс видео в текст. честный перевод, без регистрации и сис" %}</div>
-        </div>
-        
-        <div class="upload-section">
-            <!-- Улучшенный загрузчик -->
-            <div class="upload-form-wrapper">
-                <div class="message" id="message"></div>
-                <form class="upload-form" id="uploadForm" enctype="multipart/form-data" novalidate>
-                    {% csrf_token %}
-                    <div class="upload-area" id="uploadArea">
-                        <div class="upload-icon">📁</div>
-                        <div class="upload-text">
-                            <strong>{% trans "перетащите файлы сюда" %}</strong><br>
-                            {% trans "или нажмите для выбора" %}
-                        </div>
-                        <input type="file" id="file" name="file" accept="audio/*,video/*" multiple style="display: none;">
-                        <div class="file-list" id="fileList"></div>
-                    </div>
-                    <button type="submit" class="btn" id="submitBtn">
-                        <span id="btnText">{% trans "загрузить и транскрибировать" %}</span>
-                        <span id="btnSpinner" style="display: none;" class="spinner"></span>
-                    </button>
-                </form>
+            <div class="header">
+                <h1>{% trans "честная транскрибация" %}<br>{% trans "переговоров" %}</h1>
+                <div class="subtitle">{% trans "переведём ваше аудио или вкс видео в текст. честный перевод, без
+                    регистрации и сис" %}</div>
             </div>
-            
-            <!-- Секция входа по фразе-паролю -->
-            <div class="login-section {% if is_logged_in %}logged-in{% endif %}" id="loginSection" style="margin-top: 30px;">
-                <div class="login-header">
-                    <div class="login-title">🔐 {% trans "вход по фразе-паролю" %}</div>
-                    {% if is_logged_in %}
-                    <span class="login-status">{% trans "вход:" %} {{ active_phrase }}</span>
-                    {% endif %}
-                </div>
-                {% if not is_logged_in %}
-                <form class="login-form" id="loginForm">
-                    {% csrf_token %}
-                    <div class="login-form-group">
-                        <label for="login_phrase">{% trans "фраза-пароль:" %}</label>
-                        <input type="text" id="login_phrase" name="password_phrase" placeholder="{% trans "введите фразу..." %}" required>
-                    </div>
-                    <button type="submit" class="btn-login">{% trans "войти" %}</button>
-                </form>
-                <div class="info-text">{% trans "войдите по фразе-паролю, чтобы видеть только транскрипции, загруженные с этой фразой" %}</div>
-                {% else %}
-                <form class="login-form" id="logoutForm">
-                    {% csrf_token %}
-                    <div class="login-form-group" style="flex: 1;">
-                        <div class="info-text">{% trans "вы вошли по фразе-паролю. видны только транскрипции с этой фразой." %}</div>
-                    </div>
-                    <button type="submit" class="btn-logout" name="action" value="logout">{% trans "выйти" %}</button>
-                    <button type="submit" class="btn-logout" name="action" value="change" style="margin-left: 10px;">поменять фразу пароль</button>
-                </form>
-                {% endif %}
-            </div>
-            
-            
-            <!-- Прогресс загрузки -->
-            <div class="upload-progress-container" id="uploadProgress">
-                <div class="upload-progress-label">загрузка файла...</div>
-                <div class="upload-progress-bar">
-                    <div class="upload-progress-fill" id="uploadProgressFill">0%</div>
-                </div>
-                <div class="upload-progress-text" id="uploadProgressText">подготовка к загрузке...</div>
-            </div>
-            
-            <!-- Прогресс транскрибации -->
-            <div class="transcription-progress-container" id="transcriptionProgress">
-                <div class="transcription-progress-header">
-                    <div class="transcription-progress-title" id="transcriptionFileName">обработка файла...</div>
-                    <span class="transcription-status status-processing" id="transcriptionStatus">{% trans "обрабатывается" %}</span>
-                </div>
-                <div class="transcription-progress-bar">
-                    <div class="transcription-progress-fill" id="transcriptionProgressFill"></div>
-                </div>
-                <div class="transcription-progress-text" id="transcriptionProgressText">
-                    <span class="spinner" style="display: inline-block; width: 16px; height: 16px; border-width: 3px;"></span>
-                    извлечение аудио и транскрибация...
-                </div>
-            </div>
-        </div>
-        
-        <div class="transcriptions-section">
-            <h2>{% trans "последние транскрипции" %}</h2>
-            <div id="transcriptionsList">
-                {% if transcriptions %}
-                    {% for transcription in transcriptions %}
-                    <div class="transcription-item" data-id="{{ transcription.id }}">
-                        <div class="transcription-header">
-                            <span class="transcription-filename">{{ transcription.filename }}</span>
-                            <span class="status-badge status-{{ transcription.status }}">
-                                {% if transcription.status == 'pending' %}{% trans "ожидает" %}
-                                {% elif transcription.status == 'processing' %}{% trans "обрабатывается" %}
-                                {% elif transcription.status == 'completed' %}{% trans "завершено" %}
-                                {% elif transcription.status == 'error' %}{% trans "ошибка" %}
-                                {% endif %}
-                            </span>
-                        </div>
-                        <div class="transcription-meta">
-                            <span>📅 {{ transcription.uploaded_at|date:"d.m.Y H:i" }}</span>
-                            <span>🌐 IP: {{ transcription.ip_address }}</span>
-                            {% if transcription.user_uuid %}
-                            <span>🆔 UUID: {{ transcription.user_uuid }}</span>
-                            {% endif %}
-                            {% if transcription.signature %}
-                            <span>✍️ {{ transcription.signature }}</span>
-                            {% endif %}
-                            <span>📦 {{ transcription.file_size|filesizeformat }}</span>
-                        </div>
-                        {% if transcription.status == 'completed' and transcription.transcribed_text %}
-                        <div class="transcription-preview">
-                            {{ transcription.transcribed_text|truncatewords:30 }}
-                        </div>
-                        {% elif transcription.status == 'processing' %}
-                        <div class="transcription-preview">
-                            <span class="spinner" style="display: inline-block; width: 16px; height: 16px; border-width: 3px;"></span>
-                            обработка файла...
-                        </div>
-                        {% elif transcription.status == 'error' %}
-                        <div class="transcription-preview">
-                            <p style="color: #000; font-weight: 900;">❌ {% trans "ошибка" %}: {{ transcription.error_message }}</p>
-                        </div>
-                        {% elif transcription.status == 'pending' %}
-                        <div class="transcription-preview">
-                            <p style="color: #666;">⏳ Ожидает обработки...</p>
-                        </div>
-                        {% elif transcription.status == 'completed' and not transcription.transcribed_text %}
-                        <div class="transcription-preview">
-                            <p style="color: #ff6b6b; font-weight: 900;">⚠️ Транскрибация завершена, но текст пустой. Попробуйте перетранскрибировать с другой моделью.</p>
-                        </div>
-                        {% endif %}
-                        {% if transcription.status == 'completed' and transcription.transcribed_text %}
-                        <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
-                            <a href="{% url 'transcription_detail' transcription.id %}" class="view-full">{% trans "читать полностью →" %}</a>
-                            <a href="{% url 'download_text' transcription.id %}" class="view-full" style="background: #4d9de0;">📄 {% trans "скачать текст" %}</a>
-                        </div>
-                        {% endif %}
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="empty-state">
-                        <p>{% trans "пока нет транскрипций. загрузите первый файл!" %}</p>
-                    </div>
-                {% endif %}
-                
-                <!-- Информация для эквайринга -->
-                <div class="transcription-item" style="margin-top: 40px; background: #f5f5f5;">
-                    <div style="font-size: 12px; line-height: 1.8; color: #666;">
-                        <div style="margin-bottom: 15px;">
-                            <strong style="cursor: pointer; color: #000; font-size: 14px;" onclick="toggleRequisites()">
-                                Реквизиты юридического лица <span id="reqArrow">▼</span>
-                            </strong>
-                            <div id="requisitesContent" style="display: none; margin-top: 10px; padding-left: 20px;">
-                                <p><strong>Индивидуальный предприниматель</strong></p>
-                                <ul style="list-style: none; padding: 0;">
-                                    <li><strong>ОГРНИП:</strong> 318774600019905</li>
-                                    <li><strong>ИНН:</strong> 773385920580</li>
-                                    <li><strong>Дата регистрации:</strong> 18.01.2018</li>
-                                    <li><strong>Регион:</strong> город Москва</li>
-                                    <li><strong>ОКПО:</strong> 0124898807</li>
-                                    <li><strong>ОКАТО:</strong> 45283569000</li>
-                                    <li><strong>ОКТМО:</strong> 45368000000</li>
-                                    <li><strong>Регистрационный номер ПФР:</strong> 1311981177</li>
-                                    <li><strong>Налоговый режим:</strong> УСН</li>
-                                    <li><strong>Категория:</strong> Микропредприятие</li>
-                                </ul>
-                            </div>
-                        </div>
-                        
-                        <div style="margin-bottom: 10px;">
-                            <strong>Способы оплаты:</strong> Банковские карты (Visa, MasterCard, МИР), электронные кошельки, банковский перевод. Оплата производится через защищенную систему эквайринга.
-                        </div>
-                        
-                        <div style="margin-bottom: 10px;">
-                            <strong>Условия возврата:</strong> Возврат денежных средств возможен при технических сбоях, несоответствии результата заявленному качеству, в течение 14 дней с момента оплаты (при отсутствии использования услуги).
-                        </div>
-                        
-                        <div style="margin-bottom: 10px;">
-                            <strong>Политика конфиденциальности:</strong> Мы гарантируем конфиденциальность всех загруженных файлов и транскрипций. Файлы обрабатываются автоматически и не передаются третьим лицам. Транскрипции доступны только по уникальной ссылке или фразе-паролю. Все данные хранятся в зашифрованном виде.
-                        </div>
-                        
-                        <div>
-                            <strong>Стоимость товаров/услуг:</strong> Транскрибация аудио/видео файлов: первые 2 загрузки - бесплатно, с 3-й загрузки - 12 рублей за транскрибацию. Оплата требуется после 2-й загрузки файлов с одного IP адреса или UUID за месяц.
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Информация о диске с переключателем языка -->
-        <div class="disk-info" id="diskInfo">
-            <div class="disk-info-header" onclick="toggleDiskInfo()">
-                <div class="disk-info-title">💾 {% trans "свободно на диске" %}</div>
-                <button class="disk-info-toggle" onclick="event.stopPropagation(); toggleDiskInfo();">−</button>
-            </div>
-            <div class="disk-info-content">
-                <!-- Переключатель языка -->
-                <div class="disk-info-language-section">
-                    <form action="{% url 'set_language' %}" method="post" style="margin: 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+
+            <div class="upload-section">
+                <!-- Улучшенный загрузчик -->
+                <div class="upload-form-wrapper">
+                    <div class="message" id="message"></div>
+                    <form class="upload-form" id="uploadForm" enctype="multipart/form-data" novalidate>
                         {% csrf_token %}
-                        <input name="next" type="hidden" value="{{ request.path }}" />
-                        <label style="font-weight: 700; font-size: 12px; color: #fff; margin-right: 5px; white-space: nowrap;">🌐 {% trans "язык" %}:</label>
-                        <select name="language" onchange="this.form.submit()" style="padding: 6px 10px; border: 2px solid #fff; font-weight: 700; font-size: 12px; background: #000; color: #fff; cursor: pointer; text-transform: uppercase; min-width: 100px; flex: 1;">
-                            {% get_current_language as CURRENT_LANGUAGE %}
-                            {% get_available_languages as LANGUAGES %}
-                            {% for lang_code, lang_name in LANGUAGES %}
-                                <option value="{{ lang_code }}" {% if lang_code == CURRENT_LANGUAGE %}selected{% endif %}>
-                                    {% if lang_code == 'ru' %}🇷🇺 Русский{% else %}🇬🇧 English{% endif %}
-                                </option>
-                            {% endfor %}
-                        </select>
+                        <div class="upload-area" id="uploadArea">
+                            <div class="upload-icon">📁</div>
+                            <div class="upload-text">
+                                <strong>{% trans "перетащите файлы сюда" %}</strong><br>
+                                {% trans "или нажмите для выбора" %}
+                            </div>
+                            <input type="file" id="file" name="file" accept="audio/*,video/*" multiple
+                                style="display: none;">
+                            <div class="file-list" id="fileList"></div>
+                        </div>
+                        <button type="submit" class="btn" id="submitBtn">
+                            <span id="btnText">{% trans "загрузить и транскрибировать" %}</span>
+                            <span id="btnSpinner" style="display: none;" class="spinner"></span>
+                        </button>
                     </form>
                 </div>
-                
-                <div style="border-top: 2px solid rgba(255,255,255,0.3); margin: 10px 0; padding-top: 10px;"></div>
-                
-                <div class="disk-info-value">{{ disk_info.free_gb|floatformat:1 }} ГБ</div>
-                <div class="disk-bar">
-                    <div class="disk-bar-fill {% if disk_info.used_percent > 80 %}danger{% elif disk_info.used_percent > 60 %}warning{% endif %}" 
-                         style="width: {{ disk_info.used_percent_int }}%"></div>
-                </div>
-                <div style="font-size: 10px; margin-top: 5px; opacity: 0.7;">
-                    {% trans "использовано:" %} {{ disk_info.used_percent|floatformat:1 }}%
-                </div>
-                <button class="disk-clear-btn" onclick="showClearDiskModal()">{% trans "очистить весь диск" %}</button>
-            </div>
-        </div>
-        
-        <!-- Модальное окно для оплаты -->
-        <div class="payment-modal" id="paymentModal">
-            <div class="payment-modal-content">
-                <h3>💳 Оплата транскрибации</h3>
-                <p style="margin-bottom: 15px; font-weight: 700;">Стоимость: <strong>12 рублей</strong></p>
-                <form id="paymentForm">
-                    <div class="form-group">
-                        <label for="cardNumber">Номер карты:</label>
-                        <input type="text" id="cardNumber" placeholder="0000 0000 0000 0000" maxlength="19" pattern="[0-9\s]+" required>
+
+                <!-- Секция входа по фразе-паролю -->
+                <div class="login-section {% if is_logged_in %}logged-in{% endif %}" id="loginSection"
+                    style="margin-top: 30px;">
+                    <div class="login-header">
+                        <div class="login-title">🔐 {% trans "вход по фразе-паролю" %}</div>
+                        {% if is_logged_in %}
+                        <span class="login-status">{% trans "вход:" %} {{ active_phrase }}</span>
+                        {% endif %}
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                        <div class="form-group">
-                            <label for="cardExpiry">Срок действия:</label>
-                            <input type="text" id="cardExpiry" placeholder="MM/YY" maxlength="5" pattern="[0-9]{2}/[0-9]{2}" required>
+                    {% if not is_logged_in %}
+                    <form class="login-form" id="loginForm">
+                        {% csrf_token %}
+                        <div class="login-form-group">
+                            <label for="login_phrase">{% trans "фраза-пароль:" %}</label>
+                            <input type="text" id="login_phrase" name="password_phrase" placeholder="{% trans " введите
+                                фразу..." %}" required>
                         </div>
-                        <div class="form-group">
-                            <label for="cardCVC">CVC:</label>
-                            <input type="text" id="cardCVC" placeholder="000" maxlength="3" pattern="[0-9]{3}" required>
+                        <button type="submit" class="btn-login">{% trans "войти" %}</button>
+                    </form>
+                    <div class="info-text">{% trans "войдите по фразе-паролю, чтобы видеть только транскрипции,
+                        загруженные с этой фразой" %}</div>
+                    {% else %}
+                    <form class="login-form" id="logoutForm">
+                        {% csrf_token %}
+                        <div class="login-form-group" style="flex: 1;">
+                            <div class="info-text">{% trans "вы вошли по фразе-паролю. видны только транскрипции с этой
+                                фразой." %}</div>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="cardHolder">Имя держателя карты:</label>
-                        <input type="text" id="cardHolder" placeholder="IVAN IVANOV" required>
-                    </div>
-                    <div class="payment-modal-buttons">
-                        <button type="submit" class="payment-modal-btn confirm">Оплатить 12 ₽</button>
-                        <button type="button" class="payment-modal-btn cancel" onclick="closePaymentModal()">Отмена</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-        
-        <!-- Модальное окно для пароля -->
-        <div class="password-modal" id="passwordModal">
-            <div class="password-modal-content">
-                <h3>⚠️ {% trans "очистка диска" %}</h3>
-                <p style="margin-bottom: 15px; font-weight: 700;">{% trans "введите пароль суперадмина для подтверждения:" %}</p>
-                <input type="password" id="adminPassword" placeholder="{% trans "пароль суперадмина" %}" autocomplete="off">
-                <div class="password-modal-buttons">
-                    <button class="password-modal-btn confirm" onclick="confirmClearDisk()">{% trans "очистить" %}</button>
-                    <button class="password-modal-btn cancel" onclick="closePasswordModal()">{% trans "отмена" %}</button>
+                        <button type="submit" class="btn-logout" name="action" value="logout">{% trans "выйти"
+                            %}</button>
+                        <button type="submit" class="btn-logout" name="action" value="change"
+                            style="margin-left: 10px;">поменять фразу пароль</button>
+                    </form>
+                    {% endif %}
                 </div>
-            </div>
-        </div>
-        
-        <!-- Модальное окно для подтверждения языка -->
-        <div class="payment-modal" id="languageModal">
-            <div class="payment-modal-content">
-                <h3>🌐 {% trans "подтверждение языка" %}</h3>
-                <p style="margin-bottom: 15px; font-weight: 700;" id="languageModalText">
-                    {% trans "Обнаружен не-русский язык в аудио файле. Выберите режим транскрибации:" %}
-                </p>
-                <div style="margin-bottom: 20px;">
-                    <label style="display: block; margin-bottom: 10px; cursor: pointer;">
-                        <input type="radio" name="languageMode" value="auto" checked style="margin-right: 8px;">
-                        <strong>{% trans "Мультиязыно (автоопределение)" %}</strong> - {% trans "Whisper автоматически определит язык" %}
-                    </label>
-                    <label style="display: block; margin-bottom: 10px; cursor: pointer;">
-                        <input type="radio" name="languageMode" value="specific" style="margin-right: 8px;">
-                        <strong>{% trans "Указать конкретный язык" %}</strong>
-                    </label>
-                    <select id="languageSelect" style="display: none; width: 100%; padding: 8px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px;">
-                        <option value="ru">Русский (Russian)</option>
-                        <option value="en">English (Английский)</option>
-                        <option value="es">Español (Испанский)</option>
-                        <option value="fr">Français (Французский)</option>
-                        <option value="de">Deutsch (Немецкий)</option>
-                        <option value="it">Italiano (Итальянский)</option>
-                        <option value="pt">Português (Португальский)</option>
-                        <option value="ja">日本語 (Японский)</option>
-                        <option value="ko">한국어 (Корейский)</option>
-                        <option value="zh">中文 (Китайский)</option>
-                        <option value="ar">العربية (Арабский)</option>
-                        <option value="tr">Türkçe (Турецкий)</option>
-                        <option value="pl">Polski (Польский)</option>
-                        <option value="uk">Українська (Украинский)</option>
-                        <option value="cs">Čeština (Чешский)</option>
-                        <option value="nl">Nederlands (Голландский)</option>
-                        <option value="sv">Svenska (Шведский)</option>
-                        <option value="no">Norsk (Норвежский)</option>
-                        <option value="fi">Suomi (Финский)</option>
-                        <option value="el">Ελληνικά (Греческий)</option>
-                        <option value="he">עברית (Иврит)</option>
-                        <option value="hi">हिन्दी (Хинди)</option>
-                        <option value="th">ไทย (Тайский)</option>
-                        <option value="vi">Tiếng Việt (Вьетнамский)</option>
-                    </select>
+
+
+                <!-- Прогресс загрузки -->
+                <div class="upload-progress-container" id="uploadProgress">
+                    <div class="upload-progress-label">загрузка файла...</div>
+                    <div class="upload-progress-bar">
+                        <div class="upload-progress-fill" id="uploadProgressFill">0%</div>
+                    </div>
+                    <div class="upload-progress-text" id="uploadProgressText">подготовка к загрузке...</div>
                 </div>
-                <div class="payment-modal-buttons">
-                    <button class="payment-modal-btn confirm" id="confirmLanguageBtn" onclick="confirmLanguage()">
-                        {% trans "продолжить" %}
-                    </button>
-                    <button class="payment-modal-btn cancel" onclick="closeLanguageModal()">
-                        {% trans "отмена" %}
-                    </button>
+
+                <!-- Прогресс транскрибации -->
+                <div class="transcription-progress-container" id="transcriptionProgress">
+                    <div class="transcription-progress-header">
+                        <div class="transcription-progress-title" id="transcriptionFileName">обработка файла...</div>
+                        <span class="transcription-status status-processing" id="transcriptionStatus">{% trans
+                            "обрабатывается" %}</span>
+                    </div>
+                    <div class="transcription-progress-bar">
+                        <div class="transcription-progress-fill" id="transcriptionProgressFill"></div>
+                    </div>
+                    <div class="transcription-progress-text" id="transcriptionProgressText">
+                        <span class="spinner"></span> <span id="transcriptionProgressTextContent">{% trans "ожидание
+                            обработки..." %}</span>
+                    </div>
+                </div>
+
+                <!-- Прогресс извлечения слайдов -->
+                <div class="transcription-progress-container" id="screenshotProgress" style="display:none;">
+                    <div class="transcription-progress-header">
+                        <div class="transcription-progress-title">Извлечение слайдов</div>
+                        <span class="transcription-status status-processing" id="screenshotStatus">{% trans
+                            "обрабатывается" %}</span>
+                    </div>
+                    <div class="transcription-progress-bar">
+                        <div class="transcription-progress-fill" id="screenshotProgressFill"></div>
+                    </div>
+                    <div class="transcription-progress-text" id="screenshotProgressText">
+                        <span class="spinner"></span> <span id="screenshotProgressTextContent">{% trans "ожидание
+                            обработки..." %}</span>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-    
+
+    <div class="transcriptions-section">
+        <h2>{% trans "последние транскрипции" %}</h2>
+        <div id="transcriptionsList">
+            {% if transcriptions %}
+            {% for transcription in transcriptions %}
+            <div class="transcription-item" data-id="{{ transcription.id }}">
+                <div class="transcription-header">
+                    <span class="transcription-filename">{{ transcription.filename }}</span>
+                    <span class="status-badge status-{{ transcription.status }}">
+                        {% if transcription.status == 'pending' %}{% trans "ожидает" %}
+                        {% elif transcription.status == 'processing' %}{% trans "обрабатывается" %}
+                        {% elif transcription.status == 'completed' %}{% trans "завершено" %}
+                        {% elif transcription.status == 'error' %}{% trans "ошибка" %}
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="transcription-meta">
+                    <span>📅 {{ transcription.uploaded_at|date:"d.m.Y H:i" }}</span>
+                    <span>🌐 IP: {{ transcription.ip_address }}</span>
+                    {% if transcription.user_uuid %}
+                    <span>🆔 UUID: {{ transcription.user_uuid }}</span>
+                    {% endif %}
+                    {% if transcription.signature %}
+                    <span>✍️ {{ transcription.signature }}</span>
+                    {% endif %}
+                    <span>📦 {{ transcription.file_size|filesizeformat }}</span>
+                </div>
+                {% if transcription.status == 'completed' and transcription.transcribed_text %}
+                <div class="transcription-preview">
+                    {{ transcription.transcribed_text|truncatewords:30 }}
+                </div>
+                {% elif transcription.status == 'processing' %}
+                <div class="transcription-preview">
+                    <span class="spinner"
+                        style="display: inline-block; width: 16px; height: 16px; border-width: 3px;"></span>
+                    обработка файла...
+                </div>
+                {% elif transcription.status == 'error' %}
+                <div class="transcription-preview">
+                    <p style="color: #000; font-weight: 900;">❌ {% trans "ошибка" %}: {{
+                        transcription.error_message }}</p>
+                </div>
+                {% elif transcription.status == 'pending' %}
+                <div class="transcription-preview">
+                    <p style="color: #666;">⏳ Ожидает обработки...</p>
+                </div>
+                {% elif transcription.status == 'completed' and not transcription.transcribed_text %}
+                <div class="transcription-preview">
+                    <p style="color: #ff6b6b; font-weight: 900;">⚠️ Транскрибация завершена, но текст пустой.
+                        Попробуйте перетранскрибировать с другой моделью.</p>
+                </div>
+                {% endif %}
+                {% if transcription.status == 'completed' and transcription.transcribed_text %}
+                <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
+                    <a href="{% url 'transcription_detail' transcription.id %}" class="view-full">{% trans
+                        "читать полностью →" %}</a>
+                    <a href="{% url 'download_text' transcription.id %}" class="view-full"
+                        style="background: #4d9de0;">📄 {% trans "скачать текст" %}</a>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="empty-state">
+                <p>{% trans "пока нет транскрипций. загрузите первый файл!" %}</p>
+            </div>
+            {% endif %}
+
+            <!-- Информация для эквайринга -->
+            <div class="transcription-item" style="margin-top: 40px; background: #f5f5f5;">
+                <div style="font-size: 12px; line-height: 1.8; color: #666;">
+                    <div style="margin-bottom: 15px;">
+                        <strong style="cursor: pointer; color: #000; font-size: 14px;" onclick="toggleRequisites()">
+                            Реквизиты юридического лица <span id="reqArrow">▼</span>
+                        </strong>
+                        <div id="requisitesContent" style="display: none; margin-top: 10px; padding-left: 20px;">
+                            <p><strong>Индивидуальный предприниматель</strong></p>
+                            <ul style="list-style: none; padding: 0;">
+                                <li><strong>ОГРНИП:</strong> 318774600019905</li>
+                                <li><strong>ИНН:</strong> 773385920580</li>
+                                <li><strong>Дата регистрации:</strong> 18.01.2018</li>
+                                <li><strong>Регион:</strong> город Москва</li>
+                                <li><strong>ОКПО:</strong> 0124898807</li>
+                                <li><strong>ОКАТО:</strong> 45283569000</li>
+                                <li><strong>ОКТМО:</strong> 45368000000</li>
+                                <li><strong>Регистрационный номер ПФР:</strong> 1311981177</li>
+                                <li><strong>Налоговый режим:</strong> УСН</li>
+                                <li><strong>Категория:</strong> Микропредприятие</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 10px;">
+                        <strong>Способы оплаты:</strong> Банковские карты (Visa, MasterCard, МИР), электронные
+                        кошельки, банковский перевод. Оплата производится через защищенную систему эквайринга.
+                    </div>
+
+                    <div style="margin-bottom: 10px;">
+                        <strong>Условия возврата:</strong> Возврат денежных средств возможен при технических
+                        сбоях, несоответствии результата заявленному качеству, в течение 14 дней с момента
+                        оплаты (при отсутствии использования услуги).
+                    </div>
+
+                    <div style="margin-bottom: 10px;">
+                        <strong>Политика конфиденциальности:</strong> Мы гарантируем конфиденциальность всех
+                        загруженных файлов и транскрипций. Файлы обрабатываются автоматически и не передаются
+                        третьим лицам. Транскрипции доступны только по уникальной ссылке или фразе-паролю. Все
+                        данные хранятся в зашифрованном виде.
+                    </div>
+
+                    <div>
+                        <strong>Стоимость товаров/услуг:</strong> Транскрибация аудио/видео файлов: первые 2
+                        загрузки - бесплатно, с 3-й загрузки - 12 рублей за транскрибацию. Оплата требуется
+                        после 2-й загрузки файлов с одного IP адреса или UUID за месяц.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Информация о диске с переключателем языка -->
+    <div class="disk-info" id="diskInfo">
+        <div class="disk-info-header" onclick="toggleDiskInfo()">
+            <div class="disk-info-title">💾 {% trans "свободно на диске" %}</div>
+            <button class="disk-info-toggle" onclick="event.stopPropagation(); toggleDiskInfo();">−</button>
+        </div>
+        <div class="disk-info-content">
+            <!-- Переключатель языка -->
+            <div class="disk-info-language-section">
+                <form action="{% url 'set_language' %}" method="post"
+                    style="margin: 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    {% csrf_token %}
+                    <input name="next" type="hidden" value="{{ request.path }}" />
+                    <label
+                        style="font-weight: 700; font-size: 12px; color: #fff; margin-right: 5px; white-space: nowrap;">🌐
+                        {% trans "язык" %}:</label>
+                    <select name="language" onchange="this.form.submit()"
+                        style="padding: 6px 10px; border: 2px solid #fff; font-weight: 700; font-size: 12px; background: #000; color: #fff; cursor: pointer; text-transform: uppercase; min-width: 100px; flex: 1;">
+                        {% get_current_language as CURRENT_LANGUAGE %}
+                        {% get_available_languages as LANGUAGES %}
+                        {% for lang_code, lang_name in LANGUAGES %}
+                        <option value="{{ lang_code }}" {% if lang_code == CURRENT_LANGUAGE %}selected{% endif %}>
+                            {% if lang_code == CURRENT_LANGUAGE %}🇷🇺 Русский{% else %}🇬🇧 English{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+
+            <div style="border-top: 2px solid rgba(255,255,255,0.3); margin: 10px 0; padding-top: 10px;"></div>
+
+            <div class="disk-info-value">{{ disk_info.free_gb|floatformat:1 }} ГБ</div>
+            <div class="disk-bar">
+                <div class="disk-bar-fill {% if disk_info.used_percent > 80 %}danger{% elif disk_info.used_percent > 60 %}warning{% endif %}"
+                    style="width: {{ disk_info.used_percent_int }}%"></div>
+            </div>
+            <div style="font-size: 10px; margin-top: 5px; opacity: 0.7;">
+                {% trans "использовано:" %} {{ disk_info.used_percent|floatformat:1 }}%
+            </div>
+            <button class="disk-clear-btn" onclick="showClearDiskModal()">{% trans "очистить весь диск"
+                %}</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно для оплаты -->
+    <div class="payment-modal" id="paymentModal">
+        <div class="payment-modal-content">
+            <h3>💳 Оплата транскрибации</h3>
+            <p style="margin-bottom: 15px; font-weight: 700;">Стоимость: <strong>12 рублей</strong></p>
+            <form id="paymentForm">
+                <div class="form-group">
+                    <label for="cardNumber">Номер карты:</label>
+                    <input type="text" id="cardNumber" placeholder="0000 0000 0000 0000" maxlength="19"
+                        pattern="[0-9\s]+" required>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="form-group">
+                        <label for="cardExpiry">Срок действия:</label>
+                        <input type="text" id="cardExpiry" placeholder="MM/YY" maxlength="5" pattern="[0-9]{2}/[0-9]{2}"
+                            required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cardCVC">CVC:</label>
+                        <input type="text" id="cardCVC" placeholder="000" maxlength="3" pattern="[0-9]{3}" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="cardHolder">Имя держателя карты:</label>
+                    <input type="text" id="cardHolder" placeholder="IVAN IVANOV" required>
+                </div>
+                <div class="payment-modal-buttons">
+                    <button type="submit" class="payment-modal-btn confirm">Оплатить 12 ₽</button>
+                    <button type="button" class="payment-modal-btn cancel" onclick="closePaymentModal()">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно для пароля -->
+    <div class="password-modal" id="passwordModal">
+        <div class="password-modal-content">
+            <h3>⚠️ {% trans "очистка диска" %}</h3>
+            <p style="margin-bottom: 15px; font-weight: 700;">{% trans "введите пароль суперадмина для
+                подтверждения:" %}</p>
+            <input type="password" id="adminPassword" placeholder="{% trans " пароль суперадмина" %}"
+                autocomplete="off">
+            <div class="password-modal-buttons">
+                <button class="password-modal-btn confirm" onclick="confirmClearDisk()">{% trans "очистить"
+                    %}</button>
+                <button class="password-modal-btn cancel" onclick="closePasswordModal()">{% trans "отмена"
+                    %}</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для подтверждения языка -->
+    <div class="payment-modal" id="languageModal">
+        <div class="payment-modal-content">
+            <h3>🌐 {% trans "подтверждение языка" %}</h3>
+            <p style="margin-bottom: 15px; font-weight: 700;" id="languageModalText">
+                {% trans "Обнаружен не-русский язык в аудио файле. Выберите режим транскрибации:" %}
+            </p>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 10px; cursor: pointer;">
+                    <input type="radio" name="languageMode" value="auto" checked style="margin-right: 8px;">
+                    <strong>{% trans "Мультиязыно (автоопределение)" %}</strong> - {% trans "Whisper
+                    автоматически определит язык" %}
+                </label>
+                <label style="display: block; margin-bottom: 10px; cursor: pointer;">
+                    <input type="radio" name="languageMode" value="specific" style="margin-right: 8px;">
+                    <strong>{% trans "Указать конкретный язык" %}</strong>
+                </label>
+                <select id="languageSelect"
+                    style="display: none; width: 100%; padding: 8px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="ru">Русский (Russian)</option>
+                    <option value="en">English (Английский)</option>
+                    <option value="es">Español (Испанский)</option>
+                    <option value="fr">Français (Французский)</option>
+                    <option value="de">Deutsch (Немецкий)</option>
+                    <option value="it">Italiano (Итальянский)</option>
+                    <option value="pt">Português (Португальский)</option>
+                    <option value="ja">日本語 (Японский)</option>
+                    <option value="ko">한국어 (Корейский)</option>
+                    <option value="zh">中文 (Китайский)</option>
+                    <option value="ar">العربية (Арабский)</option>
+                    <option value="tr">Türkçe (Турецкий)</option>
+                    <option value="pl">Polski (Польский)</option>
+                    <option value="uk">Українська (Украинский)</option>
+                    <option value="cs">Čeština (Чешский)</option>
+                    <option value="nl">Nederlands (Голландский)</option>
+                    <option value="sv">Svenska (Шведский)</option>
+                    <option value="no">Norsk (Норвежский)</option>
+                    <option value="fi">Suomi (Финский)</option>
+                    <option value="el">Ελληνικά (Греческий)</option>
+                    <option value="he">עברית (Иврит)</option>
+                    <option value="hi">हिन्दी (Хинди)</option>
+                    <option value="th">ไทย (Тайский)</option>
+                    <option value="vi">Tiếng Việt (Вьетнамский)</option>
+                </select>
+            </div>
+            <div class="payment-modal-buttons">
+                <button class="payment-modal-btn confirm" id="confirmLanguageBtn" onclick="confirmLanguage()">
+                    {% trans "продолжить" %}
+                </button>
+                <button class="payment-modal-btn cancel" onclick="closeLanguageModal()">
+                    {% trans "отмена" %}
+                </button>
+            </div>
+        </div>
+    </div>
+    </div>
+
     <script>
         // Генерация и сохранение UUID
         function getOrCreateUUID() {
             let userUUID = localStorage.getItem('user_uuid');
             if (!userUUID) {
                 // Генерируем новый UUID
-                userUUID = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                userUUID = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
                     const r = Math.random() * 16 | 0;
                     const v = c == 'x' ? r : (r & 0x3 | 0x8);
                     return v.toString(16);
@@ -1547,15 +1628,15 @@
             }
             return userUUID;
         }
-        
+
         const userUUID = getOrCreateUUID();
-        
+
         // Отображаем UUID в хедере
         const userUUIDDisplay = document.getElementById('userUUIDDisplay');
         if (userUUIDDisplay) {
             userUUIDDisplay.textContent = userUUID;
         }
-        
+
         const form = document.getElementById('uploadForm');
         const submitBtn = document.getElementById('submitBtn');
         const btnText = document.getElementById('btnText');
@@ -1569,11 +1650,11 @@
         const transcriptionProgressText = document.getElementById('transcriptionProgressText');
         const transcriptionFileName = document.getElementById('transcriptionFileName');
         const transcriptionStatus = document.getElementById('transcriptionStatus');
-        
+
         let currentTranscriptionId = null;
         let statusCheckInterval = null;
         let userBalance = null; // Баланс пользователя
-        
+
         // Проверка баланса при загрузке страницы
         function checkBalance() {
             fetch(`/check-balance/?user_uuid=${userUUID}`)
@@ -1588,7 +1669,7 @@
                     console.error('Ошибка при проверке баланса:', error);
                 });
         }
-        
+
         // Обновление интерфейса в зависимости от баланса
         function updateUIForBalance(balance) {
             const body = document.body;
@@ -1598,16 +1679,16 @@
                 body.classList.remove('zero-balance');
             }
         }
-        
+
         // Проверяем баланс при загрузке страницы
         checkBalance();
-        
+
         // Улучшенный drag and drop
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('file');
         const fileList = document.getElementById('fileList');
         let selectedFiles = [];
-        
+
         // Клик по области загрузки - проверяем баланс перед выбором файла
         uploadArea.addEventListener('click', () => {
             // Проверяем баланс перед выбором файла
@@ -1621,22 +1702,22 @@
             }
             fileInput.click();
         });
-        
+
         // Обработка выбора файлов
         fileInput.addEventListener('change', (e) => {
             handleFiles(Array.from(e.target.files));
         });
-        
+
         // Drag and drop
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadArea.classList.add('dragover');
         });
-        
+
         uploadArea.addEventListener('dragleave', () => {
             uploadArea.classList.remove('dragover');
         });
-        
+
         uploadArea.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadArea.classList.remove('dragover');
@@ -1644,17 +1725,17 @@
                 handleFiles(Array.from(e.dataTransfer.files));
             }
         });
-        
+
         function handleFiles(files) {
             const validFiles = [];
-            
+
             files.forEach(file => {
                 // Проверяем только что файл не пустой
                 if (file.size === 0) {
                     showMessage(`файл ${file.name} пустой`, 'error');
                 } else {
                     // Проверяем, не добавлен ли файл уже (по имени и размеру)
-                    const isDuplicate = selectedFiles.some(existingFile => 
+                    const isDuplicate = selectedFiles.some(existingFile =>
                         existingFile.name === file.name && existingFile.size === file.size
                     );
                     if (!isDuplicate) {
@@ -1662,26 +1743,26 @@
                     }
                 }
             });
-            
+
             if (validFiles.length > 0) {
                 selectedFiles = [...selectedFiles, ...validFiles];
                 updateFileList();
             }
-            
+
             // Очищаем input, чтобы избежать дублей при повторном выборе
             fileInput.value = '';
         }
-        
+
         function updateFileList() {
             fileList.innerHTML = '';
-            
+
             if (selectedFiles.length === 0) {
                 uploadArea.querySelector('.upload-text').innerHTML = '<strong>{% trans "перетащите файлы сюда" %}</strong><br>{% trans "или нажмите для выбора" %}';
                 return;
             }
-            
+
             uploadArea.querySelector('.upload-text').innerHTML = `<strong>выбрано файлов: ${selectedFiles.length}</strong>`;
-            
+
             selectedFiles.forEach((file, index) => {
                 const fileItem = document.createElement('div');
                 fileItem.className = 'file-item';
@@ -1693,50 +1774,61 @@
                 fileList.appendChild(fileItem);
             });
         }
-        
+
         function removeFile(index) {
             selectedFiles.splice(index, 1);
             updateFileList();
         }
-        
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             if (selectedFiles.length === 0) {
                 showMessage('пожалуйста, выберите файлы', 'error');
                 return;
             }
-            
+
             submitBtn.disabled = true;
             btnText.textContent = 'загрузка...';
             btnSpinner.style.display = 'inline-block';
             message.classList.remove('active');
             uploadProgress.classList.add('active');
             transcriptionProgress.classList.remove('active');
-            
+
             const formData = new FormData(form);
-            
+
             // Добавляем UUID пользователя
             formData.append('user_uuid', userUUID);
-            
+
+            // Добавляем настройки из сайдбара (вне формы)
+            const extractScreenshots = document.getElementById('extract_screenshots');
+            if (extractScreenshots && extractScreenshots.checked) {
+                formData.append('extract_screenshots', 'on');
+            }
+
+            const whisperModel = document.getElementById('whisper_model');
+            if (whisperModel) {
+                formData.append('whisper_model', whisperModel.value);
+            }
+
             // Добавляем все выбранные файлы
             selectedFiles.forEach(file => {
                 formData.append('file', file);
             });
-            
+
             const totalSize = selectedFiles.reduce((sum, file) => sum + file.size, 0);
             const fileCount = selectedFiles.length;
             const fileNames = selectedFiles.map(f => f.name).join(', ');
-            
+
             // Инициализация прогресса
             updateUploadProgress(0, `подготовка к загрузке ${fileCount} файл${fileCount > 1 ? 'ов' : ''} (${formatBytes(totalSize)})...`);
-            
+
             try {
                 const xhr = new XMLHttpRequest();
                 let lastUpdateTime = Date.now();
                 let lastLoaded = 0;
                 let lastProgressTime = Date.now();
-                
+
                 // Проверка зависания загрузки
                 const progressCheckInterval = setInterval(() => {
                     const now = Date.now();
@@ -1749,10 +1841,10 @@
                         resetForm();
                     }
                 }, 10000); // Проверяем каждые 10 секунд
-                
+
                 xhr.upload.addEventListener('progress', (e) => {
                     lastProgressTime = Date.now(); // Обновляем время последнего прогресса
-                    
+
                     if (e.lengthComputable && e.total > 0) {
                         const percentComplete = Math.min((e.loaded / e.total) * 100, 99.9);
                         const now = Date.now();
@@ -1761,7 +1853,7 @@
                         const speed = timeDiff > 0 ? loadedDiff / timeDiff : 0; // байт/сек
                         const remaining = e.total - e.loaded;
                         const eta = speed > 0 ? remaining / speed : 0; // секунды
-                        
+
                         let speedText = '';
                         if (speed > 0) {
                             speedText = ` • ${formatBytes(speed)}/сек`;
@@ -1771,11 +1863,11 @@
                                 speedText += ` • осталось ${minutes > 0 ? minutes + 'м ' : ''}${seconds}с`;
                             }
                         }
-                        
-                        updateUploadProgress(percentComplete, 
+
+                        updateUploadProgress(percentComplete,
                             `загружено ${formatBytes(e.loaded)} из ${formatBytes(e.total)}${speedText}`
                         );
-                        
+
                         lastUpdateTime = now;
                         lastLoaded = e.loaded;
                     } else if (e.lengthComputable && e.total === 0) {
@@ -1783,44 +1875,44 @@
                         updateUploadProgress(100, 'загрузка завершена');
                     }
                 });
-                
+
                 xhr.upload.addEventListener('loadstart', () => {
                     updateUploadProgress(0, 'начало загрузки...');
                 });
-                
+
                 xhr.addEventListener('load', () => {
                     clearInterval(progressCheckInterval); // Останавливаем проверку зависания
-                    
+
                     if (xhr.status === 200) {
                         try {
                             const data = JSON.parse(xhr.responseText);
                             if (data.success) {
                                 updateUploadProgress(100, `✓ загружено файлов: ${data.count || fileCount}`);
                                 showMessage(`успешно загружено файлов: ${data.count || fileCount}. обработка началась.`, 'success');
-                                
+
                                 // Показываем прелоадер для обработки файлов
                                 if (data.files && data.files.length > 0) {
                                     uploadProgress.classList.remove('active');
                                     // Показываем прогресс для первого файла (или суммарный размер)
                                     const totalSizeMB = data.files.reduce((sum, f) => sum + (f.size_mb || 0), 0);
                                     const firstFile = data.files[0];
-                                    
+
                                     // Проверяем, требуется ли подтверждение языка сразу после загрузки
                                     if (firstFile.requires_language_confirmation && firstFile.detected_language) {
                                         showLanguageModal(firstFile.id, firstFile.detected_language);
                                     } else {
                                         startTranscriptionProgress(
-                                            firstFile.id, 
-                                            firstFile.filename, 
+                                            firstFile.id,
+                                            firstFile.filename,
                                             totalSizeMB
                                         );
                                     }
                                 }
-                                
+
                                 // Очищаем выбранные файлы
                                 selectedFiles = [];
                                 updateFileList();
-                                
+
                                 // Не перезагружаем страницу сразу - показываем прогресс обработки
                                 // Перезагрузка произойдет автоматически когда транскрибация завершится
                             } else {
@@ -1857,29 +1949,29 @@
                         throw new Error(errorMsg);
                     }
                 });
-                
+
                 xhr.addEventListener('error', () => {
                     clearInterval(progressCheckInterval);
                     throw new Error('{% trans "ошибка" %} сети. Проверьте подключение к интернету.');
                 });
-                
+
                 xhr.addEventListener('abort', () => {
                     clearInterval(progressCheckInterval);
                     updateUploadProgress(0, 'загрузка отменена');
                     resetForm();
                 });
-                
+
                 xhr.addEventListener('timeout', () => {
                     clearInterval(progressCheckInterval);
                     updateUploadProgress(0, 'таймаут загрузки');
                     throw new Error('превышено время ожидания (30 минут). Файл слишком большой или очень медленное соединение. Попробуйте загрузить файл меньшего размера.');
                 });
-                
+
                 xhr.open('POST', '/upload/');
                 xhr.setRequestHeader('X-CSRFToken', document.querySelector('[name=csrfmiddlewaretoken]').value);
                 xhr.timeout = 1800000; // 30 минут таймаут для больших файлов (500 МБ)
                 xhr.send(formData);
-                
+
             } catch (error) {
                 console.error('Ошибка загрузки:', error);
                 updateUploadProgress(0, 'ошибка загрузки');
@@ -1887,36 +1979,36 @@
                 resetForm();
             }
         });
-        
+
         function updateUploadProgress(percent, text) {
             // Простое и надежное обновление прогресса
             const targetPercent = Math.max(0, Math.min(100, percent));
-            
+
             // Обновляем сразу для плавности (CSS transition сделает анимацию)
             uploadProgressFill.style.width = targetPercent + '%';
             uploadProgressFill.textContent = Math.round(targetPercent) + '%';
             uploadProgressText.textContent = text || '';
         }
-        
+
         function startTranscriptionProgress(transcriptionId, fileName, fileSizeMB = 0) {
             currentTranscriptionId = transcriptionId;
             transcriptionProgress.classList.add('active');
             transcriptionFileName.textContent = fileName;
             transcriptionStatus.textContent = '{% trans "обрабатывается" %}';
             transcriptionStatus.className = 'transcription-status status-processing';
-            
+
             // Вычисляем примерное время обработки на основе размера файла
             // Примерно: 1 МБ = 10-30 секунд обработки (зависит от сложности)
             const estimatedSeconds = fileSizeMB > 0 ? Math.max(10, Math.min(1800, fileSizeMB * 15)) : 60;
             let elapsedSeconds = 0;
             const startTime = Date.now();
-            
+
             // Обновляем прогресс на основе времени
             const progressInterval = setInterval(() => {
                 elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
                 const progress = Math.min(95, (elapsedSeconds / estimatedSeconds) * 100);
                 transcriptionProgressFill.style.width = progress + '%';
-                
+
                 // Форматируем оставшееся время
                 const remainingSeconds = Math.max(0, estimatedSeconds - elapsedSeconds);
                 const minutes = Math.floor(remainingSeconds / 60);
@@ -1927,7 +2019,7 @@
                 } else {
                     timeText = `~${seconds}с`;
                 }
-                
+
                 let statusText = 'извлечение аудио и транскрибация...';
                 if (elapsedSeconds < 5) {
                     statusText = 'извлечение аудио...';
@@ -1938,19 +2030,19 @@
                 } else {
                     statusText = `финализация... (осталось ${timeText})`;
                 }
-                
+
                 transcriptionProgressText.innerHTML = `
                     <span class="spinner" style="display: inline-block; width: 16px; height: 16px; border-width: 3px;"></span>
                     ${statusText}
                 `;
             }, 500);
-            
+
             // Проверка статуса
             statusCheckInterval = setInterval(async () => {
                 try {
                     const response = await fetch(`/transcription/${transcriptionId}/status/`);
                     const data = await response.json();
-                    
+
                     // Проверяем, требуется ли подтверждение языка
                     if (data.requires_language_confirmation && data.detected_language) {
                         clearInterval(statusCheckInterval);
@@ -1958,7 +2050,33 @@
                         showLanguageModal(transcriptionId, data.detected_language);
                         return;
                     }
-                    
+
+                    // Обновляем статус извлечения слайдов
+                    if (data.screenshot_status && data.screenshot_status !== 'skipped') {
+                        const screenshotProgress = document.getElementById('screenshotProgress');
+                        const screenshotStatus = document.getElementById('screenshotStatus');
+                        const screenshotProgressFill = document.getElementById('screenshotProgressFill');
+                        const screenshotProgressText = document.getElementById('screenshotProgressTextContent');
+
+                        screenshotProgress.style.display = 'block';
+
+                        if (data.screenshot_status === 'processing') {
+                            screenshotStatus.textContent = 'обрабатывается';
+                            screenshotStatus.className = 'transcription-status status-processing';
+                            screenshotProgressFill.style.width = '50%';
+                            screenshotProgressText.textContent = 'извлечение слайдов...';
+                        } else if (data.screenshot_status === 'completed') {
+                            screenshotStatus.textContent = 'завершено';
+                            screenshotStatus.className = 'transcription-status status-completed';
+                            screenshotProgressFill.style.width = '100%';
+                            screenshotProgressText.innerHTML = `✅ извлечено ${data.screenshot_count || 0} слайдов`;
+                        } else if (data.screenshot_status === 'error') {
+                            screenshotStatus.textContent = 'ошибка';
+                            screenshotStatus.className = 'transcription-status status-error';
+                            screenshotProgressText.textContent = '❌ ошибка при извлечении';
+                        }
+                    }
+
                     if (data.status === 'completed') {
                         clearInterval(statusCheckInterval);
                         clearInterval(progressInterval);
@@ -1986,7 +2104,7 @@
                 }
             }, 3000); // Проверка каждые 3 секунды
         }
-        
+
         function resetForm() {
             submitBtn.disabled = false;
             btnText.textContent = '{% trans "загрузить и транскрибировать" %}';
@@ -2000,7 +2118,7 @@
                 clearInterval(statusCheckInterval);
             }
         }
-        
+
         function showMessage(text, type) {
             message.textContent = text;
             message.className = 'message ' + type + ' active';
@@ -2008,7 +2126,7 @@
                 message.classList.remove('active');
             }, 5000);
         }
-        
+
         function formatBytes(bytes) {
             if (bytes === 0) return '0 Bytes';
             const k = 1024;
@@ -2016,14 +2134,14 @@
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
         }
-        
+
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebarOverlay');
             sidebar.classList.toggle('active');
             overlay.classList.toggle('active');
         }
-        
+
         // Управление информацией о диске
         function toggleDiskInfo() {
             const diskInfo = document.getElementById('diskInfo');
@@ -2031,78 +2149,78 @@
             diskInfo.classList.toggle('collapsed');
             toggle.textContent = diskInfo.classList.contains('collapsed') ? '+' : '−';
         }
-        
+
         // Модальное окно для очистки диска
         function showClearDiskModal() {
             document.getElementById('passwordModal').classList.add('active');
             document.getElementById('adminPassword').focus();
         }
-        
+
         function closePasswordModal() {
             document.getElementById('passwordModal').classList.remove('active');
             document.getElementById('adminPassword').value = '';
         }
-        
+
         function confirmClearDisk() {
             const password = document.getElementById('adminPassword').value;
             if (!password) {
                 alert('введите пароль');
                 return;
             }
-            
+
             fetch('/clear-disk/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
                 },
-                body: JSON.stringify({password: password})
+                body: JSON.stringify({ password: password })
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('диск очищен успешно');
-                    closePasswordModal();
-                    window.location.reload();
-                } else {
-                    alert('{% trans "ошибка" %}: ' + (data.error || 'неверный пароль'));
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка:', error);
-                alert('произошла {% trans "ошибка" %} при очистке диска');
-            });
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('диск очищен успешно');
+                        closePasswordModal();
+                        window.location.reload();
+                    } else {
+                        alert('{% trans "ошибка" %}: ' + (data.error || 'неверный пароль'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    alert('произошла {% trans "ошибка" %} при очистке диска');
+                });
         }
-        
+
         // Закрытие модального окна по клику вне его
-        document.getElementById('passwordModal')?.addEventListener('click', function(e) {
+        document.getElementById('passwordModal')?.addEventListener('click', function (e) {
             if (e.target === this) {
                 closePasswordModal();
             }
         });
-        
+
         // Закрытие по Escape
-        document.addEventListener('keydown', function(e) {
+        document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {
                 closePasswordModal();
             }
         });
-        
+
         // Автообновление для обрабатывающихся транскрипций в списке
         // Используем Map для отслеживания активных интервалов и предотвращения дублей
         const statusCheckIntervals = new Map();
         const processingItems = document.querySelectorAll('.transcription-item[data-id]');
-        
+
         processingItems.forEach(item => {
             const status = item.querySelector('.status-badge');
             if (status && status.classList.contains('status-processing')) {
                 const id = item.getAttribute('data-id');
-                
+
                 // Проверяем, не запущен ли уже интервал для этого элемента
                 if (statusCheckIntervals.has(id)) {
                     return; // Пропускаем, если интервал уже запущен
                 }
-                
+
                 const intervalId = setInterval(async () => {
                     try {
                         const response = await fetch(`/transcription/${id}/status/`);
@@ -2120,26 +2238,26 @@
                         statusCheckIntervals.delete(id);
                     }
                 }, 5000);
-                
+
                 // Сохраняем ID интервала
                 statusCheckIntervals.set(id, intervalId);
             }
         });
-        
+
         // Очистка интервалов при уходе со страницы
         window.addEventListener('beforeunload', () => {
             statusCheckIntervals.forEach(intervalId => clearInterval(intervalId));
             statusCheckIntervals.clear();
         });
-        
+
         // Обработка входа по фразе-паролю
         const loginForm = document.getElementById('loginForm');
         if (loginForm) {
             loginForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                
+
                 const formData = new FormData(loginForm);
-                
+
                 try {
                     const response = await fetch('/login/', {
                         method: 'POST',
@@ -2148,9 +2266,9 @@
                             'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
                         }
                     });
-                    
+
                     const data = await response.json();
-                    
+
                     if (data.success) {
                         showMessage('вход выполнен успешно!', 'success');
                         setTimeout(() => {
@@ -2164,13 +2282,13 @@
                 }
             });
         }
-        
+
         // Обработка выхода
         const logoutForm = document.getElementById('logoutForm');
         if (logoutForm) {
             logoutForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                
+
                 try {
                     const response = await fetch('/logout/', {
                         method: 'POST',
@@ -2180,9 +2298,9 @@
                         },
                         body: 'csrfmiddlewaretoken=' + document.querySelector('[name=csrfmiddlewaretoken]').value
                     });
-                    
+
                     const data = await response.json();
-                    
+
                     if (data.success) {
                         showMessage('выход выполнен', 'success');
                         setTimeout(() => {
@@ -2196,7 +2314,7 @@
                 }
             });
         }
-        
+
         // Функция для раскрытия/скрытия реквизитов
         function toggleRequisites() {
             const content = document.getElementById('requisitesContent');
@@ -2209,35 +2327,35 @@
                 arrow.textContent = '▼';
             }
         }
-        
+
         // Функции для работы с формой оплаты
         function showPaymentModal(data) {
             document.getElementById('paymentModal').classList.add('active');
             document.getElementById('cardNumber').focus();
         }
-        
+
         function closePaymentModal() {
             document.getElementById('paymentModal').classList.remove('active');
             document.getElementById('paymentForm').reset();
         }
-        
+
         // Обработка формы оплаты
         const paymentForm = document.getElementById('paymentForm');
         if (paymentForm) {
             paymentForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                
+
                 const cardNumber = document.getElementById('cardNumber').value.replace(/\s/g, '');
                 const cardExpiry = document.getElementById('cardExpiry').value;
                 const cardCVC = document.getElementById('cardCVC').value;
                 const cardHolder = document.getElementById('cardHolder').value;
-                
+
                 // Валидация (пока простая, потом будет через API)
                 if (cardNumber.length < 16 || cardCVC.length < 3 || !cardExpiry.match(/^\d{2}\/\d{2}$/)) {
                     showMessage('Пожалуйста, заполните все поля корректно', 'error');
                     return;
                 }
-                
+
                 // Отправляем реальные данные карты
                 // Если все поля - нули, сервер обработает как тестовую оплату
                 try {
@@ -2258,9 +2376,9 @@
                             }
                         })
                     });
-                    
+
                     const data = await response.json();
-                    
+
                     if (data.success) {
                         showMessage(data.message || 'Оплата успешно обработана! Вам добавлено 3 транскрибации. Теперь вы можете загружать файлы.', 'success');
                         closePaymentModal();
@@ -2282,22 +2400,22 @@
                 }
             });
         }
-        
+
         // Форматирование номера карты
         const cardNumberInput = document.getElementById('cardNumber');
         if (cardNumberInput) {
-            cardNumberInput.addEventListener('input', function(e) {
+            cardNumberInput.addEventListener('input', function (e) {
                 let value = e.target.value.replace(/\s/g, '');
                 if (value.length > 16) value = value.slice(0, 16);
                 value = value.replace(/(.{4})/g, '$1 ').trim();
                 e.target.value = value;
             });
         }
-        
+
         // Форматирование срока действия
         const cardExpiryInput = document.getElementById('cardExpiry');
         if (cardExpiryInput) {
-            cardExpiryInput.addEventListener('input', function(e) {
+            cardExpiryInput.addEventListener('input', function (e) {
                 let value = e.target.value.replace(/\D/g, '');
                 if (value.length >= 2) {
                     value = value.slice(0, 2) + '/' + value.slice(2, 4);
@@ -2305,17 +2423,17 @@
                 e.target.value = value;
             });
         }
-        
+
         // Закрытие модального окна оплаты по клику вне его
-        document.getElementById('paymentModal')?.addEventListener('click', function(e) {
+        document.getElementById('paymentModal')?.addEventListener('click', function (e) {
             if (e.target === this) {
                 closePaymentModal();
             }
         });
-        
+
         // Модальное окно для подтверждения языка
         let currentLanguageTranscriptionId = null;
-        
+
         function showLanguageModal(transcriptionId, detectedLanguage) {
             currentLanguageTranscriptionId = transcriptionId;
             const languageNames = {
@@ -2339,19 +2457,19 @@
                 'fi': 'Финский'
             };
             const languageName = languageNames[detectedLanguage] || detectedLanguage.toUpperCase();
-            document.getElementById('languageModalText').textContent = 
+            document.getElementById('languageModalText').textContent =
                 `Обнаружен не-русский язык в аудио файле: ${languageName} (${detectedLanguage}). Выберите режим транскрибации:`;
-            
+
             // Устанавливаем выбранный язык в селекте, если он есть в списке
             const languageSelect = document.getElementById('languageSelect');
             if (languageSelect.querySelector(`option[value="${detectedLanguage}"]`)) {
                 languageSelect.value = detectedLanguage;
             }
-            
+
             // Обработчик изменения режима языка
             const languageModeRadios = document.querySelectorAll('input[name="languageMode"]');
             languageModeRadios.forEach(radio => {
-                radio.addEventListener('change', function() {
+                radio.addEventListener('change', function () {
                     if (this.value === 'specific') {
                         languageSelect.style.display = 'block';
                     } else {
@@ -2359,10 +2477,10 @@
                     }
                 });
             });
-            
+
             document.getElementById('languageModal').classList.add('active');
         }
-        
+
         function closeLanguageModal() {
             document.getElementById('languageModal').classList.remove('active');
             currentLanguageTranscriptionId = null;
@@ -2370,21 +2488,21 @@
             document.querySelector('input[name="languageMode"][value="auto"]').checked = true;
             document.getElementById('languageSelect').style.display = 'none';
         }
-        
+
         function confirmLanguage() {
             if (!currentLanguageTranscriptionId) {
                 return;
             }
-            
+
             const languageMode = document.querySelector('input[name="languageMode"]:checked').value;
             const selectedLanguage = languageMode === 'specific' ? document.getElementById('languageSelect').value : null;
-            
+
             // Показываем индикатор загрузки
             const confirmBtn = document.getElementById('confirmLanguageBtn');
             const originalText = confirmBtn.textContent;
             confirmBtn.disabled = true;
             confirmBtn.textContent = 'Обработка...';
-            
+
             fetch(`/transcription/${currentLanguageTranscriptionId}/confirm-language/`, {
                 method: 'POST',
                 headers: {
@@ -2396,59 +2514,59 @@
                     selected_language: selectedLanguage
                 })
             })
-            .then(response => response.json())
-            .then(data => {
-                confirmBtn.disabled = false;
-                confirmBtn.textContent = originalText;
-                
-                if (data.success) {
-                    showMessage('Язык подтвержден. Транскрибация продолжается.', 'success');
-                    closeLanguageModal();
-                    
-                    // Очищаем старые интервалы если они есть
-                    if (statusCheckInterval) {
-                        clearInterval(statusCheckInterval);
-                        statusCheckInterval = null;
-                    }
-                    
-                    // Получаем имя файла из текущего прогресса или из транскрипции
-                    let fileName = transcriptionFileName ? transcriptionFileName.textContent : 'Файл';
-                    if (!fileName || fileName === '{% trans "обрабатывается" %}') {
-                        // Пытаемся получить имя файла из транскрипции
-                        fetch(`/transcription/${currentLanguageTranscriptionId}/status/`)
-                            .then(r => r.json())
-                            .then(statusData => {
-                                // Запускаем прогресс заново
-                                startTranscriptionProgress(currentLanguageTranscriptionId, fileName, 0);
-                            })
-                            .catch(() => {
-                                // В случае ошибки все равно запускаем прогресс
-                                startTranscriptionProgress(currentLanguageTranscriptionId, fileName, 0);
-                            });
+                .then(response => response.json())
+                .then(data => {
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = originalText;
+
+                    if (data.success) {
+                        showMessage('Язык подтвержден. Транскрибация продолжается.', 'success');
+                        closeLanguageModal();
+
+                        // Очищаем старые интервалы если они есть
+                        if (statusCheckInterval) {
+                            clearInterval(statusCheckInterval);
+                            statusCheckInterval = null;
+                        }
+
+                        // Получаем имя файла из текущего прогресса или из транскрипции
+                        let fileName = transcriptionFileName ? transcriptionFileName.textContent : 'Файл';
+                        if (!fileName || fileName === '{% trans "обрабатывается" %}') {
+                            // Пытаемся получить имя файла из транскрипции
+                            fetch(`/transcription/${currentLanguageTranscriptionId}/status/`)
+                                .then(r => r.json())
+                                .then(statusData => {
+                                    // Запускаем прогресс заново
+                                    startTranscriptionProgress(currentLanguageTranscriptionId, fileName, 0);
+                                })
+                                .catch(() => {
+                                    // В случае ошибки все равно запускаем прогресс
+                                    startTranscriptionProgress(currentLanguageTranscriptionId, fileName, 0);
+                                });
+                        } else {
+                            // Запускаем прогресс заново
+                            startTranscriptionProgress(currentLanguageTranscriptionId, fileName, 0);
+                        }
                     } else {
-                        // Запускаем прогресс заново
-                        startTranscriptionProgress(currentLanguageTranscriptionId, fileName, 0);
+                        showMessage('Ошибка: ' + (data.error || 'неизвестная ошибка'), 'error');
                     }
-                } else {
-                    showMessage('Ошибка: ' + (data.error || 'неизвестная ошибка'), 'error');
-                }
-            })
-            .catch(error => {
-                confirmBtn.disabled = false;
-                confirmBtn.textContent = originalText;
-                console.error('Ошибка при подтверждении языка:', error);
-                showMessage('Ошибка при подтверждении языка: ' + error.message, 'error');
-            });
+                })
+                .catch(error => {
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = originalText;
+                    console.error('Ошибка при подтверждении языка:', error);
+                    showMessage('Ошибка при подтверждении языка: ' + error.message, 'error');
+                });
         }
-        
+
         // Закрытие модального окна языка по клику вне его
-        document.getElementById('languageModal')?.addEventListener('click', function(e) {
+        document.getElementById('languageModal')?.addEventListener('click', function (e) {
             if (e.target === this) {
                 closeLanguageModal();
             }
         });
     </script>
-    
-</body>
-</html>
 
+</body>
+
+</html>
