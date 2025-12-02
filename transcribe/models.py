@@ -41,6 +41,9 @@ class Transcription(models.Model):
     error_message = models.TextField(blank=True, null=True, verbose_name="Сообщение об ошибке")
     transcription_logs = models.TextField(blank=True, null=True, verbose_name="Логи транскрибации")
     original_file_path = models.CharField(max_length=500, blank=True, null=True, verbose_name="Путь к оригинальному файлу")
+    detected_language = models.CharField(max_length=10, blank=True, null=True, verbose_name="Определенный язык")
+    selected_language = models.CharField(max_length=10, blank=True, null=True, verbose_name="Выбранный язык")
+    language_confirmed = models.BooleanField(default=False, verbose_name="Язык подтвержден пользователем")
 
     class Meta:
         verbose_name = "Транскрипция"
@@ -96,6 +99,7 @@ class IPUploadCount(models.Model):
     """Модель для отслеживания количества загрузок по IP адресу"""
     ip_address = models.GenericIPAddressField(unique=True, verbose_name="IP адрес")
     upload_count = models.IntegerField(default=0, verbose_name="Количество загрузок")
+    balance = models.IntegerField(default=0, verbose_name="Баланс")
     is_paid = models.BooleanField(default=False, verbose_name="Оплачено")
     last_upload_at = models.DateTimeField(auto_now=True, verbose_name="Последняя загрузка")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
@@ -109,14 +113,14 @@ class IPUploadCount(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.ip_address} - {self.upload_count} загрузок"
+        return f"{self.ip_address} - {self.upload_count} загрузок, баланс: {self.balance}"
     
     @classmethod
     def get_or_create_for_ip(cls, ip_address):
         """Получить или создать счетчик для IP адреса"""
         obj, created = cls.objects.get_or_create(
             ip_address=ip_address,
-            defaults={'upload_count': 0, 'is_paid': False}
+            defaults={'upload_count': 0, 'balance': 0, 'is_paid': False}
         )
         return obj
     
@@ -137,13 +141,14 @@ class IPUploadCount(models.Model):
     def requires_payment(self):
         """Проверяет, требуется ли оплата (после 2-й загрузки за месяц)"""
         monthly_count = self.get_monthly_count()
-        return monthly_count >= 2 and not self.is_paid
+        return monthly_count >= 2 and not self.is_paid and self.balance <= 0
 
 
 class UUIDUploadCount(models.Model):
     """Модель для отслеживания количества загрузок по UUID"""
     uuid = models.CharField(max_length=36, unique=True, verbose_name="UUID пользователя")
     upload_count = models.IntegerField(default=0, verbose_name="Количество загрузок")
+    balance = models.IntegerField(default=0, verbose_name="Баланс")
     is_paid = models.BooleanField(default=False, verbose_name="Оплачено")
     last_upload_at = models.DateTimeField(auto_now=True, verbose_name="Последняя загрузка")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
@@ -157,14 +162,14 @@ class UUIDUploadCount(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.uuid} - {self.upload_count} загрузок"
+        return f"{self.uuid} - {self.upload_count} загрузок, баланс: {self.balance}"
     
     @classmethod
     def get_or_create_for_uuid(cls, uuid_str):
         """Получить или создать счетчик для UUID"""
         obj, created = cls.objects.get_or_create(
             uuid=uuid_str,
-            defaults={'upload_count': 0, 'is_paid': False}
+            defaults={'upload_count': 0, 'balance': 0, 'is_paid': False}
         )
         return obj
     
@@ -185,5 +190,5 @@ class UUIDUploadCount(models.Model):
     def requires_payment(self):
         """Проверяет, требуется ли оплата (после 2-й загрузки за месяц)"""
         monthly_count = self.get_monthly_count()
-        return monthly_count >= 2 and not self.is_paid
+        return monthly_count >= 2 and not self.is_paid and self.balance <= 0
 

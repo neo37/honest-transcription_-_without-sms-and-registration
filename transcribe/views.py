@@ -18,6 +18,20 @@ import shutil
 
 logger = logging.getLogger(__name__)
 
+# Импорт логирования в Elasticsearch (с обработкой ошибок импорта)
+try:
+    from .elastic_logger import log_to_elasticsearch
+except ImportError:
+    def log_to_elasticsearch(*args, **kwargs):
+        pass  # Заглушка если модуль не доступен
+
+# Импорт логирования в Elasticsearch (с обработкой ошибок импорта)
+try:
+    from .elastic_logger import log_to_elasticsearch
+except ImportError:
+    def log_to_elasticsearch(*args, **kwargs):
+        pass  # Заглушка если модуль не доступен
+
 
 # Кэш моделей Whisper (загружаются по требованию)
 whisper_models_cache = {}
@@ -97,11 +111,17 @@ def index(request):
         # Удаляем старые файлы без пароля (оставляем только последние 2)
         # Файлы уже удалены после обработки, но транскрипции остаются в БД
     
+    # Получаем баланс пользователя (если есть UUID в localStorage, он будет передан через JS)
+    # Здесь мы не можем получить UUID из запроса, так как это GET запрос
+    # Баланс будет получен через отдельный endpoint или через JS
+    balance = None
+    
     return render(request, 'transcribe/index.html', {
         'transcriptions': transcriptions,
         'is_logged_in': active_password_phrase is not None,
         'active_phrase': active_password_phrase if active_password_phrase else '',
-        'disk_info': disk_info
+        'disk_info': disk_info,
+        'balance': balance
     })
 
 
@@ -134,11 +154,16 @@ def upload_file(request):
     uuid_counter = UUIDUploadCount.get_or_create_for_uuid(user_uuid)
     uuid_monthly_count = uuid_counter.get_monthly_count()
     
-    # Если требуется оплата (после 2-й загрузки за месяц по IP или UUID)
+    # Проверяем баланс - если баланс 0, требуется оплата
+    ip_balance = ip_counter.balance if ip_counter else 0
+    uuid_balance = uuid_counter.balance if uuid_counter else 0
+    has_balance = ip_balance > 0 or uuid_balance > 0
+    
+    # Если требуется оплата (после 2-й загрузки за месяц по IP или UUID) И баланс 0
     requires_payment = False
-    if ip_monthly_count >= 2 and not ip_counter.is_paid:
+    if ip_monthly_count >= 2 and not ip_counter.is_paid and not has_balance:
         requires_payment = True
-    elif uuid_monthly_count >= 2 and not uuid_counter.is_paid:
+    elif uuid_monthly_count >= 2 and not uuid_counter.is_paid and not has_balance:
         requires_payment = True
     
     if requires_payment:
@@ -146,8 +171,12 @@ def upload_file(request):
             'error': 'Для продолжения использования сервиса требуется оплата 12 рублей. Пожалуйста, произведите оплату.',
             'requires_payment': True,
             'ip_count': ip_monthly_count,
-            'uuid_count': uuid_monthly_count
+            'uuid_count': uuid_monthly_count,
+            'ip_balance': ip_balance,
+            'uuid_balance': uuid_balance
         }, status=402)  # 402 Payment Required
+    
+    # Если баланс 0, но оплата не требуется (первые 2 загрузки), разрешаем загрузку
     
     # Получаем подпись (если есть)
     signature = request.POST.get('signature', '').strip()
@@ -246,6 +275,18 @@ def upload_file(request):
         # Логируем в CSV
         log_upload(ip_address, user_uuid, uploaded_file.name, uploaded_file.size)
         
+        # Логируем в Elasticsearch
+        log_to_elasticsearch('file_upload', {
+            'transcription_id': transcription.id,
+            'filename': uploaded_file.name,
+            'file_size': uploaded_file.size,
+            'ip_address': ip_address,
+            'user_uuid': user_uuid,
+            'whisper_model': whisper_model,
+            'has_password': bool(password_phrase_hash),
+            'extract_screenshots': extract_screenshots
+        })
+        
         transcription_ids.append(transcription.id)
         
         # Запускаем обработку в отдельном потоке
@@ -258,10 +299,20 @@ def upload_file(request):
     for tid in transcription_ids:
         try:
             t = Transcription.objects.get(id=tid)
+            # Проверяем, требуется ли подтверждение языка
+            requires_language_confirmation = (
+                t.detected_language and 
+                t.detected_language != 'ru' and 
+                not t.language_confirmed and
+                t.status == 'pending'
+            )
             files_info.append({
                 'id': t.id,
                 'filename': t.filename,
-                'size_mb': round(t.file_size / (1024 * 1024), 2)
+                'size_mb': round(t.file_size / (1024 * 1024), 2),
+                'status': t.status,
+                'detected_language': t.detected_language,
+                'requires_language_confirmation': requires_language_confirmation
             })
         except:
             pass
@@ -350,8 +401,17 @@ def extract_screenshots_from_video(video_path, transcription_id, output_dir):
         ffmpeg_path = shutil.which('ffmpeg') or '/usr/bin/ffmpeg'
         
         # Используем ffprobe для получения длительности
+        ffprobe_path = ffmpeg_path.replace('ffmpeg', 'ffprobe') if 'ffmpeg' in ffmpeg_path else 'ffprobe'
+        if not os.path.exists(ffprobe_path):
+            # Пробуем стандартные пути
+            possible_ffprobe_paths = ['/usr/bin/ffprobe', '/usr/local/bin/ffprobe', '/bin/ffprobe']
+            for path in possible_ffprobe_paths:
+                if os.path.exists(path):
+                    ffprobe_path = path
+                    break
+        
         cmd_probe = [
-            ffmpeg_path.replace('ffmpeg', 'ffprobe') if 'ffmpeg' in ffmpeg_path else 'ffprobe',
+            ffprobe_path,
             '-i', video_path,
             '-show_entries', 'format=duration',
             '-v', 'quiet',
@@ -362,12 +422,16 @@ def extract_screenshots_from_video(video_path, transcription_id, output_dir):
         
         if result_probe.returncode == 0:
             try:
-                duration_seconds = float(result_probe.stdout.decode('utf-8').strip())
-            except:
-                logger.warning("Не удалось распарсить длительность видео")
-                return []
-        else:
-            # Альтернативный способ через ffmpeg
+                duration_str = result_probe.stdout.decode('utf-8').strip()
+                if duration_str:
+                    duration_seconds = float(duration_str)
+                else:
+                    raise ValueError("Пустой ответ от ffprobe")
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Не удалось распарсить длительность видео: {e}")
+                duration_seconds = None
+        # Если ffprobe не сработал, пробуем альтернативный способ через ffmpeg
+        if duration_seconds is None:
             cmd_duration = [
                 ffmpeg_path,
                 '-i', video_path,
@@ -386,11 +450,25 @@ def extract_screenshots_from_video(video_path, transcription_id, output_dir):
                     hours, minutes, seconds = map(int, match.groups())
                     duration_seconds = hours * 3600 + minutes * 60 + seconds
                 else:
-                    logger.warning("Не удалось определить длительность видео")
+                    logger.warning("Не удалось определить длительность видео через ffmpeg")
+                    log_to_elasticsearch('screenshot_error', {
+                        'transcription_id': transcription_id,
+                        'error': 'Could not determine video duration',
+                        'type': 'duration_detection_failed'
+                    }, level='error')
                     return []
             else:
                 logger.warning("Не удалось определить длительность видео")
+                log_to_elasticsearch('screenshot_error', {
+                    'transcription_id': transcription_id,
+                    'error': 'Could not determine video duration - no stderr',
+                    'type': 'duration_detection_failed'
+                }, level='error')
                 return []
+        
+        if duration_seconds is None or duration_seconds <= 0:
+            logger.warning(f"Некорректная длительность видео: {duration_seconds}")
+            return []
         
         # Создаем директорию для скриншотов
         os.makedirs(output_dir, exist_ok=True)
@@ -399,8 +477,9 @@ def extract_screenshots_from_video(video_path, transcription_id, output_dir):
         screenshots = []
         timestamp = 0
         order = 0
+        max_screenshots = 1000  # Ограничение на количество скриншотов
         
-        while timestamp < duration_seconds:
+        while timestamp < duration_seconds and order < max_screenshots:
             screenshot_path = os.path.join(output_dir, f"screenshot_{order:04d}.jpg")
             
             cmd_screenshot = [
@@ -421,24 +500,61 @@ def extract_screenshots_from_video(video_path, transcription_id, output_dir):
             )
             
             if result.returncode == 0 and os.path.exists(screenshot_path):
-                # Сохраняем относительный путь от MEDIA_ROOT
-                # Убираем полный путь и оставляем только путь относительно media
-                if screenshot_path.startswith(str(settings.MEDIA_ROOT)):
-                    relative_path = os.path.relpath(screenshot_path, settings.MEDIA_ROOT)
-                else:
-                    # Если путь уже относительный или другой формат
-                    relative_path = screenshot_path.replace(str(settings.MEDIA_ROOT) + '/', '').replace('/root/media/', '')
-                
-                # Сохраняем в БД
-                from .models import Screenshot
-                screenshot = Screenshot.objects.create(
-                    transcription_id=transcription_id,
-                    timestamp=timestamp,
-                    image_path=relative_path,
-                    order=order
-                )
-                screenshots.append(screenshot)
-                logger.info(f"Скриншот извлечен: {timestamp:.0f}s -> {relative_path}")
+                try:
+                    # Проверяем размер файла (должен быть больше 0)
+                    file_size = os.path.getsize(screenshot_path)
+                    if file_size == 0:
+                        logger.warning(f"Скриншот пустой, пропускаем: {screenshot_path}")
+                        timestamp += 60
+                        order += 1
+                        continue
+                    
+                    # Сохраняем относительный путь от MEDIA_ROOT
+                    # Убираем полный путь и оставляем только путь относительно media
+                    if screenshot_path.startswith(str(settings.MEDIA_ROOT)):
+                        relative_path = os.path.relpath(screenshot_path, settings.MEDIA_ROOT)
+                    else:
+                        # Если путь уже относительный или другой формат
+                        relative_path = screenshot_path.replace(str(settings.MEDIA_ROOT) + '/', '').replace('/root/media/', '').replace('/var/www/media/', '')
+                    
+                    # Нормализуем путь (убираем лишние слеши)
+                    relative_path = relative_path.lstrip('/')
+                    
+                    # Сохраняем в БД
+                    from .models import Screenshot
+                    screenshot = Screenshot.objects.create(
+                        transcription_id=transcription_id,
+                        timestamp=timestamp,
+                        image_path=relative_path,
+                        order=order
+                    )
+                    screenshots.append(screenshot)
+                    logger.info(f"Скриншот извлечен: {timestamp:.0f}s -> {relative_path} (размер: {file_size} байт)")
+                    log_to_elasticsearch('screenshot_extracted', {
+                        'transcription_id': transcription_id,
+                        'timestamp': timestamp,
+                        'order': order,
+                        'file_size': file_size,
+                        'path': relative_path
+                    })
+                except Exception as e:
+                    logger.error(f"Ошибка при сохранении скриншота {screenshot_path}: {e}", exc_info=True)
+                    log_to_elasticsearch('screenshot_error', {
+                        'transcription_id': transcription_id,
+                        'timestamp': timestamp,
+                        'error': str(e)
+                    }, level='error')
+                    # Продолжаем обработку даже при ошибке сохранения
+            else:
+                # Логируем ошибку извлечения скриншота
+                if result.returncode != 0:
+                    error_msg = result.stderr.decode('utf-8', errors='ignore')[:200]
+                    logger.warning(f"Не удалось извлечь скриншот на {timestamp:.0f}s: {error_msg}")
+                    log_to_elasticsearch('screenshot_extraction_failed', {
+                        'transcription_id': transcription_id,
+                        'timestamp': timestamp,
+                        'error': error_msg
+                    }, level='warning')
             
             timestamp += 60  # Следующая минута
             order += 1
@@ -459,6 +575,16 @@ def process_file(transcription_id, temp_file_path):
     transcription = Transcription.objects.get(id=transcription_id)
     transcription.status = 'processing'
     transcription.save()
+    
+    # Логируем начало обработки
+    log_to_elasticsearch('transcription_start', {
+        'transcription_id': transcription_id,
+        'filename': transcription.filename,
+        'file_size': transcription.file_size,
+        'whisper_model': transcription.whisper_model,
+        'ip_address': transcription.ip_address,
+        'user_uuid': transcription.user_uuid
+    })
     
     audio_file_path = None
     screenshots_dir = None
@@ -522,12 +648,29 @@ def process_file(transcription_id, temp_file_path):
         add_log(f"Параметры транскрибации: beam_size=5, language=auto, task=transcribe")
         
         try:
+            # Если язык выбран пользователем, используем его
+            # Если выбран мультиязыно (auto), используем None (автоопределение)
+            # Иначе используем определенный язык
+            target_language = None
+            if transcription.selected_language:
+                # Пользователь выбрал конкретный язык
+                target_language = transcription.selected_language
+                add_log(f"Используется выбранный пользователем язык: {target_language}")
+            elif transcription.detected_language and transcription.language_confirmed:
+                # Язык определен автоматически и подтвержден
+                target_language = transcription.detected_language
+                add_log(f"Используется автоматически определенный язык: {target_language}")
+            else:
+                # Мультиязыно - автоопределение (Whisper сам определит язык)
+                target_language = None
+                add_log(f"Используется мультиязыно (автоопределение)")
+            
             # Пробуем сначала БЕЗ VAD фильтра (он может быть слишком агрессивным)
             add_log("Попытка транскрибации БЕЗ VAD фильтра")
             segments, info = model.transcribe(
                 audio_file_path,
                 beam_size=5,
-                language=None,  # Автоопределение языка
+                language=target_language,  # Используем определенный язык или автоопределение
                 task="transcribe",
                 vad_filter=False,  # Отключаем VAD для начала
             )
@@ -536,6 +679,22 @@ def process_file(transcription_id, temp_file_path):
             add_log(f"  - Определенный язык: {info.language}")
             add_log(f"  - Вероятность языка: {info.language_probability:.4f}")
             add_log(f"  - Длительность аудио: {info.duration:.2f} секунд")
+            
+            # Сохраняем определенный язык (если еще не сохранен)
+            if not transcription.detected_language:
+                transcription.detected_language = info.language
+                transcription.save(update_fields=['detected_language'])
+            
+            # Если язык не русский и не подтвержден, останавливаем транскрибацию
+            if info.language and info.language != 'ru' and not transcription.language_confirmed:
+                add_log(f"Обнаружен не-русский язык ({info.language}). Требуется подтверждение пользователя.", "WARNING")
+                # Сохраняем определенный язык, если еще не сохранен
+                if not transcription.detected_language:
+                    transcription.detected_language = info.language
+                transcription.status = 'pending'
+                transcription.save(update_fields=['detected_language', 'status'])
+                logger.info(f"Транскрибация приостановлена для подтверждения языка: {info.language}")
+                return  # Прерываем транскрибацию до подтверждения
             
             # Проверяем, есть ли сегменты
             # ВАЖНО: segments - это итератор, его можно использовать только один раз!
@@ -561,6 +720,23 @@ def process_file(transcription_id, temp_file_path):
                 add_log(f"  - Определенный язык: {info.language}")
                 add_log(f"  - Вероятность языка: {info.language_probability:.4f}")
                 add_log(f"  - Длительность аудио: {info.duration:.2f} секунд")
+                
+                # Сохраняем определенный язык (если еще не сохранен)
+                if not transcription.detected_language:
+                    transcription.detected_language = info.language
+                    transcription.save(update_fields=['detected_language'])
+                
+                # Если язык не русский и не подтвержден, останавливаем транскрибацию
+                if info.language and info.language != 'ru' and not transcription.language_confirmed:
+                    add_log(f"Обнаружен не-русский язык ({info.language}). Требуется подтверждение пользователя.", "WARNING")
+                    # Сохраняем определенный язык, если еще не сохранен
+                    if not transcription.detected_language:
+                        transcription.detected_language = info.language
+                    transcription.status = 'pending'
+                    transcription.save(update_fields=['detected_language', 'status'])
+                    logger.info(f"Транскрибация приостановлена для подтверждения языка: {info.language}")
+                    return  # Прерываем транскрибацию до подтверждения
+                
                 segment_list = list(segments_vad)  # Конвертируем в список
                 add_log(f"Найдено сегментов (с VAD): {len(segment_list)}")
             else:
@@ -612,20 +788,120 @@ def process_file(transcription_id, temp_file_path):
         
         logger.info(f"Транскрибация завершена для файла {transcription.filename}. Сегментов: {segment_count}, Длина текста: {len(transcribed_text)}")
         
+        # Уменьшаем баланс на 1 при успешном завершении транскрибации
+        ip_counter = None
+        uuid_counter = None
+        try:
+            ip_counter = IPUploadCount.get_or_create_for_ip(transcription.ip_address)
+            if ip_counter.balance > 0:
+                ip_counter.balance -= 1
+                ip_counter.save()
+                logger.info(f"Баланс IP {transcription.ip_address} уменьшен на 1. Остаток: {ip_counter.balance}")
+            
+            if transcription.user_uuid:
+                uuid_counter = UUIDUploadCount.get_or_create_for_uuid(transcription.user_uuid)
+                if uuid_counter.balance > 0:
+                    uuid_counter.balance -= 1
+                    uuid_counter.save()
+                    logger.info(f"Баланс UUID {transcription.user_uuid} уменьшен на 1. Остаток: {uuid_counter.balance}")
+        except Exception as e:
+            logger.error(f"Ошибка при уменьшении баланса: {e}", exc_info=True)
+        
+        # Логируем завершение транскрибации
+        duration = None
+        if 'info' in locals():
+            duration = info.duration
+        log_to_elasticsearch('transcription_complete', {
+            'transcription_id': transcription_id,
+            'filename': transcription.filename,
+            'segment_count': segment_count,
+            'text_length': len(transcribed_text),
+            'detected_language': transcription.detected_language,
+            'language_confirmed': transcription.language_confirmed,
+            'duration_seconds': duration,
+            'ip_balance_after': ip_counter.balance if ip_counter else None,
+            'uuid_balance_after': uuid_counter.balance if uuid_counter else None
+        })
+        
+        # Удаляем старые файлы, сохраняя последние 2
+        #         cleanup_old_files(transcription)
+        
     except Exception as e:
         error_msg = f"{type(e).__name__}: {str(e)}"
         transcription.status = 'error'
         transcription.error_message = error_msg
         transcription.save()
         logger.error(f"Ошибка при обработке файла {transcription.filename}: {error_msg}", exc_info=True)
+        
+        # Логируем ошибку в Elasticsearch
+        log_to_elasticsearch('transcription_error', {
+            'transcription_id': transcription_id,
+            'filename': transcription.filename if transcription else 'unknown',
+            'error_type': type(e).__name__,
+            'error_message': str(e)
+        }, level='error')
     finally:
         # Удаляем временные файлы (но не скриншоты)
-        for file_path in [temp_file_path, audio_file_path]:
+        # Удаляем только audio_file_path (temp_file_path - это original_file_path, он должен сохраняться)
+        for file_path in [audio_file_path]:
             if file_path and os.path.exists(file_path):
                 try:
                     os.remove(file_path)
                 except Exception as e:
                     logger.error(f"Ошибка при удалении временного файла {file_path}: {e}")
+
+
+def cleanup_old_files(current_transcription):
+    """Удаляет старые файлы, сохраняя последние 2 загруженных файла (всегда, независимо от статуса)"""
+    try:
+        # Получаем все транскрипции с файлами, отсортированные по дате загрузки (новые первые)
+        # Включаем все статусы - сохраняем последние 2 файла всегда
+        all_transcriptions = Transcription.objects.filter(
+            original_file_path__isnull=False
+        ).exclude(
+            id=current_transcription.id
+        ).order_by('-uploaded_at')
+        
+        # Оставляем последние 2 файла, остальные удаляем
+        transcriptions_to_delete = all_transcriptions[2:]
+        
+        deleted_count = 0
+        for transcription in transcriptions_to_delete:
+            if transcription.original_file_path and os.path.exists(transcription.original_file_path):
+                try:
+                    # Удаляем файл и его директорию
+                    file_dir = os.path.dirname(transcription.original_file_path)
+                    if os.path.exists(file_dir):
+                        shutil.rmtree(file_dir)
+                        deleted_count += 1
+                        logger.info(f"Удален старый файл: {transcription.original_file_path}")
+                        log_to_elasticsearch('file_cleanup', {
+                            'transcription_id': transcription.id,
+                            'filename': transcription.filename,
+                            'file_path': transcription.original_file_path,
+                            'action': 'deleted'
+                        })
+                except Exception as e:
+                    logger.error(f"Ошибка при удалении файла {transcription.original_file_path}: {e}")
+                    log_to_elasticsearch('file_cleanup_error', {
+                        'transcription_id': transcription.id,
+                        'filename': transcription.filename,
+                        'file_path': transcription.original_file_path,
+                        'error': str(e)
+                    })
+        
+        if deleted_count > 0:
+            logger.info(f"Очистка файлов: удалено {deleted_count} старых файлов, сохранено последних 2")
+            log_to_elasticsearch('file_cleanup_summary', {
+                'deleted_count': deleted_count,
+                'kept_count': 2
+            })
+    except Exception as e:
+        logger.error(f"Ошибка при очистке старых файлов: {e}", exc_info=True)
+        log_to_elasticsearch('file_cleanup_error', {
+            'error': str(e),
+            'type': 'cleanup_exception'
+        })
 
 
 # get_client_ip перенесена в utils.py
@@ -653,10 +929,21 @@ def transcription_status(request, transcription_id):
             if not active_password_phrase or not transcription.check_password_phrase(active_password_phrase):
                 return JsonResponse({'error': 'Доступ запрещен'}, status=403)
         
+        # Проверяем, требуется ли подтверждение языка
+        requires_language_confirmation = (
+            transcription.detected_language and 
+            transcription.detected_language != 'ru' and 
+            not transcription.language_confirmed and
+            transcription.status == 'pending'
+        )
+        
         return JsonResponse({
             'status': transcription.status,
             'text': transcription.transcribed_text if transcription.status == 'completed' else None,
-            'error': transcription.error_message if transcription.status == 'error' else None
+            'error': transcription.error_message if transcription.status == 'error' else None,
+            'detected_language': transcription.detected_language,
+            'language_confirmed': transcription.language_confirmed,
+            'requires_language_confirmation': requires_language_confirmation
         })
     except Transcription.DoesNotExist:
         return JsonResponse({'error': 'Транскрипция не найдена'}, status=404)
@@ -678,6 +965,104 @@ def login_with_phrase(request):
         'success': True,
         'message': 'Вход выполнен успешно'
     })
+
+
+@require_http_methods(["POST"])
+def confirm_language(request, transcription_id):
+    """Подтверждение языка для продолжения транскрибации"""
+    import json
+    try:
+        transcription = Transcription.objects.get(id=transcription_id)
+        
+        # Проверяем доступ
+        active_password_phrase = request.session.get('password_phrase', None)
+        if transcription.password_phrase_hash:
+            if not active_password_phrase or not transcription.check_password_phrase(active_password_phrase):
+                return JsonResponse({'error': 'Доступ запрещен'}, status=403)
+        
+        # Получаем выбранный язык из запроса
+        try:
+            body = json.loads(request.body)
+            language_mode = body.get('language_mode', 'auto')  # 'auto' или 'specific'
+            selected_language = body.get('selected_language', None)  # код языка, если выбран конкретный
+        except:
+            language_mode = request.POST.get('language_mode', 'auto')
+            selected_language = request.POST.get('selected_language', None)
+        
+        # Сохраняем выбранный язык
+        if language_mode == 'specific' and selected_language:
+            transcription.selected_language = selected_language
+        else:
+            transcription.selected_language = None  # Мультиязыно (auto)
+        
+        # Подтверждаем язык и продолжаем транскрибацию
+        transcription.language_confirmed = True
+        transcription.status = 'pending'  # Возвращаем в pending для продолжения обработки
+        transcription.save(update_fields=['language_confirmed', 'status', 'selected_language'])
+        
+        # Запускаем обработку заново
+        if transcription.original_file_path and os.path.exists(transcription.original_file_path):
+            thread = threading.Thread(target=process_file, args=(transcription.id, transcription.original_file_path))
+            thread.daemon = True
+            thread.start()
+            return JsonResponse({
+                'success': True,
+                'message': 'Язык подтвержден. Транскрибация продолжается.'
+            })
+        else:
+            return JsonResponse({
+                'error': 'Оригинальный файл не найден. Невозможно продолжить транскрибацию.'
+            }, status=404)
+        
+    except Transcription.DoesNotExist:
+        return JsonResponse({'error': 'Транскрипция не найдена'}, status=404)
+
+
+@require_http_methods(["GET", "POST"])
+def check_balance(request):
+    """Проверка баланса пользователя"""
+    try:
+        if request.method == 'GET':
+            user_uuid = request.GET.get('user_uuid', '').strip()
+        else:
+            import json
+            try:
+                body = json.loads(request.body)
+                user_uuid = body.get('user_uuid', '').strip()
+            except:
+                user_uuid = request.POST.get('user_uuid', '').strip()
+        
+        if not user_uuid:
+            return JsonResponse({'error': 'UUID не передан'}, status=400)
+        
+        ip_address = get_client_ip(request)
+        
+        # Получаем балансы
+        try:
+            ip_counter = IPUploadCount.get_or_create_for_ip(ip_address)
+        except Exception as e:
+            logger.error(f"Error creating IP counter for {ip_address}: {e}")
+            # Fallback for invalid IP
+            ip_counter = None
+            
+        uuid_counter = UUIDUploadCount.get_or_create_for_uuid(user_uuid)
+        
+        ip_balance = ip_counter.balance if ip_counter else 0
+        uuid_balance = uuid_counter.balance if uuid_counter else 0
+        total_balance = max(ip_balance, uuid_balance)  # Используем максимальный баланс
+        
+        return JsonResponse({
+            'success': True,
+            'ip_balance': ip_balance,
+            'uuid_balance': uuid_balance,
+            'balance': total_balance,
+            'has_balance': total_balance > 0
+        })
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f"Critical error in check_balance: {e}\n{error_details}")
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @require_http_methods(["POST"])
@@ -889,9 +1274,25 @@ def download_screenshots(request, transcription_id=None, public_token=None):
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
             for screenshot in screenshots:
-                image_path = os.path.join(settings.MEDIA_ROOT, screenshot.image_path)
-                if os.path.exists(image_path):
-                    zip_file.write(image_path, f"screenshot_{screenshot.order:04d}_{screenshot.timestamp:.0f}s.jpg")
+                # Пробуем разные варианты путей
+                image_path = None
+                possible_paths = [
+                    os.path.join(settings.MEDIA_ROOT, screenshot.image_path),
+                    screenshot.image_path,  # Если путь уже абсолютный
+                    os.path.join(settings.MEDIA_ROOT, screenshot.image_path.lstrip('/')),
+                ]
+                
+                for path in possible_paths:
+                    if os.path.exists(path) and os.path.isfile(path):
+                        image_path = path
+                        break
+                
+                if image_path and os.path.exists(image_path):
+                    try:
+                        zip_file.write(image_path, f"screenshot_{screenshot.order:04d}_{screenshot.timestamp:.0f}s.jpg")
+                    except Exception as e:
+                        logger.warning(f"Не удалось добавить скриншот {image_path} в архив: {e}")
+                        continue
         
         zip_buffer.seek(0)
         response = HttpResponse(zip_buffer.read(), content_type='application/zip')
@@ -1030,36 +1431,72 @@ def process_payment(request):
         card_holder = payment_data.get('card_holder', '').strip()
         
         # Проверяем, являются ли все поля нулями (тестовый режим)
+        # Нормализуем данные для проверки
+        card_number_clean = card_number.replace(' ', '').replace('-', '').strip()
+        card_expiry_clean = card_expiry.replace('/', '').replace(' ', '').strip()
+        card_cvc_clean = card_cvc.strip()
+        card_holder_clean = card_holder.strip().upper()
+        
         is_test_payment = (
-            card_number == '0000000000000000' and
-            card_expiry == '0000' and
-            card_cvc == '000' and
-            (card_holder == '0' or card_holder.replace('0', '').strip() == '' or not card_holder)
+            card_number_clean == '0000000000000000' and
+            card_expiry_clean == '0000' and
+            card_cvc_clean == '000' and
+            (card_holder_clean == '0' or card_holder_clean.replace('0', '').replace(' ', '').strip() == '' or not card_holder_clean)
         )
         
         if is_test_payment:
-            # Тестовая оплата - помечаем как оплачено
-            ip_counter = IPUploadCount.get_or_create_for_ip(ip_address)
-            uuid_counter = UUIDUploadCount.get_or_create_for_uuid(user_uuid)
-            
-            ip_counter.is_paid = True
-            ip_counter.save()
-            
-            uuid_counter.is_paid = True
-            uuid_counter.save()
-            
-            # Логируем тестовую оплату
-            logger.info(f"Тестовая оплата обработана: IP={ip_address}, UUID={user_uuid}")
-            
-            return JsonResponse({
-                'success': True,
-                'message': 'Оплата успешно обработана',
-                'payment_id': 'test_payment_' + str(uuid.uuid4())[:8]
-            })
+            # Тестовая оплата - помечаем как оплачено и добавляем +3 к балансу
+            try:
+                ip_counter = IPUploadCount.get_or_create_for_ip(ip_address)
+                uuid_counter = UUIDUploadCount.get_or_create_for_uuid(user_uuid)
+                
+                ip_counter.is_paid = True
+                ip_counter.balance += 3  # Добавляем 3 транскрибации к балансу
+                ip_counter.save()
+                
+                uuid_counter.is_paid = True
+                uuid_counter.balance += 3  # Добавляем 3 транскрибации к балансу
+                uuid_counter.save()
+                
+                # Логируем тестовую оплату
+                logger.info(f"Тестовая оплата обработана: IP={ip_address}, UUID={user_uuid}, баланс IP={ip_counter.balance}, баланс UUID={uuid_counter.balance}")
+                log_to_elasticsearch('payment_success', {
+                    'payment_type': 'test',
+                    'ip_address': ip_address,
+                    'user_uuid': user_uuid,
+                    'balance_added': 3,
+                    'ip_balance': ip_counter.balance,
+                    'uuid_balance': uuid_counter.balance,
+                    'payment_id': 'test_payment_' + str(uuid.uuid4())[:8]
+                })
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Оплата успешно обработана. Вам добавлено 3 транскрибации. Теперь вы можете загружать файлы.',
+                    'payment_id': 'test_payment_' + str(uuid.uuid4())[:8],
+                    'balance': uuid_counter.balance
+                })
+            except Exception as e:
+                logger.error(f"Ошибка при обработке тестовой оплаты: {e}", exc_info=True)
+                log_to_elasticsearch('payment_error', {
+                    'payment_type': 'test',
+                    'ip_address': ip_address,
+                    'user_uuid': user_uuid,
+                    'error': str(e)
+                }, level='error')
+                return JsonResponse({
+                    'error': f'Ошибка при обработке оплаты: {str(e)}'
+                }, status=500)
         else:
             # Реальная оплата - пока возвращаем ошибку, т.к. API не интегрирован
             # TODO: Интеграция с платежным API согласно api_integration.pdf
             logger.warning(f"Попытка реальной оплаты без интеграции API: IP={ip_address}, UUID={user_uuid}")
+            log_to_elasticsearch('payment_rejected', {
+                'payment_type': 'real',
+                'ip_address': ip_address,
+                'user_uuid': user_uuid,
+                'reason': 'API not integrated'
+            })
             return JsonResponse({
                 'error': 'Платежная система временно недоступна. Используйте тестовые данные для проверки (все нули).'
             }, status=400)

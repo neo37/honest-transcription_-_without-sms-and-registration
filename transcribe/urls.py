@@ -10,6 +10,7 @@ urlpatterns = [
     path('transcription/<int:transcription_id>/', views.transcription_detail, name='transcription_detail'),
     path('public/<str:public_token>/', views.transcription_detail, name='transcription_public'),
     path('transcription/<int:transcription_id>/status/', views.transcription_status, name='transcription_status'),
+    path('transcription/<int:transcription_id>/confirm-language/', views.confirm_language, name='confirm_language'),
     path('transcription/<int:transcription_id>/download-text/', views.download_text, name='download_text'),
     path('transcription/<int:transcription_id>/download-screenshots/', views.download_screenshots, name='download_screenshots'),
     path('public/<str:public_token>/download-text/', views.download_text, {'public_token': True}, name='download_text_public'),
@@ -18,6 +19,7 @@ urlpatterns = [
     path('payment/', views.process_payment, name='process_payment'),
     path('transcription/<int:transcription_id>/retranscribe/', views.retranscribe, name='retranscribe'),
     path('clear-disk/', views.clear_disk, name='clear_disk'),
+    path('check-balance/', views.check_balance, name='check_balance'),
     # Секретная страница тестирования
     path('secret-test/', views_test.secret_test_page, name='secret_test'),
     path('secret-test/run-scenarios/', views_test.run_scenarios_tests, name='run_scenarios'),

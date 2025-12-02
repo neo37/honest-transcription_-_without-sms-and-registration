@@ -24,9 +24,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-2^@h4ith$3#5v7wqxd%=+#-gl0%v!3z6we$d6@$6=_#jrhm@2q'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
-ALLOWED_HOSTS = ["voice.repa.rest", "91.84.124.245", "localhost"]
+ALLOWED_HOSTS = ['*', 'audio.repa.rest', 'voice.repa.rest', '91.84.124.245']
 
 # Настройки для работы за прокси (Nginx)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -126,9 +126,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
-STATIC_ROOT = "/app/staticfiles"
+STATIC_ROOT = '/app/staticfiles'
 
-MEDIA_ROOT = "/app/media"
+MEDIA_ROOT = '/app/media'
 MEDIA_URL = '/media/'
 
 # Создаем директорию для скриншотов если её нет
@@ -151,3 +151,37 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 LOCALE_PATHS = [BASE_DIR / "locale"]
+
+# Elasticsearch настройки для логирования
+ELASTICSEARCH_URL = os.environ.get('ELASTICSEARCH_URL', 'http://logs-1.business-pad.com:9200')
+ELASTICSEARCH_INDEX = os.environ.get('ELASTICSEARCH_INDEX', 'whisper-transcribe')
+ELASTICSEARCH_ENABLED = os.environ.get('ELASTICSEARCH_ENABLED', 'true').lower() == 'true'
+
+# Настройка логирования
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'transcribe': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}

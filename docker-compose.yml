@@ -13,12 +13,15 @@ services:
       - ./staticfiles:/app/staticfiles
       - /tmp:/tmp  # Для скриншотов визуальных тестов
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       - DEBUG=True
       - SECRET_KEY=django-insecure-dev-key-change-in-production
       - PYTHONUNBUFFERED=1
       - DJANGO_SETTINGS_MODULE=whisper_transcribe.settings
+      - ELASTICSEARCH_URL=http://logs-1.business-pad.com:9200
+      - ELASTICSEARCH_INDEX=whisper-transcribe
+      - ELASTICSEARCH_ENABLED=true
     command: python manage.py runserver 0.0.0.0:8000 --noreload
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]

@@ -1436,6 +1436,24 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Модальное окно для подтверждения языка -->
+        <div class="payment-modal" id="languageModal">
+            <div class="payment-modal-content">
+                <h3>🌐 {% trans "подтверждение языка" %}</h3>
+                <p style="margin-bottom: 15px; font-weight: 700;" id="languageModalText">
+                    {% trans "Обнаружен не-русский язык в аудио файле. Продолжить транскрибацию?" %}
+                </p>
+                <div class="payment-modal-buttons">
+                    <button class="payment-modal-btn confirm" id="confirmLanguageBtn" onclick="confirmLanguage()">
+                        {% trans "продолжить" %}
+                    </button>
+                    <button class="payment-modal-btn cancel" onclick="closeLanguageModal()">
+                        {% trans "отмена" %}
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
     
     <script>
@@ -1813,6 +1831,14 @@
                     const response = await fetch(`/transcription/${transcriptionId}/status/`);
                     const data = await response.json();
                     
+                    // Проверяем, требуется ли подтверждение языка
+                    if (data.requires_language_confirmation && data.detected_language) {
+                        clearInterval(statusCheckInterval);
+                        clearInterval(progressInterval);
+                        showLanguageModal(transcriptionId, data.detected_language);
+                        return;
+                    }
+                    
                     if (data.status === 'completed') {
                         clearInterval(statusCheckInterval);
                         clearInterval(progressInterval);
@@ -2156,6 +2182,161 @@
         document.getElementById('paymentModal')?.addEventListener('click', function(e) {
             if (e.target === this) {
                 closePaymentModal();
+            }
+        });
+        
+        // Модальное окно для подтверждения языка
+        let currentLanguageTranscriptionId = null;
+        
+        function showLanguageModal(transcriptionId, detectedLanguage) {
+            currentLanguageTranscriptionId = transcriptionId;
+            const languageNames = {
+                'en': 'Английский',
+                'es': 'Испанский',
+                'fr': 'Французский',
+                'de': 'Немецкий',
+                'it': 'Итальянский',
+                'pt': 'Португальский',
+                'ja': 'Японский',
+                'ko': 'Корейский',
+                'zh': 'Китайский',
+                'ar': 'Арабский',
+                'tr': 'Турецкий',
+                'pl': 'Польский',
+                'uk': 'Украинский',
+                'cs': 'Чешский',
+                'nl': 'Голландский',
+                'sv': 'Шведский',
+                'no': 'Норвежский',
+                'fi': 'Финский',
+                'da': 'Датский',
+                'el': 'Греческий',
+                'he': 'Иврит',
+                'hi': 'Хинди',
+                'th': 'Тайский',
+                'vi': 'Вьетнамский',
+                'id': 'Индонезийский',
+                'ms': 'Малайский',
+                'tl': 'Тагальский',
+                'sw': 'Суахили',
+                'af': 'Африкаанс',
+                'eu': 'Баскский',
+                'bg': 'Болгарский',
+                'ca': 'Каталанский',
+                'hr': 'Хорватский',
+                'hu': 'Венгерский',
+                'is': 'Исландский',
+                'ga': 'Ирландский',
+                'lv': 'Латышский',
+                'lt': 'Литовский',
+                'mt': 'Мальтийский',
+                'ro': 'Румынский',
+                'sk': 'Словацкий',
+                'sl': 'Словенский',
+                'sr': 'Сербский',
+                'et': 'Эстонский',
+                'cy': 'Валлийский',
+                'be': 'Белорусский',
+                'mk': 'Македонский',
+                'sq': 'Албанский',
+                'hy': 'Армянский',
+                'az': 'Азербайджанский',
+                'ka': 'Грузинский',
+                'kk': 'Казахский',
+                'ky': 'Киргизский',
+                'uz': 'Узбекский',
+                'mn': 'Монгольский',
+                'ne': 'Непальский',
+                'si': 'Сингальский',
+                'ta': 'Тамильский',
+                'te': 'Телугу',
+                'ml': 'Малаялам',
+                'kn': 'Каннада',
+                'gu': 'Гуджарати',
+                'pa': 'Панджаби',
+                'bn': 'Бенгальский',
+                'or': 'Ория',
+                'as': 'Ассамский',
+                'mr': 'Маратхи',
+                'sa': 'Санскрит',
+                'my': 'Бирманский',
+                'km': 'Кхмерский',
+                'lo': 'Лаосский',
+                'ka': 'Грузинский',
+                'am': 'Амхарский',
+                'ti': 'Тигринья',
+                'om': 'Оромо',
+                'so': 'Сомалийский',
+                'ha': 'Хауса',
+                'yo': 'Йоруба',
+                'ig': 'Игбо',
+                'zu': 'Зулу',
+                'xh': 'Коса',
+                'af': 'Африкаанс',
+                'st': 'Сесото',
+                'tn': 'Тсвана',
+                've': 'Венда',
+                'ts': 'Тсонга',
+                'ss': 'Свати',
+                'nr': 'Ндебеле',
+                'nso': 'Северный сото',
+                'zu': 'Зулу',
+                'xh': 'Коса',
+                'af': 'Африкаанс',
+                'st': 'Сесото',
+                'tn': 'Тсвана',
+                've': 'Венда',
+                'ts': 'Тсонга',
+                'ss': 'Свати',
+                'nr': 'Ндебеле',
+                'nso': 'Северный сото'
+            };
+            const languageName = languageNames[detectedLanguage] || detectedLanguage.toUpperCase();
+            document.getElementById('languageModalText').textContent = 
+                `Обнаружен не-русский язык в аудио файле: ${languageName} (${detectedLanguage}). Продолжить транскрибацию?`;
+            document.getElementById('languageModal').classList.add('active');
+        }
+        
+        function closeLanguageModal() {
+            document.getElementById('languageModal').classList.remove('active');
+            currentLanguageTranscriptionId = null;
+        }
+        
+        function confirmLanguage() {
+            if (!currentLanguageTranscriptionId) {
+                return;
+            }
+            
+            fetch(`/transcription/${currentLanguageTranscriptionId}/confirm-language/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showMessage('Язык подтвержден. Транскрибация продолжается.', 'success');
+                    closeLanguageModal();
+                    // Продолжаем проверку статуса
+                    if (currentTranscriptionId === currentLanguageTranscriptionId) {
+                        startTranscriptionProgress(currentLanguageTranscriptionId, transcriptionFileName.textContent, 0);
+                    }
+                } else {
+                    showMessage('Ошибка: ' + (data.error || 'неизвестная ошибка'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка при подтверждении языка:', error);
+                showMessage('Ошибка при подтверждении языка: ' + error.message, 'error');
+            });
+        }
+        
+        // Закрытие модального окна языка по клику вне его
+        document.getElementById('languageModal')?.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeLanguageModal();
             }
         });
     </script>
