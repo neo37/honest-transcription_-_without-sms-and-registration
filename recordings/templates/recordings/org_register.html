@@ -1,0 +1,201 @@
+{% extends "recordings/base.html" %}
+{% block title %}Регистрация организации{% endblock %}
+
+{% block extra_css %}
+<style>
+.reg-wrap {
+    max-width: 480px;
+    margin: 3rem auto;
+}
+.reg-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 2rem;
+}
+.reg-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 0.4rem;
+}
+.reg-sub {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin: 0 0 1.5rem;
+}
+.reg-field {
+    margin-bottom: 1rem;
+}
+.reg-label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.35rem;
+}
+.reg-input {
+    width: 100%;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-soft);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-family: inherit;
+    box-sizing: border-box;
+    transition: border-color var(--transition);
+}
+.reg-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+.reg-btn {
+    width: 100%;
+    padding: 0.7rem 1rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background var(--transition);
+    margin-top: 0.5rem;
+}
+.reg-btn:hover { background: var(--accent-light); }
+.reg-error {
+    background: var(--error-soft, #fff0f0);
+    border: 1px solid var(--error, #d32f2f);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.88rem;
+    color: var(--error, #c0392b);
+}
+.reg-success {
+    background: var(--success-soft, #f0fff4);
+    border: 1px solid var(--success, #27ae60);
+    border-radius: var(--radius-sm);
+    padding: 1.25rem 1.5rem;
+}
+.reg-success-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--success, #27ae60);
+    margin: 0 0 0.75rem;
+}
+.reg-code {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: var(--text);
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    display: inline-block;
+    margin: 0.5rem 0 1rem;
+    cursor: pointer;
+    user-select: all;
+}
+.reg-instruction {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+.reg-instruction code {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.1em 0.4em;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.95em;
+}
+.reg-bot-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+}
+.reg-bot-link:hover { text-decoration: underline; }
+.reg-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 1.5rem 0;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="reg-wrap">
+    <div class="reg-card">
+        <h1 class="reg-title">Регистрация организации</h1>
+        <p class="reg-sub">Для активации аккаунта потребуется подтверждение через Telegram.</p>
+
+        {% if success_code %}
+            <div class="reg-success">
+                <div class="reg-success-title">Заявка принята!</div>
+                <div class="reg-instruction">
+                    Чтобы завершить регистрацию, откройте наш Telegram-бот и отправьте команду:
+                </div>
+                <br>
+                {% if bot_username %}
+                <a href="https://t.me/{{ bot_username }}?start={{ success_code }}" target="_blank" class="reg-bot-link">
+                    📱 Открыть @{{ bot_username }}
+                </a>
+                <br><br>
+                {% endif %}
+                <div class="reg-instruction">Отправьте боту команду:</div>
+                <div class="reg-code" title="Нажмите чтобы скопировать" onclick="copyCode(this)">/verify {{ success_code }}</div>
+                <div class="reg-instruction">
+                    После подтверждения бот отправит вам пароль для входа.<br>
+                    Войти можно по адресу: <a href="/pilot-login/" style="color:var(--accent)">pilot-login</a>
+                </div>
+            </div>
+        {% else %}
+            {% if error %}
+            <div class="reg-error">{{ error }}</div>
+            {% endif %}
+
+            <form method="post">
+                {% csrf_token %}
+                <div class="reg-field">
+                    <label class="reg-label" for="org_name">Название организации</label>
+                    <input class="reg-input" type="text" id="org_name" name="org_name"
+                           placeholder="ООО Ромашка" required autofocus
+                           value="{{ request.POST.org_name|default:'' }}">
+                </div>
+                <div class="reg-field">
+                    <label class="reg-label" for="email">Email администратора</label>
+                    <input class="reg-input" type="email" id="email" name="email"
+                           placeholder="admin@company.ru" required
+                           value="{{ request.POST.email|default:'' }}">
+                </div>
+                <button type="submit" class="reg-btn">Зарегистрировать организацию</button>
+            </form>
+
+            <hr class="reg-divider">
+            <p style="text-align:center;font-size:0.82rem;color:var(--muted);margin:0;">
+                Уже есть аккаунт? <a href="/pilot-login/" style="color:var(--accent);">Войти</a>
+            </p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function copyCode(el) {
+    var text = el.textContent.trim();
+    navigator.clipboard.writeText(text).then(function() {
+        var orig = el.textContent;
+        el.textContent = 'Скопировано!';
+        setTimeout(function() { el.textContent = orig; }, 1500);
+    });
+}
+</script>
+{% endblock %}

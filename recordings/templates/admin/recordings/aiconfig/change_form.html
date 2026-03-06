@@ -1,0 +1,42 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block submit_buttons_bottom %}
+{{ block.super }}
+<div style="margin-top: 1rem;">
+    <button type="button" id="btn-test-llm"
+            style="padding: 0.5rem 1.2rem; background: #417690; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">
+        ⚡ Проверить соединение с API
+    </button>
+    <span id="test-result" style="margin-left: 1rem; font-size: 0.88rem;"></span>
+</div>
+<script>
+document.getElementById('btn-test-llm').addEventListener('click', function () {
+    var btn = this;
+    var result = document.getElementById('test-result');
+    btn.disabled = true;
+    btn.textContent = 'Проверяем…';
+    result.textContent = '';
+    result.style.color = '';
+    fetch('{{ test_url }}', { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.ok) {
+                result.textContent = '✓ Ответ: ' + data.response;
+                result.style.color = '#28a745';
+            } else {
+                result.textContent = '✗ ' + data.response;
+                result.style.color = '#dc3545';
+            }
+        })
+        .catch(function (e) {
+            result.textContent = '✗ Ошибка запроса: ' + e;
+            result.style.color = '#dc3545';
+        })
+        .finally(function () {
+            btn.disabled = false;
+            btn.textContent = '⚡ Проверить соединение с API';
+        });
+});
+</script>
+{% endblock %}

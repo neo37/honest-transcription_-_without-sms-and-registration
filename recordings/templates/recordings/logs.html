@@ -1,0 +1,44 @@
+{% extends "recordings/base.html" %}
+{% block title %}Логи опроса{% endblock %}
+{% block extra_css %}
+<style>
+.logs-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.logs-table th, .logs-table td { padding: 0.6rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+.logs-table th { color: var(--muted); font-weight: 600; }
+.logs-table tr:last-child td { border-bottom: none; }
+.fail { color: var(--error); }
+@media (max-width: 768px) {
+    .logs-table { font-size: 0.85rem; }
+    .logs-table th, .logs-table td { padding: 0.5rem; }
+}
+@media (max-width: 480px) {
+    .logs-table { font-size: 0.8rem; }
+    .logs-table th, .logs-table td { padding: 0.4rem; word-break: break-word; }
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>Логи опроса S3</h1>
+    <p class="breadcrumb"><a href="{% url 'recordings:index' %}">Записи</a> / Логи</p>
+</div>
+<table class="logs-table card">
+    <thead>
+        <tr><th>Начало</th><th>Конец</th><th>Найдено</th><th>Стабильных</th><th>Транскрибировано</th><th>Сообщение</th></tr>
+    </thead>
+    <tbody>
+        {% for log in logs %}
+        <tr class="{% if not log.success %}fail{% endif %}">
+            <td>{{ log.started_at|date:"d.m.Y H:i:s" }}</td>
+            <td>{{ log.finished_at|date:"d.m.Y H:i:s"|default:"—" }}</td>
+            <td>{{ log.files_found }}</td>
+            <td>{{ log.files_stable }}</td>
+            <td>{{ log.files_transcribed }}</td>
+            <td>{{ log.message|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="muted">Логов пока нет.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

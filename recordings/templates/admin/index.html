@@ -1,0 +1,10 @@
+{% extends "admin/index.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="module">
+  <h2>Регулярные задачи и очереди</h2>
+  <p><a href="{% url 'admin_worker_status' %}">Состояние воркеров</a> — последний опрос S3, очередь транскрибации, очередь эмбеддингов.</p>
+</div>
+{{ block.super }}
+{% endblock %}

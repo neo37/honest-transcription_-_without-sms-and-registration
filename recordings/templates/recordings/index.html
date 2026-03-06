@@ -1,0 +1,509 @@
+{% extends "recordings/base.html" %}
+{% block title %}Записи{% endblock %}
+{% block extra_css %}
+<style>
+    .recording {
+        border-left: 4px solid var(--border);
+    }
+    .recording.done       { border-left-color: var(--success); }
+    .recording.failed     { border-left-color: var(--error); }
+    .recording.transcribing { border-left-color: var(--warning); }
+
+    .recording .rec-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 0.35rem;
+    }
+    .recording .rec-head strong {
+        color: var(--text);
+        font-size: 1.05rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.1rem;
+    }
+    .rec-filename {
+        font-size: 0.75rem;
+        font-weight: 400;
+        color: var(--muted);
+        font-family: monospace;
+    }
+    .transcription {
+        white-space: pre-wrap;
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--border);
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: var(--text-secondary);
+    }
+    .status { font-size: 0.85rem; color: var(--muted); }
+    .empty-msg { color: var(--muted); padding: 1.5rem; text-align: center; }
+    .rec-actions { margin-top: 0.75rem; }
+    .rec-actions .btn { font-size: 0.9rem; padding: 0.45rem 0.9rem; }
+    .rec-tag { margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .rec-tag label { font-size: 0.85rem; color: var(--muted); margin: 0; }
+    .rec-tag form { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .rec-tag select { padding: 0.35rem 0.5rem; font-size: 0.85rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-soft); }
+    .rec-score { font-size: 0.8rem; color: var(--muted); }
+    .comment-count { color: var(--muted); }
+
+    /* Одна выпадашка фильтров */
+    .filters-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        padding: 0.65rem 1rem;
+        margin-bottom: 0.75rem;
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font: inherit;
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: var(--text);
+        cursor: pointer;
+    }
+    .filters-toggle:hover { background: var(--border); }
+    .filters-toggle-icon { font-size: 0.75rem; transition: transform 0.25s; }
+    .filters-panel { display: none; }
+    .filters-panel.is-open { display: block; }
+
+    .filters-panel .panel-card {
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 1.25rem 1.25rem 1rem;
+        margin-bottom: 0.75rem;
+    }
+    .filters-panel .panel-card h4 {
+        font-size: 0.85rem;
+        color: var(--muted);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin: 0 0 0.85rem;
+    }
+    .filter-row {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        align-items: flex-end;
+    }
+    .filter-row > div { display: flex; flex-direction: column; gap: 0.3rem; }
+    .filter-row label { font-size: 0.82rem; color: var(--muted); font-weight: 500; }
+    .filter-row input, .filter-row select {
+        padding: 0.5rem 0.75rem;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text-secondary);
+        font-family: inherit;
+        font-size: 0.92rem;
+    }
+    .filter-row input:focus, .filter-row select:focus { outline: none; border-color: var(--accent); }
+    .filter-row input[type="text"] { min-width: 16rem; }
+    .filter-row input[type="number"] { width: 5rem; }
+    .filter-row .checkboxes { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.25rem; }
+    .filter-row .checkboxes label {
+        display: flex; align-items: center; gap: 0.3rem;
+        font-weight: normal; color: var(--text-secondary);
+        font-size: 0.9rem; text-transform: none; letter-spacing: 0;
+    }
+    .filter-tabs {
+        display: flex;
+        gap: 0.4rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+    .ftab {
+        padding: 0.35rem 0.9rem;
+        border: 1px solid var(--border);
+        border-radius: 100px;
+        background: var(--bg-soft);
+        color: var(--muted);
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        font-family: inherit;
+    }
+    .ftab:hover { border-color: var(--accent); color: var(--accent); }
+    .ftab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    @media (max-width: 600px) {
+        .filter-row { flex-direction: column; }
+        .filter-row input[type="text"] { min-width: auto; }
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>Записи
+        {% if active_tab == 'ft' and ft_q %}по запросу «{{ ft_q|truncatewords:5 }}»
+        {% elif active_tab == 'ext' and ext_q %}по смыслу «{{ ext_q|truncatewords:5 }}»
+        {% elif date_to %}{{ selected_date }} — {{ date_to }}
+        {% else %}за {{ selected_date }}
+        {% endif %}
+    </h1>
+</div>
+
+<!-- Кнопка открытия фильтров -->
+<button type="button" class="filters-toggle" id="filters-toggle-btn">
+    <span>Фильтры и поиск</span>
+    <span class="filters-toggle-icon" id="filters-toggle-icon">▼</span>
+</button>
+
+<!-- Панель фильтров (скрыта по умолчанию) -->
+<div class="filters-panel {% if active_tab == 'ft' and ft_q or active_tab == 'ext' and ext_q or date_to or time_from or time_to or fn_filters %}is-open{% endif %}" id="filters-panel">
+
+    <!-- Переключатель режима -->
+    <div class="filter-tabs">
+        <button type="button" class="ftab {% if active_tab == 'date' %}active{% endif %}" data-ftab="date">По дате</button>
+        <button type="button" class="ftab {% if active_tab == 'ft' %}active{% endif %}" data-ftab="ft">Полнотекстовый</button>
+        <button type="button" class="ftab {% if active_tab == 'ext' %}active{% endif %}" data-ftab="ext">По смыслу</button>
+    </div>
+
+    <!-- По дате -->
+    <div class="panel-card" id="pane-date" {% if active_tab != 'date' %}style="display:none"{% endif %}>
+        <h4>Фильтр по дате и времени</h4>
+        <form method="get" action="{% url 'recordings:index' %}">
+            <input type="hidden" name="tab" value="date">
+            <div class="filter-row">
+                <div>
+                    <label for="date">Дата с</label>
+                    <input type="date" id="date" name="date" value="{{ selected_date }}">
+                </div>
+                <div>
+                    <label for="date_to">Дата по</label>
+                    <input type="date" id="date_to" name="date_to" value="{{ date_to }}">
+                </div>
+                <div>
+                    <label for="time_from">Время с</label>
+                    <input type="time" id="time_from" name="time_from" value="{{ time_from }}">
+                </div>
+                <div>
+                    <label for="time_to">Время до</label>
+                    <input type="time" id="time_to" name="time_to" value="{{ time_to }}">
+                </div>
+                <div>
+                    <label>Фильтр по файлу</label>
+                    <div class="checkboxes">
+                        {% for fval, flabel in fn_options %}
+                        <label>
+                            <input type="checkbox" name="fn" value="{{ fval }}" {% if fval in fn_filters %}checked{% endif %}>
+                            {{ flabel }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div style="align-self:flex-end">
+                    <button type="submit" class="btn">Применить</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Полнотекстовый -->
+    <div class="panel-card" id="pane-ft" {% if active_tab != 'ft' %}style="display:none"{% endif %}>
+        <h4>Полнотекстовый поиск по транскрипции</h4>
+        <form method="get" action="{% url 'recordings:index' %}">
+            <input type="hidden" name="tab" value="ft">
+            <div class="filter-row">
+                <div>
+                    <label for="ft_q">Запрос</label>
+                    <input type="text" id="ft_q" name="q" value="{{ ft_q }}" placeholder="Слова или фраза...">
+                </div>
+                <div style="align-self:center;margin-top:1.2rem;">
+                    <label style="display:flex;align-items:center;gap:0.4rem;font-weight:normal;color:var(--text-secondary);font-size:0.9rem;text-transform:none;letter-spacing:0;">
+                        <input type="checkbox" name="search_comments" value="1" {% if search_comments %}checked{% endif %}>
+                        и в комментариях
+                    </label>
+                </div>
+                <div style="align-self:flex-end">
+                    <button type="submit" class="btn">Искать</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- По смыслу -->
+    <div class="panel-card" id="pane-ext" {% if active_tab != 'ext' %}style="display:none"{% endif %}>
+        <h4>Поиск по смыслу (семантический)</h4>
+        {% if semantic_available %}
+        <form method="get" action="{% url 'recordings:index' %}">
+            <input type="hidden" name="tab" value="ext">
+            <div class="filter-row">
+                <div>
+                    <label for="ext_q">Запрос</label>
+                    <input type="text" id="ext_q" name="q" value="{{ ext_q }}" placeholder="Опишите тему или вопрос...">
+                </div>
+                <div>
+                    <label for="ext_limit">Макс. результатов</label>
+                    <select id="ext_limit" name="ext_limit">
+                        <option value="10" {% if ext_limit == 10 %}selected{% endif %}>10</option>
+                        <option value="25" {% if ext_limit == 25 %}selected{% endif %}>25</option>
+                        <option value="50" {% if ext_limit == 50 %}selected{% endif %}>50</option>
+                        <option value="100" {% if ext_limit == 100 %}selected{% endif %}>100</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="ext_min_score">Мин. релевантность, %</label>
+                    <input type="number" id="ext_min_score" name="ext_min_score" value="{{ ext_min_score_pct }}" min="0" max="100" step="5">
+                </div>
+                <div style="align-self:flex-end">
+                    <button type="submit" class="btn">Искать</button>
+                </div>
+            </div>
+        </form>
+        {% else %}
+        <p class="muted">Семантический поиск доступен при использовании PostgreSQL и индекса эмбеддингов.</p>
+        {% endif %}
+    </div>
+</div>
+
+<p class="section-title">Список записей ({{ recordings|length }})</p>
+{% for rec in recordings %}
+<article class="card recording {{ rec.status }}">
+    <div class="rec-head">
+        <strong>
+            {% if rec.status == 'done' %}
+            <a href="{% url 'recordings:recording_detail' rec.pk %}">{% if rec.ai_title %}{{ rec.ai_title }}{% else %}{{ rec.filename }}{% endif %}</a>
+            {% if rec.ai_title %}<span class="rec-filename">{{ rec.filename }}</span>{% endif %}
+            {% else %}
+            {{ rec.filename }}
+            {% endif %}
+        </strong>
+        <span class="muted">{{ rec.created_at|date:"d.m.Y H:i" }}</span>
+    </div>
+    <div class="status">
+        {{ rec.get_status_display }} · {{ rec.size_bytes|filesizeformat }}
+        {% if rec.tag %}<span class="tag-value"> · {{ rec.get_tag_display }}</span>{% endif %}
+        {% if rec.comment_count %}{% if rec.comment_count > 0 %}<span class="comment-count"> · {{ rec.comment_count }} коммент.</span>{% endif %}{% endif %}
+        {% for rec_item, score in semantic_results %}{% if rec_item.pk == rec.pk %}<span class="rec-score"> · релевантность {% widthratio score 1 100 %}%</span>{% endif %}{% endfor %}
+    </div>
+    <div class="rec-tag">
+        <form method="post" action="{% url 'recordings:set_recording_tag' rec.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <label for="tag-{{ rec.pk }}">Тег:</label>
+            <select name="tag" id="tag-{{ rec.pk }}" onchange="this.form.submit()">
+                {% for tval, tlabel in tag_choices %}
+                <option value="{{ tval }}" {% if rec.tag == tval %}selected{% endif %}>{{ tlabel }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    {% if rec.transcription %}
+    {% if rec.ai_summary %}
+    <div class="transcription" style="font-style:italic;margin-bottom:0.5rem;color:var(--accent);border-bottom:none;padding-bottom:0;">
+        <strong>AI Summary:</strong> {{ rec.ai_summary|truncatewords:40 }}
+    </div>
+    {% endif %}
+    <div class="transcription">{{ rec.transcription|truncatewords:30 }}</div>
+    <p class="rec-actions">
+        <a href="{% url 'recordings:recording_detail' rec.pk %}" class="btn btn-ghost">Читать и комментировать{% if rec.comment_count %}{% if rec.comment_count > 0 %} ({{ rec.comment_count }}){% endif %}{% endif %}</a>
+        <button type="button" class="btn btn-ask-q"
+                data-rec-id="{{ rec.pk }}"
+                data-rec-title="{{ rec.ai_title|default:rec.filename|escapejs }}"
+                style="margin-left:0.5rem;">
+            ✦ Задать вопрос по встрече
+        </button>
+    </p>
+    {% elif rec.error_message %}
+    <div class="transcription" style="color:var(--error);">Ошибка: {{ rec.error_message }}</div>
+    <p class="rec-actions">
+        <form method="post" action="{% url 'recordings:run_recording_transcription' rec.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit" class="btn btn-ghost">Запустить транскрибацию</button>
+        </form>
+        <a href="{% url 'recordings:support_request' rec.pk %}" class="btn btn-ghost" target="_blank" rel="noopener">Поделиться ошибкой</a>
+    </p>
+    {% else %}
+    <p class="rec-actions">
+        <form method="post" action="{% url 'recordings:run_recording_transcription' rec.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit" class="btn btn-ghost">Запустить транскрибацию</button>
+        </form>
+    </p>
+    {% endif %}
+</article>
+{% empty %}
+<p class="card empty-msg">
+    {% if active_tab == 'ft' %}По запросу ничего не найдено.
+    {% elif active_tab == 'ext' %}По смыслу ничего не найдено.
+    {% else %}За выбранную дату записей нет.
+    {% endif %}
+</p>
+{% endfor %}
+<p class="muted" style="margin-top:1rem;"><a href="{% url 'recordings:logs' %}">Логи опроса</a> — отдельная вкладка.</p>
+
+<!-- Модал: вопрос по транскрипции -->
+<div id="ask-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px);">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:2rem 1.75rem;max-width:480px;width:90%;box-shadow:var(--shadow-md);">
+        <h3 id="ask-modal-title" style="font-size:1.05rem;margin-bottom:0.35rem;color:var(--text);">Вопрос по транскрипции</h3>
+        <p id="ask-modal-rec" style="font-size:0.8rem;color:var(--muted);margin-bottom:1rem;"></p>
+
+        <div id="ask-form-area">
+            <label style="display:block;font-size:0.85rem;color:var(--muted);font-weight:500;margin-bottom:0.35rem;">Ваш вопрос</label>
+            <textarea id="ask-question" rows="3" placeholder="Например: какие задачи были поставлены? Кто ответственный за X?"
+                style="width:100%;padding:0.65rem 0.9rem;background:var(--bg-soft);border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);font-size:0.95rem;font-family:inherit;resize:vertical;box-sizing:border-box;"></textarea>
+            <p id="ask-error" style="color:var(--error);font-size:0.85rem;margin-top:0.5rem;display:none;"></p>
+            <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+                <button type="button" id="ask-submit" class="btn" style="flex:1;">Получить ответ</button>
+                <button type="button" id="ask-cancel" class="btn btn-ghost">Отмена</button>
+            </div>
+        </div>
+
+        <div id="ask-loading" style="display:none;text-align:center;padding:1.5rem 0;">
+            <p style="color:var(--muted);font-size:0.9rem;">Анализируем транскрипцию и готовим ответ…<br><span style="font-size:0.8rem;opacity:0.7;">Это может занять до минуты</span></p>
+            <div style="margin-top:1rem;width:100%;height:4px;background:var(--bg-soft);border-radius:2px;overflow:hidden;">
+                <div id="ask-progress-bar" style="height:100%;width:0%;background:var(--accent);border-radius:2px;transition:width 0.5s ease;"></div>
+            </div>
+        </div>
+
+        <div id="ask-success" style="display:none;text-align:center;padding:0.5rem 0;">
+            <p style="font-size:1.5rem;margin-bottom:0.75rem;">✅</p>
+            <p style="color:var(--text);font-weight:600;margin-bottom:0.5rem;">Статья создана в базе знаний</p>
+            <a id="ask-article-link" href="#" class="btn" target="_blank" style="display:inline-block;margin-top:0.5rem;">Открыть статью →</a>
+            <button type="button" id="ask-close-success" class="btn btn-ghost" style="display:block;width:100%;margin-top:0.5rem;">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    /* ── Модал "Задать вопрос по транскрипции" ── */
+    var overlay    = document.getElementById('ask-modal-overlay');
+    var modalTitle = document.getElementById('ask-modal-title');
+    var modalRec   = document.getElementById('ask-modal-rec');
+    var formArea   = document.getElementById('ask-form-area');
+    var loadArea   = document.getElementById('ask-loading');
+    var successArea= document.getElementById('ask-success');
+    var questionTA = document.getElementById('ask-question');
+    var askError   = document.getElementById('ask-error');
+    var askSubmit  = document.getElementById('ask-submit');
+    var askCancel  = document.getElementById('ask-cancel');
+    var askClose   = document.getElementById('ask-close-success');
+    var articleLink= document.getElementById('ask-article-link');
+    var progressBar= document.getElementById('ask-progress-bar');
+    var currentRecId = null;
+
+    function getCsrf() {
+        var m = document.cookie.match(/csrftoken=([^;]+)/);
+        return m ? m[1] : '';
+    }
+
+    function openModal(recId, recTitle) {
+        currentRecId = recId;
+        modalRec.textContent = recTitle;
+        questionTA.value = '';
+        askError.style.display = 'none';
+        formArea.style.display = '';
+        loadArea.style.display = 'none';
+        successArea.style.display = 'none';
+        progressBar.style.width = '0%';
+        overlay.style.display = 'flex';
+        setTimeout(function() { questionTA.focus(); }, 50);
+    }
+
+    function closeModal() {
+        overlay.style.display = 'none';
+        currentRecId = null;
+    }
+
+    document.querySelectorAll('.btn-ask-q').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            openModal(this.dataset.recId, this.dataset.recTitle);
+        });
+    });
+
+    if (askCancel) askCancel.addEventListener('click', closeModal);
+    if (askClose) askClose.addEventListener('click', closeModal);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) closeModal(); });
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
+
+    if (askSubmit) askSubmit.addEventListener('click', function() {
+        var q = questionTA.value.trim();
+        if (!q) {
+            askError.textContent = 'Введите вопрос.';
+            askError.style.display = '';
+            return;
+        }
+        askError.style.display = 'none';
+        formArea.style.display = 'none';
+        loadArea.style.display = '';
+
+        // Анимируем прогресс-бар
+        var pct = 0;
+        var timer = setInterval(function() {
+            pct = Math.min(pct + (pct < 70 ? 2 : 0.3), 92);
+            progressBar.style.width = pct + '%';
+        }, 600);
+
+        fetch('{% url "recordings:api_ask_transcription" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+            body: JSON.stringify({ recording_id: currentRecId, question: q }),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            clearInterval(timer);
+            progressBar.style.width = '100%';
+            loadArea.style.display = 'none';
+            if (data.ok) {
+                articleLink.href = data.article_url;
+                successArea.style.display = '';
+            } else {
+                askError.textContent = data.error || 'Ошибка. Попробуйте ещё раз.';
+                askError.style.display = '';
+                formArea.style.display = '';
+            }
+        })
+        .catch(function() {
+            clearInterval(timer);
+            loadArea.style.display = 'none';
+            askError.textContent = 'Ошибка соединения.';
+            askError.style.display = '';
+            formArea.style.display = '';
+        });
+    });
+
+    questionTA && questionTA.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) askSubmit.click();
+    });
+})();
+
+(function () {
+    var btn   = document.getElementById('filters-toggle-btn');
+    var panel = document.getElementById('filters-panel');
+    var icon  = document.getElementById('filters-toggle-icon');
+
+    function setOpen(open) {
+        panel.classList.toggle('is-open', open);
+        icon.style.transform = open ? 'rotate(180deg)' : '';
+    }
+
+    btn.addEventListener('click', function () {
+        setOpen(!panel.classList.contains('is-open'));
+    });
+
+    // Переключатель вкладок внутри панели
+    var ftabs = document.querySelectorAll('.ftab');
+    var panes = { date: 'pane-date', ft: 'pane-ft', ext: 'pane-ext' };
+
+    ftabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            ftabs.forEach(function (t) { t.classList.remove('active'); });
+            tab.classList.add('active');
+            Object.keys(panes).forEach(function (key) {
+                var el = document.getElementById(panes[key]);
+                if (el) el.style.display = (key === tab.dataset.ftab) ? '' : 'none';
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

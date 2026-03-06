@@ -1,0 +1,24 @@
+{% extends "recordings/base.html" %}
+{% block title %}Загрузки видео{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>Загрузки видео</h1>
+    <p class="breadcrumb"><a href="{% url 'recordings:index' %}">Записи</a> / Загрузки видео</p>
+</div>
+<div class="card">
+    <p class="section-title">Загрузить видео или аудио</p>
+    <p class="muted" style="margin-bottom: 1rem;">Поддерживаются видео (MP4, WebM и др.) и аудио (MP3). После загрузки
+        файл попадёт в S3 и будет поставлен в очередь транскрибации. Для видео потребуется ffmpeg на сервере.</p>
+    <form action="{% url 'recordings:uploads' %}" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div style="margin-bottom: 1rem;">
+            <input type="file" name="video" accept="video/*,audio/*,.mp3,.mp4,.webm,.m4a,.wav,.ogg" required>
+        </div>
+        <button type="submit" class="btn btn-create">Загрузить и поставить в очередь</button>
+    </form>
+    <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+        <p class="muted">Не хотите ждать? Так обрежьте видео с помощью <a href="https://kdenlive.org/" target="_blank"
+                rel="noopener">этой софтины (Kdenlive)</a>.</p>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<div style="max-width: 600px;">
+  <table style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td style="padding: 0.5rem 1rem 0.5rem 0; font-weight: 600;">Последний опрос S3</td>
+      <td>
+        {% if last_log %}
+          {{ last_log.started_at|date:"d.m.Y H:i:s" }} — {{ last_log.message }}
+          <br><a href="{% url 'admin:recordings_polllog_changelist' %}">Все логи опроса</a>
+        {% else %}
+          Нет данных
+        {% endif %}
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 0.5rem 1rem 0.5rem 0; font-weight: 600;">Очередь транскрибации</td>
+      <td>
+        {{ transcribe_count }} задач
+        <a href="{% url 'admin:recordings_transcribequeue_changelist' %}">Открыть</a>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 0.5rem 1rem 0.5rem 0; font-weight: 600;">Очередь эмбеддингов</td>
+      <td>
+        {{ embedding_count }} задач
+        <a href="{% url 'admin:recordings_embeddingqueue_changelist' %}">Открыть</a>
+      </td>
+    </tr>
+  </table>
+  <p style="margin-top: 1.5rem; color: #666;">
+    Регулярные задачи: контейнер <code>poller</code> запускает опрос S3 и обрабатывает очереди транскрибации и эмбеддингов.
+  </p>
+</div>
+{% endblock %}

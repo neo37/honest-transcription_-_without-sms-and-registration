@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#000000">
+    <title>Регистрация пространства — MeetRec</title>
+    {% load static %}
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: #0a0a0a;
+            color: #e8e8e8;
+            font-family: 'Courier New', Courier, monospace;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+
+        .p-wrap {
+            width: 100%;
+            max-width: 520px;
+        }
+
+        .p-tag {
+            font-size: 0.7rem;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: #555;
+            margin-bottom: 1.5rem;
+        }
+
+        h1 {
+            font-size: clamp(1.5rem, 5vw, 2.2rem);
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+            color: #fff;
+            margin-bottom: 0.4rem;
+        }
+
+        .sub {
+            font-size: 0.82rem;
+            color: #555;
+            margin-bottom: 2rem;
+            font-family: system-ui, sans-serif;
+        }
+
+        label {
+            display: block;
+            font-size: 0.7rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: #555;
+            margin-bottom: 0.4rem;
+            margin-top: 1.1rem;
+        }
+        label:first-of-type { margin-top: 0; }
+
+        input[type="text"], input[type="email"] {
+            width: 100%;
+            padding: 0.65rem 0.85rem;
+            background: #111;
+            border: 2px solid #2a2a2a;
+            color: #e8e8e8;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.15s;
+            border-radius: 0;
+            -webkit-appearance: none;
+        }
+        input[type="text"]:focus, input[type="email"]:focus {
+            border-color: #e8e8e8;
+        }
+        input::placeholder { color: #333; }
+
+        .hint {
+            font-size: 0.75rem;
+            color: #444;
+            margin-top: 0.35rem;
+            font-family: system-ui, sans-serif;
+        }
+        .hint strong { color: #888; }
+
+        .email-list { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.4rem; }
+        .email-row { display: flex; gap: 0.4rem; }
+        .email-row input { flex: 1; }
+        .btn-remove {
+            flex-shrink: 0;
+            padding: 0 0.85rem;
+            background: transparent;
+            border: 2px solid #2a2a2a;
+            color: #555;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: border-color 0.15s, color 0.15s;
+        }
+        .btn-remove:hover { border-color: #e8e8e8; color: #e8e8e8; }
+
+        .btn-add {
+            margin-top: 0.6rem;
+            width: 100%;
+            padding: 0.55rem;
+            background: transparent;
+            border: 2px dashed #2a2a2a;
+            color: #555;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.8rem;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            transition: border-color 0.15s, color 0.15s;
+        }
+        .btn-add:hover { border-color: #666; color: #aaa; }
+
+        .btn-submit {
+            margin-top: 1.75rem;
+            width: 100%;
+            padding: 0.85rem;
+            background: #e8e8e8;
+            border: 2px solid #e8e8e8;
+            color: #0a0a0a;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+        .btn-submit:hover { background: #0a0a0a; color: #e8e8e8; }
+
+        .error {
+            font-size: 0.82rem;
+            color: #ff4444;
+            border-left: 2px solid #ff4444;
+            padding-left: 0.75rem;
+            margin-bottom: 1.25rem;
+            font-family: system-ui, sans-serif;
+        }
+
+        /* Done state */
+        .done-box {
+            border: 2px solid #e8e8e8;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .done-box .ok { font-size: 0.7rem; letter-spacing: 0.2em; color: #888; margin-bottom: 1rem; }
+        .done-box h2 { font-size: 1.3rem; color: #fff; margin-bottom: 1.25rem; }
+        .pwd-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        .pwd-table th { text-align: left; padding: 0.4rem 0; border-bottom: 1px solid #2a2a2a; color: #555; font-weight: 400; letter-spacing: 0.1em; font-size: 0.68rem; text-transform: uppercase; }
+        .pwd-table td { padding: 0.45rem 0; border-bottom: 1px solid #181818; color: #ccc; font-family: 'Courier New', Courier, monospace; }
+        .pwd-table td:last-child { color: #e8e8e8; letter-spacing: 0.06em; padding-right: 0; }
+        .btn-back {
+            display: block;
+            width: 100%;
+            padding: 0.75rem;
+            background: transparent;
+            border: 2px solid #2a2a2a;
+            color: #888;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.8rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            text-align: center;
+            text-decoration: none;
+            transition: border-color 0.15s, color 0.15s;
+        }
+        .btn-back:hover { border-color: #e8e8e8; color: #e8e8e8; }
+
+        .back-link {
+            margin-top: 1.5rem;
+            font-size: 0.75rem;
+            color: #333;
+            font-family: system-ui, sans-serif;
+        }
+        .back-link a { color: #666; }
+        .back-link a:hover { color: #aaa; }
+
+        @media (max-width: 480px) {
+            body { padding: 1.5rem 1rem; align-items: flex-start; padding-top: 2rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="p-wrap">
+    <p class="p-tag">D.O.O. SpaceCode / MeetRec</p>
+    <h1>Новое<br>пространство</h1>
+    <p class="sub">Участники получат пароль на этом экране</p>
+
+    {% if done %}
+    <div class="done-box">
+        <p class="ok">// СОЗДАНО</p>
+        <h2>{{ space_name }}</h2>
+        {% if pwd_list %}
+        <table class="pwd-table">
+            <thead><tr><th>Email</th><th>Пароль</th></tr></thead>
+            <tbody>
+            {% for em, pwd in pwd_list %}
+            <tr>
+                <td>{{ em }}</td>
+                <td>{{ pwd }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="font-size:0.82rem; color:#555; font-family: system-ui, sans-serif;">Пароли уже были выданы ранее.</p>
+        {% endif %}
+    </div>
+    <a href="{% url 'recordings:pilot_login' %}" class="btn-back">→ Войти в систему</a>
+
+    {% else %}
+
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+    <form method="post" action="{% url 'recordings:pilot_integration' %}">
+        {% csrf_token %}
+
+        <label for="id_org_name">Название организации</label>
+        <input id="id_org_name" type="text" name="org_name" required autofocus
+               placeholder="Acme Corp" oninput="autoSlug(this.value)">
+
+        <label for="id_slug">Slug <span style="letter-spacing:0; text-transform:none; font-size:0.68rem;">(латиница, в URL встречи)</span></label>
+        <input id="id_slug" type="text" name="slug" required
+               pattern="[a-z0-9\-]+" title="Только латинские буквы, цифры, дефисы"
+               placeholder="acme-corp">
+        <p class="hint">…/rooms/xxxx-xxxx-org-<strong id="slug-preview">slug</strong></p>
+
+        <label>Участники (email)</label>
+        <div class="email-list" id="email-list">
+            <div class="email-row">
+                <input type="email" name="emails" required placeholder="user@example.com" autocomplete="off">
+            </div>
+        </div>
+        <button type="button" class="btn-add" onclick="addEmailRow()">+ добавить участника</button>
+
+        <button type="submit" class="btn-submit">Зарегистрировать</button>
+    </form>
+
+    <p class="back-link" style="margin-top:1.25rem;"><a href="{% url 'recordings:login' %}">← Вернуться ко входу</a></p>
+    {% endif %}
+</div>
+<script>
+(function() {
+    var TRANSLIT = {
+        'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'zh','з':'z',
+        'и':'i','й':'j','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r',
+        'с':'s','т':'t','у':'u','ф':'f','х':'kh','ц':'ts','ч':'ch','ш':'sh','щ':'shch',
+        'ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya',
+    };
+    function translit(s) {
+        return s.toLowerCase().split('').map(function(c){ return TRANSLIT[c]!==undefined?TRANSLIT[c]:c; }).join('')
+            .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,60);
+    }
+    window.autoSlug = function(v) {
+        var sl = document.getElementById('id_slug');
+        var pr = document.getElementById('slug-preview');
+        var s = translit(v);
+        if (sl) sl.value = s;
+        if (pr) pr.textContent = s || 'slug';
+    };
+    var sl = document.getElementById('id_slug');
+    if (sl) sl.addEventListener('input', function(){
+        var pr = document.getElementById('slug-preview');
+        if (pr) pr.textContent = this.value || 'slug';
+    });
+    window.addEmailRow = function() {
+        var list = document.getElementById('email-list');
+        var row = document.createElement('div');
+        row.className = 'email-row';
+        row.innerHTML = '<input type="email" name="emails" placeholder="user@example.com" autocomplete="off">'
+                      + '<button type="button" class="btn-remove" onclick="this.parentNode.remove()">✕</button>';
+        list.appendChild(row);
+        row.querySelector('input').focus();
+    };
+})();
+</script>
+</body>
+</html>

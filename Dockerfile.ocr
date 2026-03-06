@@ -1,0 +1,27 @@
+# OCR-сервис на olmOCR. Работает с внешним inference (OCR_SERVER) без GPU в контейнере.
+# См. https://github.com/allenai/olmocr — провайдеры: DeepInfra, Parasail, Cirrascale.
+FROM python:3.11-slim-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    poppler-utils \
+    curl \
+    tesseract-ocr \
+    tesseract-ocr-rus \
+    tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Обёртка API (FastAPI)
+COPY ocr_server/requirements.txt ocr_server/
+RUN pip install --no-cache-dir -r ocr_server/requirements.txt
+
+# olmOCR: при заданном OCR_SERVER используется внешний inference (DeepInfra/Parasail и т.д.), GPU в контейнере не нужен
+RUN pip install --no-cache-dir olmocr
+
+COPY ocr_server/ ./ocr_server/
+
+ENV OCR_WORKSPACE_BASE=/tmp/ocr_workspace
+EXPOSE 8001
+
+CMD ["uvicorn", "ocr_server.app:app", "--host", "0.0.0.0", "--port", "8001"]

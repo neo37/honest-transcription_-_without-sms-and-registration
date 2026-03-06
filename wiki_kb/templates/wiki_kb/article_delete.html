@@ -1,0 +1,26 @@
+{% extends "recordings/base.html" %}
+
+{% block title %}Удалить «{{ article.title }}»{% endblock %}
+
+{% block content %}
+<div style="max-width:520px;margin:3rem auto;">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:2rem;">
+        <h1 style="font-size:1.15rem;font-weight:700;color:var(--text);margin:0 0 0.75rem;">Удалить статью?</h1>
+        <p style="color:var(--muted);margin:0 0 1.5rem;font-size:0.92rem;">
+            Статья <strong style="color:var(--text);">{{ article.title }}</strong> будет помечена как удалённая.
+            Подстатьи останутся, но потеряют родителя.
+        </p>
+        <form method="post" style="display:flex;gap:0.75rem;justify-content:flex-end;">
+            {% csrf_token %}
+            <a href="{% url 'wiki_kb:article_detail' slug=article.slug %}"
+               style="display:inline-flex;align-items:center;padding:0.5rem 1rem;border-radius:8px;font-size:0.88rem;font-weight:500;text-decoration:none;border:1px solid var(--border);background:var(--card);color:var(--text-secondary);">
+                Отмена
+            </a>
+            <button type="submit"
+                    style="display:inline-flex;align-items:center;padding:0.5rem 1rem;border-radius:8px;font-size:0.88rem;font-weight:500;border:none;background:var(--error);color:#fff;cursor:pointer;">
+                Да, удалить
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+# Production: bind web to localhost:8003 (nginx proxies)
+services:
+  ocr:
+    build:
+      context: .
+      dockerfile: Dockerfile.ocr
+    image: meetrec_ocr
+    ports:
+      - "127.0.0.1:8001:8001"
+    environment:
+      - OCR_SERVER=${OCR_SERVER:-}
+      - OCR_MODEL=${OCR_MODEL:-allenai/olmOCR-2-7B-1025-FP8}
+      - OCR_API_KEY=${OCR_API_KEY:-}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+  web:
+    ports:
+      - "18000:8000"

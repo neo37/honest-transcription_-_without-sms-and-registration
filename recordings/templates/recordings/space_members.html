@@ -1,0 +1,91 @@
+{% extends "recordings/base.html" %}
+{% block title %}Пространство: {{ space.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>{{ space.name }}</h1>
+    <p class="breadcrumb"><a href="{% url 'recordings:index' %}">Записи</a> / Пространство</p>
+</div>
+
+<!-- Add member -->
+<div class="card">
+    <p class="section-title">Добавить участника</p>
+    {% if error %}<p style="color: var(--error); margin-bottom: 0.75rem; font-size: 0.9rem;">{{ error }}</p>{% endif %}
+    {% if new_creds %}
+    <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+        {% if new_creds.1 %}
+        <p style="font-weight: 600; color: #15803d; margin-bottom: 0.3rem;">Пользователь добавлен</p>
+        <p style="margin-bottom: 0.2rem;"><strong>Email:</strong> {{ new_creds.0 }}</p>
+        <p style="margin-bottom: 0.4rem;"><strong>Пароль:</strong> <code style="font-size: 1.1rem; letter-spacing: 0.08em;">{{ new_creds.1 }}</code></p>
+        <p style="font-size: 0.8rem; color: #166534;">Сохраните пароль — он показывается один раз.</p>
+        {% else %}
+        <p style="color: #15803d;">Пользователь {{ new_creds.0 }} уже был добавлен ранее.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+    <form method="post">
+        {% csrf_token %}
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <input type="email" name="email" required placeholder="user@example.com"
+                   style="flex: 1; min-width: 200px; padding: 0.6rem 0.85rem; background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px; color: var(--text-secondary); font-size: 0.95rem; font-family: inherit;"
+                   autofocus autocomplete="off">
+            <button type="submit" class="btn btn-create" style="white-space: nowrap;">Добавить</button>
+        </div>
+    </form>
+</div>
+
+<!-- Members list -->
+<div class="card" style="margin-top: 1.5rem;">
+    <p class="section-title">Участники ({{ members|length }})</p>
+    {% if members %}
+    <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+        <thead>
+            <tr style="border-bottom: 1px solid var(--border); color: var(--muted); text-align: left;">
+                <th style="padding: 0.5rem 0.25rem; font-weight: 500;">Email</th>
+                <th style="padding: 0.5rem 0.25rem; font-weight: 500;">Статус</th>
+                <th style="padding: 0.5rem 0.25rem; font-weight: 500;">Добавлен</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for m in members %}
+        <tr style="border-bottom: 1px solid var(--border);">
+            <td style="padding: 0.5rem 0.25rem;">{{ m.email }}</td>
+            <td style="padding: 0.5rem 0.25rem;">
+                {% if m.first_login_at %}
+                <span style="color: var(--success, #16a34a); font-size: 0.8rem;">Входил</span>
+                {% else %}
+                <span style="color: var(--muted); font-size: 0.8rem;">Не входил</span>
+                {% endif %}
+            </td>
+            <td style="padding: 0.5rem 0.25rem; color: var(--muted); font-size: 0.82rem;">{{ m.created_at|date:"d.m.Y" }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted">В пространстве пока нет участников.</p>
+    {% endif %}
+</div>
+
+<!-- API Key -->
+<div class="card" style="margin-top: 1.5rem;">
+    <p class="section-title">API пространства</p>
+    <p class="muted" style="margin-bottom: 0.75rem; font-size: 0.9rem;">
+        Используйте ключ для программного доступа к OCR-результатам этого пространства.
+    </p>
+    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+        <code id="space-api-key" style="background: var(--bg-soft); border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem 0.75rem; font-size: 0.85rem; word-break: break-all;">{{ space.api_key }}</code>
+        <button type="button" class="btn btn-ghost" onclick="copyKey()" style="padding: 0.35rem 0.75rem; font-size: 0.82rem;">Копировать</button>
+    </div>
+    <p class="muted" style="margin-top: 0.5rem; font-size: 0.8rem;">
+        <code>GET /api/space/{{ space.api_key }}/ocr/</code> — возвращает JSON со всеми выполненными задачами OCR.
+    </p>
+</div>
+
+<script>
+function copyKey() {
+    navigator.clipboard.writeText(document.getElementById('space-api-key').textContent.trim())
+        .then(function() { alert('Ключ скопирован'); })
+        .catch(function() { alert('Выделите ключ вручную'); });
+}
+</script>
+{% endblock %}

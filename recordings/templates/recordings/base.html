@@ -1,0 +1,206 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru" data-theme="">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0D2A7A">
+    <title>{% block title %}Записи встреч{% endblock %}{% if current_user and current_user.space and current_user.space.slug != 'org-bp' %} — {{ current_user.space.name }}{% else %} — BusinessPad{% endif %}</title>
+    <link rel="manifest" href="{% url 'recordings:manifest' %}">
+    <link rel="stylesheet" href="{% static 'recordings/css/style.css' %}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<!-- Оверлей загрузки -->
+<div class="loading-overlay" id="loading-overlay" aria-hidden="true">
+    <div class="loading-overlay-inner">
+        <img src="{% static 'recordings/img/bp_logo.svg' %}" alt="" class="loading-logo" width="140" height="43">
+        <span class="loading-text">Загрузка…</span>
+    </div>
+</div>
+
+<div class="container">
+
+    <!-- Оверлей бургера (мобильный) — внутри container для корректного stacking context -->
+    <div class="burger-overlay" id="burger-overlay" aria-hidden="true"></div>
+
+    <header class="header">
+        <a href="{% url 'recordings:index' %}" class="brand-wrap" aria-label="На главную">
+            {% if current_user and current_user.space and current_user.space.slug != 'org-bp' %}
+            <span class="header-org-name">{{ current_user.space.name }}</span>
+            {% else %}
+            <img src="{% static 'recordings/img/bp_logo.svg' %}" alt="BusinessPad" class="header-logo" width="160" height="49">
+            {% endif %}
+        </a>
+
+        <nav class="header-nav" id="header-nav" aria-label="Основная навигация">
+            <a href="{% url 'recordings:index' %}">Записи</a>
+            <a href="{% url 'recordings:uploads' %}">Загрузки</a>
+            <a href="{% url 'recordings:ocr' %}">OCR</a>
+{% if current_user and current_user.space %}<a href="{% url 'recordings:space_members' %}">Пространство</a>{% endif %}
+            <a href="{% url 'wiki_kb:kb_index' %}">База знаний</a>
+            <a href="{% url 'recordings:description' %}">О сервисе</a>
+            <button type="button" class="nav-icon theme-toggle" id="theme-toggle" title="Сменить тему" aria-label="Сменить тему">
+                <span id="theme-icon">🌙</span>
+            </button>
+            <button type="button" class="btn btn-create" id="btn-create-nav" title="Создать комнату">Создать</button>
+            <button type="button" class="btn btn-ghost" id="pwa-install-nav" style="display:none;">Установить</button>
+            {% if current_user %}
+            <a href="{% url 'recordings:cabinet' %}" class="cabinet-link" title="Личный кабинет">
+                <span class="cabinet-email">{{ current_user.email }}</span>
+                {% if current_user.free_left is not None %}
+                <span class="cabinet-badge">{{ current_user.free_left }}</span>
+                {% else %}
+                <span class="cabinet-badge cabinet-badge-premium">★</span>
+                {% endif %}
+            </a>
+            {% endif %}
+            <form method="post" action="{% url 'recordings:logout' %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-ghost" style="color: var(--error) !important;">Выйти</button>
+            </form>
+        </nav>
+
+        <button class="burger-btn" id="burger-btn" aria-expanded="false" aria-controls="header-nav" aria-label="Открыть меню">
+            <svg class="burger-icon" width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="3" y1="6" x2="19" y2="6"/>
+                <line x1="3" y1="11" x2="19" y2="11"/>
+                <line x1="3" y1="16" x2="19" y2="16"/>
+            </svg>
+            <svg class="burger-close" width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="4" y1="4" x2="18" y2="18"/>
+                <line x1="18" y1="4" x2="4" y2="18"/>
+            </svg>
+        </button>
+    </header>
+
+    {% if messages %}
+    <ul class="messages" role="list">
+        {% for message in messages %}
+        <li class="message message-{{ message.tags }}">{{ message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    /* ── Бургер ── */
+    var burgerBtn = document.getElementById('burger-btn');
+    var burgerOverlay = document.getElementById('burger-overlay');
+    var headerNav = document.getElementById('header-nav');
+
+    function openNav() {
+        document.body.classList.add('nav-open');
+        if (burgerBtn) burgerBtn.setAttribute('aria-expanded', 'true');
+        if (burgerOverlay) burgerOverlay.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeNav() {
+        document.body.classList.remove('nav-open');
+        if (burgerBtn) burgerBtn.setAttribute('aria-expanded', 'false');
+        if (burgerOverlay) burgerOverlay.setAttribute('aria-hidden', 'true');
+    }
+
+    if (burgerBtn) {
+        burgerBtn.addEventListener('click', function () {
+            document.body.classList.contains('nav-open') ? closeNav() : openNav();
+        });
+    }
+    if (burgerOverlay) {
+        burgerOverlay.addEventListener('click', closeNav);
+    }
+    if (headerNav) {
+        headerNav.querySelectorAll('a').forEach(function (a) {
+            a.addEventListener('click', closeNav);
+        });
+    }
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeNav();
+    });
+
+    /* ── Тёмная тема ── */
+    var themeToggle = document.getElementById('theme-toggle');
+    var themeIcon = document.getElementById('theme-icon');
+
+    function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : '');
+        if (themeIcon) themeIcon.textContent = theme === 'dark' ? '☀️' : '🌙';
+    }
+
+    var savedTheme = localStorage.getItem('bp_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    applyTheme(savedTheme);
+
+    if (themeToggle) {
+        themeToggle.addEventListener('click', function () {
+            var current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+            var next = current === 'dark' ? 'light' : 'dark';
+            applyTheme(next);
+            localStorage.setItem('bp_theme', next);
+        });
+    }
+
+    /* ── Создать комнату ── */
+    function createRoom() {
+        var slug = '{{ user_space_slug|escapejs }}';
+        var a = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        var p1 = '', p2 = '';
+        for (var i = 0; i < 4; i++) {
+            p1 += a[Math.floor(Math.random() * a.length)];
+            p2 += a[Math.floor(Math.random() * a.length)];
+        }
+        var room = p1 + '-' + p2 + (slug ? '-org-' + slug : '');
+        window.open('https://meet.business-pad.com/rooms/' + room, '_blank');
+    }
+
+    var btnCreate = document.getElementById('btn-create-nav');
+    if (btnCreate) btnCreate.addEventListener('click', createRoom);
+
+    /* ── PWA install ── */
+    var installPrompt = null;
+    var pwaBtn = document.getElementById('pwa-install-nav');
+
+    window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        installPrompt = e;
+        if (pwaBtn) pwaBtn.style.display = '';
+    });
+
+    if (pwaBtn) {
+        pwaBtn.addEventListener('click', function () {
+            if (!installPrompt) return;
+            installPrompt.prompt();
+            installPrompt.userChoice.then(function (choice) {
+                if (choice.outcome === 'accepted' && pwaBtn) pwaBtn.style.display = 'none';
+                installPrompt = null;
+            });
+        });
+    }
+
+    /* ── Service Worker ── */
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('{% url "recordings:service_worker" %}', { scope: '/' }).catch(function () {});
+    }
+
+    /* ── Логирование разрешения экрана ── */
+    (function () {
+        var screen_val = window.screen.width + 'x' + window.screen.height;
+        fetch('{% url "recordings:log_screen" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ screen: screen_val }),
+            credentials: 'same-origin',
+        }).catch(function () {});
+    })();
+})();
+</script>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>

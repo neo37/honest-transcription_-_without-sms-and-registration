@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ job.original_filename }} — OCR</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'recordings/css/style.css' %}">
+    <style>
+    .share-page { max-width: 860px; margin: 2rem auto; padding: 0 1rem; }
+    .ocr-result { white-space: pre-wrap; font-family: var(--font-mono, monospace); font-size: 0.9rem; padding: 1rem; background: var(--bg-soft); border-radius: 8px; max-height: 80vh; overflow: auto; }
+    </style>
+</head>
+<body>
+<div class="share-page">
+    <div class="card">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+            <h1 style="font-size: 1.25rem;">{{ job.original_filename }}</h1>
+            <span class="muted" style="font-size: 0.85rem;">{{ job.created_at|date:"d.m.Y H:i" }}</span>
+        </div>
+        {% if job.result_markdown %}
+        <div class="ocr-result">{{ job.result_markdown }}</div>
+        {% else %}
+        <p class="muted">Результат пуст.</p>
+        {% endif %}
+    </div>
+    <p class="muted" style="margin-top: 1rem; font-size: 0.8rem; text-align: center;">
+        BusinessPad MeetRec · OCR
+    </p>
+</div>
+<script>
+(function() {
+    var saved = localStorage.getItem('bp_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    if (saved === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+})();
+</script>
+</body>
+</html>

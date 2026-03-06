@@ -1,0 +1,108 @@
+{% extends "recordings/base.html" %}
+{% block title %}OCR{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>OCR</h1>
+    <p class="breadcrumb"><a href="{% url 'recordings:index' %}">Записи</a> / OCR</p>
+</div>
+<div class="card">
+    <p class="section-title">Загрузить PDF или изображение</p>
+    <p class="muted" style="margin-bottom: 1rem;">
+        Распознавание текста (olmOCR). Поддерживаются PDF, PNG, JPEG.
+        Если используется внешний inference (Hugging Face и т.п.), в .env на сервере задайте
+        <code>OCR_SERVER</code>, <code>OCR_MODEL</code> и <code>OCR_API_KEY</code>, затем перезапустите контейнер ocr.
+    </p>
+    {% if not ocr_configured %}
+    <p style="margin-bottom: 1rem; color: var(--error, #c00);">API не настроен: задайте OCR_API_URL в .env (для локального OCR: http://ocr:8001/ocr).</p>
+    {% endif %}
+    <form action="{% url 'recordings:ocr' %}" method="post" enctype="multipart/form-data" id="ocr-form">
+        {% csrf_token %}
+        <input type="hidden" name="method" id="ocr-method" value="auto">
+        <div style="margin-bottom: 1rem;">
+            <input type="file" name="document" accept=".pdf,.png,.jpg,.jpeg,image/png,image/jpeg,application/pdf" required>
+        </div>
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            <button type="button" class="btn btn-create" onclick="submitOcr('tesseract')">Tesseract (быстро)</button>
+            <button type="button" class="btn" onclick="submitOcr('olmocr')">olmOCR (GPU, точнее)</button>
+        </div>
+        <p style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--muted);">
+            Tesseract — работает всегда, olmOCR — использует GPU для более точного распознавания.
+        </p>
+    </form>
+    <script>
+    function submitOcr(method) {
+        document.getElementById('ocr-method').value = method;
+        document.getElementById('ocr-form').submit();
+    }
+    </script>
+</div>
+
+{% if user_space %}
+<div class="card" style="margin-top: 1.5rem;">
+    <p class="section-title">API пространства «{{ user_space.name }}»</p>
+    <p class="muted" style="margin-bottom: 0.75rem;">
+        Используйте API-ключ для программного доступа к результатам OCR вашего пространства.
+    </p>
+    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+        <code id="api-key-val" style="background: var(--bg-soft); border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem 0.75rem; font-size: 0.85rem; word-break: break-all;">{{ user_space.api_key }}</code>
+        <button type="button" class="btn btn-ghost" onclick="copyApiKey()" style="padding: 0.35rem 0.75rem; font-size: 0.82rem;">Копировать</button>
+    </div>
+    <p class="muted" style="margin-top: 0.5rem; font-size: 0.8rem;">
+        Endpoint: <code>GET /api/space/{{ user_space.api_key }}/ocr/</code>
+    </p>
+    <script>
+    function copyApiKey() {
+        navigator.clipboard.writeText(document.getElementById('api-key-val').textContent.trim())
+            .then(function() { alert('Ключ скопирован'); })
+            .catch(function() { alert('Не удалось скопировать — выделите вручную'); });
+    }
+    </script>
+</div>
+{% endif %}
+
+<div class="card" style="margin-top: 1.5rem;">
+    <p class="section-title">Поиск по задачам</p>
+    <form method="get" action="{% url 'recordings:ocr' %}" style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:flex-end;margin-bottom:0.5rem;">
+        <div>
+            <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:0.25rem;">Поиск по имени / содержимому</label>
+            <input type="text" name="q" value="{{ ocr_q }}" placeholder="Имя файла или текст…"
+                style="padding:0.45rem 0.75rem;border:1px solid var(--border);border-radius:8px;background:var(--bg-soft);color:var(--text);font-family:inherit;min-width:220px;">
+        </div>
+        <div>
+            <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:0.25rem;">Дата с</label>
+            <input type="date" name="date" value="{{ ocr_date }}"
+                style="padding:0.45rem 0.75rem;border:1px solid var(--border);border-radius:8px;background:var(--bg-soft);color:var(--text);font-family:inherit;">
+        </div>
+        <div>
+            <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:0.25rem;">Дата по</label>
+            <input type="date" name="date_to" value="{{ ocr_date_to }}"
+                style="padding:0.45rem 0.75rem;border:1px solid var(--border);border-radius:8px;background:var(--bg-soft);color:var(--text);font-family:inherit;">
+        </div>
+        <button type="submit" class="btn" style="align-self:flex-end;">Найти</button>
+        {% if ocr_q or ocr_date or ocr_date_to %}
+        <a href="{% url 'recordings:ocr' %}" class="btn btn-ghost" style="align-self:flex-end;">Сбросить</a>
+        {% endif %}
+    </form>
+</div>
+
+<div class="card" style="margin-top: 1rem;">
+    <p class="section-title">
+        {% if ocr_q or ocr_date or ocr_date_to %}Результаты поиска ({{ jobs|length }}){% else %}Последние задачи{% endif %}
+    </p>
+    {% if jobs %}
+    <ul style="list-style: none; padding: 0; margin: 0;">
+        {% for job in jobs %}
+        <li style="padding: 0.5rem 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+            <div>
+                <a href="{% url 'recordings:ocr_job_detail' job.id %}">{{ job.original_filename }}</a>
+                <span class="muted"> — {{ job.get_status_display }}, {{ job.created_at|date:"d.m.Y H:i" }}</span>
+            </div>
+            {% if job.is_public %}<span style="font-size: 0.75rem; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0.1rem 0.4rem;">публичный</span>{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">{% if ocr_q or ocr_date or ocr_date_to %}Ничего не найдено.{% else %}Задач пока нет.{% endif %}</p>
+    {% endif %}
+</div>
+{% endblock %}

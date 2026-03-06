@@ -1,0 +1,18 @@
+{% extends "recordings/base.html" %}
+{% block title %}Ссылка недействительна{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Ссылка недействительна</h1></div>
+<div class="card" style="text-align:center;padding:2rem;">
+    <p style="font-size:2rem;margin-bottom:1rem;">🔗</p>
+    {% if reason == 'used' %}
+    <p style="color:var(--text-secondary);">Эта ссылка уже была использована. Войдите с паролем.</p>
+    {% elif reason == 'expired' %}
+    <p style="color:var(--text-secondary);">Срок действия ссылки истёк. Запросите новую через бота.</p>
+    {% else %}
+    <p style="color:var(--text-secondary);">Ссылка не найдена или уже недействительна.</p>
+    {% endif %}
+    <p style="margin-top:1.25rem;">
+        <a href="{% url 'recordings:pilot_login' %}" class="btn">Войти с паролем</a>
+    </p>
+</div>
+{% endblock %}

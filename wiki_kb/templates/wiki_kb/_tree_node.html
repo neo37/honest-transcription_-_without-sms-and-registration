@@ -1,0 +1,18 @@
+{% with children=node.get_children %}
+<li>
+    <div class="wiki-tree-item">
+        <button class="wiki-tree-toggle {% if not children %}hidden{% endif %}" aria-label="Раскрыть" type="button">▶</button>
+        <a href="{% url 'wiki_kb:article_detail' slug=node.slug %}"
+           class="wiki-tree-link {% if current and current.slug == node.slug %}active{% endif %}">
+            {{ node.title }}
+        </a>
+    </div>
+    {% if children %}
+    <ul class="wiki-tree-children">
+        {% for child in children %}
+            {% include "wiki_kb/_tree_node.html" with node=child current=current depth=depth|add:1 %}
+        {% endfor %}
+    </ul>
+    {% endif %}
+</li>
+{% endwith %}

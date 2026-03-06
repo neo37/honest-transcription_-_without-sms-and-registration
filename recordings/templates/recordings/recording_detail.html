@@ -1,0 +1,273 @@
+{% extends "recordings/base.html" %}
+{% block title %}{{ recording.ai_title|default:recording.filename }}{% endblock %}
+{% block extra_css %}
+<style>
+    .detail-meta {
+        color: var(--muted);
+        font-size: 0.9rem;
+        margin-bottom: 1rem;
+    }
+
+    .detail-transcription {
+        white-space: pre-wrap;
+        line-height: 1.7;
+        margin: 1.5rem 0;
+        padding: 1rem 0;
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+    }
+
+    .detail-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin: 1rem 0;
+    }
+
+    .detail-actions .btn {
+        font-size: 0.9rem;
+    }
+
+    .comments-section {
+        margin-top: 2rem;
+    }
+
+    .comments-section h3 {
+        font-size: 1.1rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .comment {
+        padding: 0.75rem;
+        background: var(--bg-soft);
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+    }
+
+    .comment-meta {
+        color: var(--muted);
+        font-size: 0.8rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .comment-form textarea {
+        width: 100%;
+        min-height: 80px;
+        padding: 0.6rem;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-family: inherit;
+        margin-bottom: 0.5rem;
+    }
+
+    .share-link-wrap {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .share-link-wrap input {
+        flex: 1;
+        padding: 0.5rem;
+        font-size: 0.9rem;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+    }
+
+    #public-share-result {
+        margin-top: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    #public-share-result input {
+        flex: 1;
+        min-width: 200px;
+        padding: 0.4rem 0.6rem;
+        font-size: 0.85rem;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--bg-soft);
+        color: var(--text);
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>{% if recording.ai_title %}{{ recording.ai_title }}{% else %}{{ recording.filename }}{% endif %}</h1>
+    <p class="breadcrumb"><a href="{% url 'recordings:index' %}">Записи</a> / Запись</p>
+</div>
+
+{% if recording.ai_summary %}
+<div class="card" style="margin-bottom: 1.5rem; border-left: 4px solid var(--accent);">
+    <strong>AI Summary:</strong>
+    <p style="margin-top: 0.5rem; font-style: italic;">{{ recording.ai_summary }}</p>
+</div>
+{% endif %}
+
+<div class="detail-meta">
+    {{ recording.get_status_display }} · {{ recording.created_at|date:"d.m.Y H:i" }}
+    {% if recording.transcribed_at %} · Транскрибировано: {{ recording.transcribed_at|date:"d.m.Y H:i" }}{% endif %}
+</div>
+
+{% if recording.transcription %}
+<div class="detail-transcription" id="transcription-text">{{ recording.transcription }}</div>
+
+<div class="detail-actions">
+    {% if download_url %}
+    <a href="{{ download_url }}" class="btn" download>Скачать запись</a>
+    {% else %}
+    <a href="{% url 'recordings:download_recording' recording.pk %}" class="btn">Скачать запись</a>
+    {% endif %}
+
+    <button type="button" class="btn btn-accent" onclick="copyAndGoDeepSeek()">Скопировать и в DeepSeek</button>
+
+    <div>
+        <button type="button" class="btn btn-ghost" id="btn-public-share">Публичная ссылка</button>
+        <div id="public-share-result" style="display:none;">
+            <input type="text" id="public-share-url" readonly>
+            <button type="button" class="btn btn-ghost" onclick="copyPublicShare()">Скопировать</button>
+        </div>
+    </div>
+    <a href="{% url 'recordings:download_transcription' recording.pk %}" class="btn btn-ghost">Скачать текст</a>
+    <a href="{% url 'wiki_kb:wiki_from_recording' recording_id=recording.pk %}" class="btn btn-ghost">📄 Создать вики</a>
+</div>
+{% elif recording.error_message %}
+<p style="color: var(--error);">Ошибка: {{ recording.error_message }}</p>
+{% else %}
+<p class="muted">Транскрипция ещё не готова.</p>
+{% endif %}
+
+<div class="card" style="margin-top: 2rem;">
+    <p class="section-title">Транскрибация</p>
+    <form method="post" action="{% url 'recordings:run_recording_transcription' recording.pk %}">
+        {% csrf_token %}
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
+            <div>
+                <label
+                    style="display:block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.25rem;">Качество</label>
+                <select name="quality"
+                    style="padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-soft); color: var(--text);">
+                    <option value="base" {% if recording.transcription_quality == 'base' %}selected{% endif %}>Базовое
+                        (быстро)</option>
+                    <option value="small" {% if recording.transcription_quality == 'small' %}selected{% endif %}>Среднее
+                    </option>
+                    <option value="medium" {% if recording.transcription_quality == 'medium' %}selected{% endif %}>Хорошее
+                    </option>
+                    <option value="large-v3" {% if recording.transcription_quality == 'large-v3' %}selected{% endif %}>
+                        Наилучшее (медленно)</option>
+                </select>
+            </div>
+            <div>
+                <label
+                    style="display:block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.25rem;">Язык</label>
+                <select name="language"
+                    style="padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-soft); color: var(--text);">
+                    <option value="ru" {% if recording.transcription_language == 'ru' %}selected{% endif %}>Русский
+                    </option>
+                    <option value="en" {% if recording.transcription_language == 'en' %}selected{% endif %}>Английский
+                    </option>
+                    <option value="auto" {% if recording.transcription_language == 'auto' %}selected{% endif %}>
+                        Автоопределение</option>
+                </select>
+            </div>
+        </div>
+        <button type="submit" class="btn">{% if recording.transcription %}Перетранскрибировать{% else %}Запустить
+            транскрибацию{% endif %}</button>
+        {% if recording.error_message %}
+        <a href="{% url 'recordings:support_request' recording.pk %}" class="btn btn-ghost" target="_blank"
+            rel="noopener">Поделиться ошибкой</a>
+        {% endif %}
+    </form>
+</div>
+
+{% if recording.wiki_articles.all %}
+<div class="card" style="margin-top: 1.5rem; border-left: 4px solid var(--accent-light);">
+    <p class="section-title" style="margin-bottom: 0.6rem;">В базе знаний</p>
+    <div style="display:flex;flex-direction:column;gap:0.4rem;">
+        {% for wiki_art in recording.wiki_articles.all %}
+        {% if not wiki_art.is_deleted %}
+        <a href="{% url 'wiki_kb:article_detail' slug=wiki_art.slug %}"
+           style="display:flex;align-items:center;gap:0.6rem;text-decoration:none;color:var(--accent);font-size:0.9rem;font-weight:500;">
+            <span>📄</span> {{ wiki_art.title }}
+        </a>
+        {% endif %}
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<section class="comments-section card">
+    <h3>Комментарии ({{ comments|length }})</h3>
+    {% for c in comments %}
+    <div class="comment">
+        <div class="comment-meta">{{ c.created_at|date:"d.m.Y H:i" }}</div>
+        <div>{{ c.text|linebreaksbr }}</div>
+    </div>
+    {% empty %}
+    <p class="muted">Пока нет комментариев.</p>
+    {% endfor %}
+    <form method="post" action="{% url 'recordings:add_comment' recording.pk %}" class="comment-form"
+        style="margin-top: 1rem;">
+        {% csrf_token %}
+        <textarea name="text" placeholder="Добавить комментарий..." required></textarea>
+        <button type="submit" class="btn">Отправить</button>
+    </form>
+</section>
+
+<script>
+    function copyAndGoDeepSeek() {
+        var el = document.getElementById('transcription-text');
+        var text = el ? el.innerText : '';
+        navigator.clipboard.writeText(text).then(function () {
+            window.open('https://chat.deepseek.com/', '_blank');
+        }).catch(function () {
+            window.open('https://chat.deepseek.com/', '_blank');
+        });
+    }
+
+    /* ── Публичная ссылка (без авторизации) ── */
+    var shareBtn = document.getElementById('btn-public-share');
+    var shareResult = document.getElementById('public-share-result');
+    var shareUrlInput = document.getElementById('public-share-url');
+
+    if (shareBtn) {
+        shareBtn.addEventListener('click', function () {
+            if (shareUrlInput && shareUrlInput.value) {
+                shareResult.style.display = '';
+                return;
+            }
+            shareBtn.disabled = true;
+            shareBtn.textContent = 'Создание…';
+            fetch('{% url "recordings:create_share_token" recording.pk %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '',
+                },
+            }).then(function (r) { return r.json(); }).then(function (data) {
+                if (data.url) {
+                    shareUrlInput.value = data.url;
+                    shareResult.style.display = '';
+                    shareBtn.textContent = 'Публичная ссылка';
+                    shareBtn.disabled = false;
+                }
+            }).catch(function () {
+                shareBtn.textContent = 'Ошибка';
+                shareBtn.disabled = false;
+            });
+        });
+    }
+
+    function copyPublicShare() {
+        var v = shareUrlInput ? shareUrlInput.value : '';
+        if (!v) return;
+        navigator.clipboard.writeText(v).then(function () {
+            var btn = shareResult.querySelector('button');
+            if (btn) { btn.textContent = 'Скопировано!'; setTimeout(function () { btn.textContent = 'Скопировать'; }, 1500); }
+        }).catch(function () {});
+    }
+</script>
+{% endblock %}

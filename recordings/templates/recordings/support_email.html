@@ -1,0 +1,13 @@
+{% extends "recordings/base.html" %}
+{% block title %}Поделиться ошибкой{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>Поделиться ошибкой</h1>
+    <p class="breadcrumb"><a href="{% url 'recordings:index' %}">Записи</a></p>
+</div>
+<p class="muted">По записи «{{ recording.filename }}» произошла ошибка транскрибации. Нажмите кнопку ниже — откроется почтовый клиент с адресом {{ support_email }} и готовым текстом с логами.</p>
+<p>
+    <a href="mailto:{{ support_email }}?subject={{ subject|urlencode }}&body={{ body_text|urlencode }}" class="btn">Поделиться ошибкой (открыть почту)</a>
+</p>
+<p><a href="{% url 'recordings:index' %}">← Вернуться к записям</a></p>
+{% endblock %}

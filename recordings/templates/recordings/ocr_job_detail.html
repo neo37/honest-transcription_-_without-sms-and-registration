@@ -1,0 +1,59 @@
+{% extends "recordings/base.html" %}
+{% block title %}OCR: {{ job.original_filename }}{% endblock %}
+{% block extra_css %}
+<style>
+.ocr-result { white-space: pre-wrap; font-family: var(--font-mono, monospace); font-size: 0.9rem; padding: 1rem; background: var(--bg-soft); border-radius: 8px; max-height: 70vh; overflow: auto; }
+.ocr-meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 1rem; }
+.ocr-error { color: var(--error, #c00); padding: 1rem; background: #fff0f0; border-radius: 8px; }
+.share-box { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; margin-top: 1rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.share-url { font-size: 0.82rem; font-family: var(--font-mono, monospace); word-break: break-all; color: var(--accent); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>{{ job.original_filename }}</h1>
+    <p class="breadcrumb"><a href="{% url 'recordings:index' %}">Записи</a> / <a href="{% url 'recordings:ocr' %}">OCR</a> / Задача #{{ job.id }}</p>
+</div>
+<div class="card">
+    <p class="ocr-meta">Статус: {{ job.get_status_display }} · Создано: {{ job.created_at|date:"d.m.Y H:i:s" }}</p>
+    {% if job.status == 'processing' or job.status == 'pending' %}
+    <p class="muted">Обработка может занять несколько минут. <a href="">Обновить страницу</a>.</p>
+    {% elif job.status == 'failed' %}
+    <div class="ocr-error">{{ job.error_message|default:"Ошибка обработки." }}</div>
+    {% elif job.status == 'done' and job.result_markdown %}
+    <div class="ocr-result">{{ job.result_markdown }}</div>
+    {% elif job.status == 'done' %}
+    <p class="muted">Текст не получен (пустой результат).</p>
+    {% endif %}
+
+    {% if job.status == 'done' %}
+    <div style="margin-top: 1.25rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+        <a href="{% url 'wiki_kb:article_create' %}?ocr_job={{ job.id }}" class="btn" style="font-size: 0.85rem; padding: 0.4rem 0.9rem;">📄 Создать страницу в KB</a>
+        <form method="post" style="display:inline;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="share_toggle">
+            {% if job.is_public %}
+            <button type="submit" class="btn btn-ghost" style="font-size: 0.85rem; padding: 0.4rem 0.9rem;">Закрыть публичный доступ</button>
+            {% else %}
+            <button type="submit" class="btn" style="font-size: 0.85rem; padding: 0.4rem 0.9rem;">Поделиться публично</button>
+            {% endif %}
+        </form>
+        {% if share_url %}
+        <button type="button" class="btn btn-ghost" onclick="copyShareUrl()" style="font-size: 0.85rem; padding: 0.4rem 0.9rem;">Копировать ссылку</button>
+        {% endif %}
+    </div>
+    {% if share_url %}
+    <div class="share-box">
+        <span class="share-url" id="share-url-text">{{ share_url }}</span>
+    </div>
+    <script>
+    function copyShareUrl() {
+        navigator.clipboard.writeText('{{ share_url|escapejs }}')
+            .then(function() { alert('Ссылка скопирована'); })
+            .catch(function() { alert('Выделите ссылку вручную'); });
+    }
+    </script>
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

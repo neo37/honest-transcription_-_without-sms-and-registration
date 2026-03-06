@@ -1,0 +1,318 @@
+{% extends "recordings/base.html" %}
+{% block title %}
+{% if mode == 'create_from_recording' %}Создать вики-страницу — {{ recording.ai_title|default:recording.filename }}
+{% elif mode == 'merge' %}Объединить «{{ article.title }}»
+{% else %}Перенести «{{ article.title }}»{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.picker-wrap {
+    max-width: 680px;
+    margin: 0 auto;
+}
+.picker-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+}
+.picker-heading {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 0.35rem;
+}
+.picker-subhead {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin: 0 0 1.25rem;
+}
+.picker-rec-info {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--success);
+    border-radius: var(--radius-sm);
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.25rem;
+}
+.picker-rec-title { font-size: 0.95rem; font-weight: 600; color: var(--text); }
+.picker-rec-meta { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
+
+/* Дерево выбора */
+.picker-tree-wrap {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+    max-height: 420px;
+    overflow-y: auto;
+}
+.picker-node {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background var(--transition);
+    user-select: none;
+}
+.picker-node:last-child { border-bottom: none; }
+.picker-node:hover { background: var(--bg-soft); }
+.picker-node.selected {
+    background: var(--accent-soft);
+}
+.picker-node-indent {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+.picker-node-toggle {
+    background: none; border: none; cursor: pointer;
+    padding: 0.65rem 0.35rem; color: var(--muted);
+    font-size: 0.65rem; line-height: 1;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+}
+.picker-node-toggle.open { transform: rotate(90deg); }
+.picker-node-toggle.leaf { visibility: hidden; }
+.picker-node-label {
+    flex: 1; padding: 0.7rem 0.75rem 0.7rem 0.25rem;
+    font-size: 0.88rem; color: var(--text-secondary);
+    display: flex; align-items: center; gap: 0.4rem;
+    min-width: 0;
+}
+.picker-node.selected .picker-node-label { color: var(--accent); font-weight: 600; }
+.picker-node-icon { font-size: 0.85rem; flex-shrink: 0; }
+.picker-node-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-children { display: none; }
+.picker-children.open { display: block; }
+
+/* Кнопка корня */
+.picker-root-option {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.7rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer; font-size: 0.88rem;
+    color: var(--text-secondary);
+    background: var(--bg-soft);
+    transition: background var(--transition);
+    user-select: none;
+}
+.picker-root-option:hover { background: var(--border); }
+.picker-root-option.selected { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+/* Индикатор выбранного */
+.picker-selected-bar {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 0.6rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    display: flex; align-items: center; gap: 0.6rem;
+    min-height: 42px;
+}
+.picker-selected-label { color: var(--muted); font-size: 0.75rem; flex-shrink: 0; }
+.picker-selected-value { color: var(--accent); font-weight: 600; flex: 1; }
+
+/* Кнопки */
+.picker-btn-row { display: flex; gap: 0.75rem; justify-content: flex-end; }
+.picker-btn {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.55rem 1.25rem; border-radius: 8px; font-size: 0.9rem;
+    font-weight: 500; text-decoration: none; border: 1px solid var(--border);
+    background: var(--card); color: var(--text-secondary);
+    cursor: pointer; font: inherit; transition: all var(--transition);
+}
+.picker-btn:hover { background: var(--bg-soft); color: var(--accent); border-color: var(--accent); }
+.picker-btn-primary {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+}
+.picker-btn-primary:hover { background: var(--accent-light); border-color: var(--accent-light); color: #fff; }
+.picker-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Лоадер */
+.picker-loading {
+    display: none;
+    align-items: center; gap: 0.6rem;
+    font-size: 0.85rem; color: var(--muted);
+}
+.picker-spinner {
+    width: 18px; height: 18px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 768px) {
+    .picker-card { padding: 1rem; }
+    .picker-btn-row { flex-direction: column; }
+    .picker-btn { width: 100%; justify-content: center; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="picker-wrap">
+    <div class="picker-card">
+        <h1 class="picker-heading">
+            {% if mode == 'create_from_recording' %}Создать страницу в базе знаний
+            {% elif mode == 'merge' %}Объединить «{{ article.title }}» с другой статьёй
+            {% else %}Перенести «{{ article.title }}»
+            {% endif %}
+        </h1>
+        <p class="picker-subhead">
+            {% if mode == 'create_from_recording' %}Выберите раздел, в котором будет создана новая страница. ИИ автоматически заполнит её содержимое по тексту встречи.
+            {% elif mode == 'merge' %}Выберите статью, с которой нужно объединить «{{ article.title }}». ИИ создаст единое содержимое, а текущая статья станет ссылкой на результат.
+            {% else %}Выберите новый родительский раздел или переместите в корень базы знаний.
+            {% endif %}
+        </p>
+
+        {% if merge_error %}
+        <div style="background:var(--error-soft,#fff0f0);border:1px solid var(--error,#d32f2f);border-radius:var(--radius-sm);padding:0.75rem 1rem;margin-bottom:1rem;font-size:0.88rem;color:var(--error,#d32f2f);">
+            <strong>Не получилось объединить.</strong> {{ merge_error }}
+        </div>
+        {% endif %}
+
+        {% if mode == 'create_from_recording' %}
+        <div class="picker-rec-info">
+            <div class="picker-rec-title">🎙 {{ recording.ai_title|default:recording.filename }}</div>
+            <div class="picker-rec-meta">{{ recording.created_at|date:"d.m.Y H:i" }}{% if recording.ai_summary %} · {{ recording.ai_summary|truncatewords:15 }}{% endif %}</div>
+        </div>
+        {% endif %}
+
+        <form method="post" id="picker-form">
+            {% csrf_token %}
+            {% if mode == 'merge' %}
+            <input type="hidden" name="target_id" id="picker-parent-id" value="">
+            {% else %}
+            <input type="hidden" name="parent_id" id="picker-parent-id" value="{{ current_parent_id }}">
+            {% endif %}
+
+            <!-- Индикатор выбора -->
+            <div class="picker-selected-bar" id="picker-selected-bar">
+                <span class="picker-selected-label">{% if mode == 'merge' %}Объединить с:{% else %}Выбрано:{% endif %}</span>
+                <span class="picker-selected-value" id="picker-selected-text">
+                    {% if mode == 'merge' %}— выберите статью ниже —
+                    {% elif current_parent_id %}(текущий родитель)
+                    {% else %}📚 Корень базы знаний{% endif %}
+                </span>
+            </div>
+
+            <!-- Дерево -->
+            <div class="picker-tree-wrap" id="picker-tree">
+                <!-- Корень (скрыт в режиме merge) -->
+                {% if mode != 'merge' %}
+                <div class="picker-root-option {% if not current_parent_id %}selected{% endif %}"
+                     id="picker-root" data-id="">
+                    <span>📚</span>
+                    <span>Корень базы знаний (верхний уровень)</span>
+                </div>
+                {% endif %}
+
+                <!-- Статьи -->
+                {% for art, depth in article_choices %}
+                <div class="picker-node {% if current_parent_id == art.pk|stringformat:'d' %}selected{% endif %}"
+                     data-id="{{ art.pk }}"
+                     data-name="{{ art.title }}"
+                     data-depth="{{ depth }}"
+                     style="padding-left: {{ depth }}rem">
+                    <span class="picker-node-label">
+                        <span class="picker-node-icon">{% if depth == 0 %}📁{% else %}📄{% endif %}</span>
+                        <span class="picker-node-name">{{ art.title }}</span>
+                    </span>
+                </div>
+                {% empty %}
+                <div style="padding: 1.5rem; text-align: center; color: var(--muted); font-size: 0.88rem;">
+                    База знаний пока пуста — статья будет создана в корне.
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Нижняя панель -->
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+                <div class="picker-loading" id="picker-loading">
+                    <div class="picker-spinner"></div>
+                    <span>{% if mode == 'create_from_recording' %}Создаём страницу и генерируем содержимое ИИ…{% elif mode == 'merge' %}Объединяем статьи через ИИ…{% else %}Перемещаем…{% endif %}</span>
+                </div>
+                <div style="flex:1"></div>
+                <div class="picker-btn-row">
+                    {% if mode == 'create_from_recording' %}
+                    <a href="{% url 'recordings:recording_detail' recording.pk %}" class="picker-btn">Отмена</a>
+                    {% else %}
+                    <a href="{% url 'wiki_kb:article_detail' slug=article.slug %}" class="picker-btn">Отмена</a>
+                    {% endif %}
+                    <button type="submit" class="picker-btn picker-btn-primary" id="picker-submit"{% if mode == 'merge' %} disabled{% endif %}>
+                        {{ submit_label }}
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    var hiddenInput = document.getElementById('picker-parent-id');
+    var selectedText = document.getElementById('picker-selected-text');
+    var submitBtn = document.getElementById('picker-submit');
+    var loadingEl = document.getElementById('picker-loading');
+
+    function selectNode(id, name) {
+        // Снять выделение со всех
+        document.querySelectorAll('.picker-node, .picker-root-option').forEach(function (el) {
+            el.classList.remove('selected');
+        });
+        // Выделить выбранный
+        var target = id === ''
+            ? document.getElementById('picker-root')
+            : document.querySelector('.picker-node[data-id="' + id + '"]');
+        if (target) target.classList.add('selected');
+        // Обновить значения
+        hiddenInput.value = id;
+        selectedText.textContent = name;
+    }
+
+    // Клик по корню
+    var rootEl = document.getElementById('picker-root');
+    if (rootEl) {
+        rootEl.addEventListener('click', function () {
+            selectNode('', '📚 Корень базы знаний');
+        });
+    }
+
+    // Клик по статьям
+    var isMerge = {% if mode == 'merge' %}true{% else %}false{% endif %};
+    document.querySelectorAll('.picker-node').forEach(function (node) {
+        node.addEventListener('click', function () {
+            var icon = node.querySelector('.picker-node-icon');
+            var name = (icon ? icon.textContent : '') + ' ' + node.dataset.name;
+            selectNode(node.dataset.id, name.trim());
+            if (isMerge && submitBtn) {
+                submitBtn.disabled = false;
+            }
+        });
+    });
+
+    // Лоадер при сабмите
+    var form = document.getElementById('picker-form');
+    if (form && submitBtn && loadingEl) {
+        form.addEventListener('submit', function () {
+            submitBtn.disabled = true;
+            loadingEl.style.display = 'flex';
+        });
+    }
+
+    // Скроллим к текущему выбранному
+    var sel = document.querySelector('.picker-node.selected, .picker-root-option.selected');
+    if (sel) {
+        sel.scrollIntoView({ block: 'nearest' });
+    }
+}());
+</script>
+{% endblock %}

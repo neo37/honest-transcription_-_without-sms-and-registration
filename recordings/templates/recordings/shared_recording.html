@@ -1,0 +1,99 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ recording.ai_title|default:recording.filename }} — BusinessPad</title>
+    <link rel="stylesheet" href="{% static 'recordings/css/style.css' %}">
+    <style>
+        .shared-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-soft);
+            margin-bottom: 2rem;
+        }
+        .shared-header img { height: 36px; }
+        .shared-badge {
+            font-size: 0.75rem;
+            background: var(--accent);
+            color: #fff;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            margin-left: auto;
+        }
+        .detail-transcription {
+            white-space: pre-wrap;
+            line-height: 1.7;
+            margin: 1.5rem 0;
+            padding: 1rem 0;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+        .detail-meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 1rem; }
+        .comment { padding: 0.75rem; background: var(--bg-soft); border-radius: 8px; margin-bottom: 0.5rem; }
+        .comment-meta { color: var(--muted); font-size: 0.8rem; margin-bottom: 0.25rem; }
+    </style>
+</head>
+<body>
+<div class="shared-header">
+    <img src="{% static 'recordings/img/bp_logo.svg' %}" alt="BusinessPad">
+    <span class="shared-badge">Публичная ссылка</span>
+</div>
+<div class="container">
+    <div class="page-head">
+        <h1>{% if recording.ai_title %}{{ recording.ai_title }}{% else %}{{ recording.filename }}{% endif %}</h1>
+    </div>
+
+    {% if recording.ai_summary %}
+    <div class="card" style="margin-bottom: 1.5rem; border-left: 4px solid var(--accent);">
+        <strong>AI Summary:</strong>
+        <p style="margin-top: 0.5rem; font-style: italic;">{{ recording.ai_summary }}</p>
+    </div>
+    {% endif %}
+
+    <div class="detail-meta">
+        {{ recording.created_at|date:"d.m.Y H:i" }}
+        {% if recording.transcribed_at %} · Транскрибировано: {{ recording.transcribed_at|date:"d.m.Y H:i" }}{% endif %}
+    </div>
+
+    {% if recording.transcription %}
+    <div class="detail-transcription">{{ recording.transcription }}</div>
+    <div style="display:flex; gap: 0.75rem; flex-wrap: wrap; margin: 1rem 0;">
+        {% if download_url %}
+        <a href="{{ download_url }}" class="btn" download>Скачать запись</a>
+        {% endif %}
+        <button type="button" class="btn btn-accent" onclick="copyText()">Скопировать текст</button>
+    </div>
+    {% else %}
+    <p class="muted">Транскрипция ещё не готова.</p>
+    {% endif %}
+
+    {% if comments %}
+    <section class="card" style="margin-top: 2rem;">
+        <p class="section-title">Комментарии</p>
+        {% for c in comments %}
+        <div class="comment">
+            <div class="comment-meta">{{ c.created_at|date:"d.m.Y H:i" }}</div>
+            <div>{{ c.text|linebreaksbr }}</div>
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+</div>
+<script>
+(function () {
+    var saved = localStorage.getItem('bp_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', saved === 'dark' ? 'dark' : '');
+})();
+function copyText() {
+    var el = document.querySelector('.detail-transcription');
+    if (!el) return;
+    navigator.clipboard.writeText(el.innerText).catch(function () {});
+}
+</script>
+</body>
+</html>

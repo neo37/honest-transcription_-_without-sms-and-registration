@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magic KP — Живая база знаний вашего бизнеса</title>
+<meta name="description" content="База знаний — основа для AI-агентов. Встречи, документы, решения — всё в одном месте. Агенты работают с вашими данными, а не с пустотой.">
+{% load static %}
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink: #07080f;
+  --ink2: #2d3149;
+  --sub: #5a607a;
+  --muted: #9199b5;
+  --bg: #06070f;
+  --bg2: #0d0e1a;
+  --card: #11121f;
+  --card2: #161828;
+  --border: rgba(255,255,255,.07);
+  --border2: rgba(255,255,255,.12);
+  --violet: #7c6bff;
+  --violet2: #a78bfa;
+  --cyan: #22d3ee;
+  --green: #4ade80;
+  --radius: 18px;
+  --radius-sm: 10px;
+  --glow: 0 0 60px rgba(124,107,255,.18);
+  --glow2: 0 0 30px rgba(124,107,255,.25);
+}
+
+html { scroll-behavior: smooth; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: #e2e4f0;
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── NOISE OVERLAY ─── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  opacity: .025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px;
+}
+
+/* ─── NAV ─── */
+.nav {
+  position: sticky; top: 0; z-index: 200;
+  background: rgba(6,7,15,.85);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem;
+}
+.nav-inner {
+  max-width: 1160px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 64px; gap: 2rem;
+}
+.nav-logo {
+  font-size: 1.15rem; font-weight: 800; letter-spacing: -.04em;
+  text-decoration: none; color: #fff;
+  display: flex; align-items: center; gap: .5rem;
+}
+.nav-logo-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--violet);
+  box-shadow: 0 0 10px var(--violet);
+  flex-shrink: 0;
+}
+.nav-links {
+  display: flex; align-items: center; gap: 2rem;
+  list-style: none;
+}
+.nav-links a {
+  font-size: .85rem; font-weight: 500;
+  color: var(--muted); text-decoration: none;
+  transition: color .15s;
+}
+.nav-links a:hover { color: #fff; }
+.nav-cta {
+  display: inline-flex; align-items: center; gap: .4rem;
+  padding: .5rem 1.25rem;
+  background: var(--violet); color: #fff;
+  border-radius: 8px; font-size: .85rem; font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 0 20px rgba(124,107,255,.4);
+  transition: box-shadow .2s, transform .15s;
+  white-space: nowrap;
+}
+.nav-cta:hover { box-shadow: 0 0 32px rgba(124,107,255,.6); transform: translateY(-1px); }
+@media (max-width: 700px) {
+  .nav-links { display: none; }
+  .nav { padding: 0 1.25rem; }
+}
+
+/* ─── HERO ─── */
+.hero {
+  position: relative;
+  padding: 7rem 2rem 5rem;
+  text-align: center;
+  overflow: hidden;
+}
+.hero-glow {
+  position: absolute; top: -120px; left: 50%; transform: translateX(-50%);
+  width: 900px; height: 600px; border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(124,107,255,.2) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-glow2 {
+  position: absolute; bottom: -80px; left: 20%;
+  width: 400px; height: 300px; border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(34,211,238,.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-label {
+  display: inline-flex; align-items: center; gap: .5rem;
+  padding: .3rem .9rem .3rem .5rem;
+  background: rgba(124,107,255,.12);
+  border: 1px solid rgba(124,107,255,.3);
+  border-radius: 100px; margin-bottom: 2rem;
+}
+.hero-label-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--violet); box-shadow: 0 0 8px var(--violet);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; } 50% { opacity: .4; }
+}
+.hero-label span {
+  font-size: .78rem; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--violet2);
+}
+.hero h1 {
+  font-size: clamp(2.4rem, 6vw, 4.2rem);
+  font-weight: 900; line-height: 1.1;
+  letter-spacing: -.045em; color: #fff;
+  max-width: 820px; margin: 0 auto 1.5rem;
+}
+.hero h1 .grad {
+  background: linear-gradient(135deg, var(--violet) 20%, var(--cyan) 80%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero-sub {
+  font-size: 1.1rem; color: var(--sub);
+  max-width: 580px; margin: 0 auto 2.75rem;
+  line-height: 1.7;
+}
+.hero-cta-row {
+  display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;
+  margin-bottom: 4.5rem;
+}
+.btn-hero {
+  display: inline-flex; align-items: center; gap: .5rem;
+  padding: .9rem 2.25rem;
+  background: linear-gradient(135deg, var(--violet), #9f7eff);
+  color: #fff; border-radius: 12px;
+  font-size: 1rem; font-weight: 700; text-decoration: none;
+  box-shadow: 0 0 40px rgba(124,107,255,.45), 0 4px 20px rgba(0,0,0,.4);
+  transition: transform .15s, box-shadow .2s;
+}
+.btn-hero:hover { transform: translateY(-2px); box-shadow: 0 0 60px rgba(124,107,255,.6), 0 8px 28px rgba(0,0,0,.5); }
+.btn-hero svg { flex-shrink: 0; }
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: .5rem;
+  padding: .9rem 1.75rem;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--border2);
+  color: #cdd0e0; border-radius: 12px;
+  font-size: 1rem; font-weight: 600; text-decoration: none;
+  transition: background .2s, border-color .2s;
+}
+.btn-ghost:hover { background: rgba(255,255,255,.09); border-color: rgba(255,255,255,.2); }
+
+/* ─── MOCKUP ─── */
+.mockup-wrap {
+  max-width: 860px; margin: 0 auto;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid var(--border2);
+  box-shadow: 0 0 80px rgba(124,107,255,.12), 0 40px 80px rgba(0,0,0,.6);
+  position: relative;
+}
+.mockup-bar {
+  background: #0a0b16;
+  padding: .65rem 1rem;
+  display: flex; align-items: center; gap: .5rem;
+  border-bottom: 1px solid var(--border);
+}
+.mbar-dot {
+  width: 11px; height: 11px; border-radius: 50%;
+}
+.mbar-url {
+  flex: 1; background: rgba(255,255,255,.05);
+  border: 1px solid var(--border);
+  border-radius: 5px; padding: .18rem .75rem;
+  font-size: .72rem; color: var(--muted); text-align: center;
+  font-family: monospace;
+}
+.mockup-body {
+  background: var(--card);
+  display: grid; grid-template-columns: 210px 1fr;
+  min-height: 230px;
+}
+.mockup-sidebar {
+  border-right: 1px solid var(--border);
+  padding: 1.1rem;
+}
+.msb-label {
+  font-size: .6rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--muted); margin-bottom: .75rem;
+}
+.msb-item {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .38rem .5rem; border-radius: 6px;
+  font-size: .78rem; color: var(--sub);
+  margin-bottom: .2rem;
+}
+.msb-item.active {
+  background: rgba(124,107,255,.12); color: var(--violet2); font-weight: 600;
+}
+.msb-icon {
+  width: 14px; height: 14px; flex-shrink: 0; opacity: .6;
+}
+.msb-item.active .msb-icon { opacity: 1; }
+.mockup-content { padding: 1.25rem 1.5rem; }
+.mc-tag {
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .18rem .6rem; border-radius: 100px;
+  font-size: .65rem; font-weight: 700; letter-spacing: .04em;
+  background: rgba(124,107,255,.15); color: var(--violet2);
+  margin-bottom: .6rem;
+}
+.mc-tag-dot {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--violet);
+}
+.mc-title {
+  font-size: .95rem; font-weight: 700; color: #e0e3f5; margin-bottom: .3rem;
+}
+.mc-meta { font-size: .68rem; color: var(--muted); margin-bottom: .9rem; }
+.mc-line {
+  height: 7px; border-radius: 3px;
+  background: linear-gradient(90deg, rgba(255,255,255,.07) 0%, rgba(255,255,255,.03) 100%);
+  margin-bottom: .45rem;
+}
+
+/* ─── SECTION BASE ─── */
+.section { padding: 6rem 2rem; position: relative; }
+.container { max-width: 1160px; margin: 0 auto; }
+.sec-eyebrow {
+  display: inline-block;
+  font-size: .72rem; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--violet2);
+  margin-bottom: .75rem;
+}
+.sec-title {
+  font-size: clamp(1.65rem, 3.5vw, 2.5rem);
+  font-weight: 800; letter-spacing: -.035em;
+  color: #fff; margin-bottom: .85rem; line-height: 1.2;
+}
+.sec-sub {
+  font-size: 1rem; color: var(--sub); line-height: 1.7;
+  max-width: 560px;
+}
+.text-center { text-align: center; }
+.text-center .sec-sub { margin: 0 auto; }
+
+/* ─── FOUNDATION SECTION ─── */
+.foundation-section {
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.foundation-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem; align-items: center;
+  margin-top: 0;
+}
+.foundation-visual {
+  position: relative; display: flex; align-items: center; justify-content: center;
+}
+.orbit-wrap {
+  position: relative; width: 300px; height: 300px;
+}
+.orbit-center {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90px; height: 90px; border-radius: 20px;
+  background: linear-gradient(135deg, var(--violet), #5f4fd4);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 60px rgba(124,107,255,.6);
+  z-index: 2;
+}
+.orbit-ring {
+  position: absolute; top: 50%; left: 50%;
+  border-radius: 50%; border: 1px solid rgba(124,107,255,.15);
+}
+.orbit-ring:nth-child(1) {
+  width: 160px; height: 160px;
+  margin: -80px 0 0 -80px;
+  border-color: rgba(124,107,255,.25);
+}
+.orbit-ring:nth-child(2) {
+  width: 240px; height: 240px;
+  margin: -120px 0 0 -120px;
+}
+.orbit-ring:nth-child(3) {
+  width: 300px; height: 300px;
+  margin: -150px 0 0 -150px;
+  border-color: rgba(124,107,255,.06);
+}
+.orbit-node {
+  position: absolute; top: 50%; left: 50%;
+  width: 40px; height: 40px; border-radius: 10px;
+  background: var(--card2);
+  border: 1px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 20px rgba(0,0,0,.5);
+}
+.orbit-node svg { width: 18px; height: 18px; }
+.n1 { transform: translate(-50%, -50%) rotate(0deg) translateX(120px) rotate(0deg); }
+.n2 { transform: translate(-50%, -50%) rotate(72deg) translateX(120px) rotate(-72deg); }
+.n3 { transform: translate(-50%, -50%) rotate(144deg) translateX(120px) rotate(-144deg); }
+.n4 { transform: translate(-50%, -50%) rotate(216deg) translateX(120px) rotate(-216deg); }
+.n5 { transform: translate(-50%, -50%) rotate(288deg) translateX(120px) rotate(-288deg); }
+.foundation-points {
+  display: flex; flex-direction: column; gap: 1.25rem;
+  margin-top: 2rem;
+}
+.fp {
+  display: flex; gap: 1rem; align-items: flex-start;
+}
+.fp-line {
+  width: 2px; flex-shrink: 0; margin-top: 6px;
+  height: 100%; min-height: 36px;
+  background: linear-gradient(180deg, var(--violet) 0%, transparent 100%);
+  border-radius: 2px;
+}
+.fp-title { font-size: .95rem; font-weight: 700; color: #e0e3f5; margin-bottom: .2rem; }
+.fp-desc { font-size: .85rem; color: var(--sub); line-height: 1.6; }
+
+/* ─── FEATURES ─── */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem; margin-top: 3.5rem;
+}
+.feat-card {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.75rem;
+  transition: border-color .2s, box-shadow .2s, transform .2s;
+  position: relative; overflow: hidden;
+}
+.feat-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(124,107,255,.4), transparent);
+  opacity: 0; transition: opacity .3s;
+}
+.feat-card:hover {
+  border-color: rgba(124,107,255,.3);
+  box-shadow: 0 0 40px rgba(124,107,255,.08);
+  transform: translateY(-3px);
+}
+.feat-card:hover::before { opacity: 1; }
+.feat-icon {
+  width: 44px; height: 44px; border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 1.1rem;
+  background: rgba(124,107,255,.1);
+  border: 1px solid rgba(124,107,255,.2);
+}
+.feat-icon svg { width: 22px; height: 22px; }
+.feat-title { font-size: .95rem; font-weight: 700; color: #e0e3f5; margin-bottom: .45rem; }
+.feat-desc { font-size: .84rem; color: var(--sub); line-height: 1.65; }
+
+/* ─── AGENTS SECTION ─── */
+.agents-section {
+  background: linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+  border-top: 1px solid var(--border);
+}
+.agents-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: start;
+  margin-top: 3.5rem;
+}
+.agent-card {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.5rem;
+  display: flex; gap: 1rem; align-items: flex-start;
+  transition: border-color .2s, transform .2s;
+}
+.agent-card:hover {
+  border-color: rgba(124,107,255,.3); transform: translateX(4px);
+}
+.agent-icon {
+  width: 42px; height: 42px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.agent-icon svg { width: 20px; height: 20px; }
+.agent-title { font-size: .92rem; font-weight: 700; color: #e0e3f5; margin-bottom: .3rem; }
+.agent-desc { font-size: .82rem; color: var(--sub); line-height: 1.6; }
+.agent-tag {
+  display: inline-flex; margin-top: .5rem;
+  padding: .15rem .55rem; border-radius: 100px;
+  font-size: .68rem; font-weight: 600;
+  background: rgba(74,222,128,.1); color: var(--green);
+}
+.agent-tag.soon {
+  background: rgba(124,107,255,.1); color: var(--violet2);
+}
+.agents-list { display: flex; flex-direction: column; gap: .85rem; }
+.agents-intro {
+  display: flex; flex-direction: column; gap: 1.5rem;
+  justify-content: center;
+}
+.agents-badge {
+  display: inline-flex; align-items: center; gap: .5rem;
+  padding: .4rem 1rem;
+  background: rgba(34,211,238,.07);
+  border: 1px solid rgba(34,211,238,.2);
+  border-radius: 100px; width: fit-content;
+}
+.agents-badge span { font-size: .78rem; font-weight: 600; color: var(--cyan); }
+.agents-intro-title {
+  font-size: clamp(1.4rem, 2.5vw, 2rem);
+  font-weight: 800; letter-spacing: -.03em; color: #fff; line-height: 1.25;
+}
+.agents-intro-sub {
+  font-size: .92rem; color: var(--sub); line-height: 1.7;
+}
+.agents-cta {
+  display: inline-flex; align-items: center; gap: .5rem;
+  padding: .65rem 1.5rem;
+  background: rgba(34,211,238,.1);
+  border: 1px solid rgba(34,211,238,.3);
+  color: var(--cyan); border-radius: 10px;
+  font-size: .88rem; font-weight: 600; text-decoration: none;
+  transition: background .2s;
+  width: fit-content;
+}
+.agents-cta:hover { background: rgba(34,211,238,.18); }
+
+/* ─── STEPS ─── */
+.steps-section { background: var(--bg); }
+.steps-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 0; margin-top: 3.5rem; position: relative;
+}
+.steps-grid::before {
+  content: '';
+  position: absolute; top: 28px; left: calc(12.5% + 28px); right: calc(12.5% + 28px);
+  height: 1px;
+  background: linear-gradient(90deg, var(--violet), rgba(124,107,255,.2));
+}
+.step-item { text-align: center; padding: 0 1rem; }
+.step-num {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--card2); border: 1px solid rgba(124,107,255,.3);
+  color: var(--violet2); font-size: 1rem; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 1.25rem;
+  position: relative; z-index: 1;
+  box-shadow: 0 0 20px rgba(124,107,255,.2);
+}
+.step-title { font-size: .92rem; font-weight: 700; color: #dde0f5; margin-bottom: .4rem; }
+.step-desc { font-size: .8rem; color: var(--sub); line-height: 1.6; }
+
+/* ─── REGISTER ─── */
+.register-section {
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+}
+.reg-wrap {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 5rem; align-items: center;
+}
+.reg-left { }
+.reg-left-title {
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  font-weight: 800; letter-spacing: -.035em; color: #fff; line-height: 1.2;
+  margin-bottom: 1rem;
+}
+.reg-left-sub { font-size: .95rem; color: var(--sub); line-height: 1.7; margin-bottom: 2rem; }
+.reg-proof { display: flex; flex-direction: column; gap: .7rem; }
+.reg-proof-item {
+  display: flex; align-items: center; gap: .75rem;
+  font-size: .85rem; color: #b0b5cf;
+}
+.rp-check {
+  width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(74,222,128,.12); border: 1px solid rgba(74,222,128,.3);
+  display: flex; align-items: center; justify-content: center;
+}
+.rp-check svg { width: 11px; height: 11px; }
+.reg-card {
+  background: var(--card);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  box-shadow: 0 0 60px rgba(124,107,255,.08), 0 40px 80px rgba(0,0,0,.4);
+  padding: 2.25rem;
+}
+.rfc-head { margin-bottom: 1.75rem; }
+.rfc-title { font-size: 1.05rem; font-weight: 800; color: #fff; margin-bottom: .3rem; }
+.rfc-sub { font-size: .82rem; color: var(--muted); }
+.reg-field { margin-bottom: 1rem; }
+.reg-label { display: block; font-size: .78rem; font-weight: 600; color: #8890b0; margin-bottom: .35rem; }
+.reg-input {
+  width: 100%; padding: .72rem 1rem;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--border2);
+  border-radius: 10px; color: #e0e3f5;
+  font-size: .9rem; font-family: inherit;
+  transition: border-color .15s, box-shadow .15s;
+}
+.reg-input::placeholder { color: #3d4260; }
+.reg-input:focus {
+  outline: none;
+  border-color: rgba(124,107,255,.5);
+  box-shadow: 0 0 0 3px rgba(124,107,255,.12);
+}
+.reg-btn {
+  width: 100%; padding: .85rem 1rem; margin-top: .25rem;
+  background: linear-gradient(135deg, var(--violet), #9f7eff);
+  color: #fff; border: none; border-radius: 10px;
+  font-size: .95rem; font-weight: 700; cursor: pointer; font-family: inherit;
+  box-shadow: 0 0 30px rgba(124,107,255,.4);
+  transition: transform .15s, box-shadow .2s;
+  letter-spacing: -.01em;
+}
+.reg-btn:hover { transform: translateY(-1px); box-shadow: 0 0 50px rgba(124,107,255,.6); }
+.reg-error {
+  background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.3);
+  border-radius: 8px; padding: .75rem 1rem;
+  margin-bottom: 1rem; font-size: .84rem; color: #f87171;
+}
+.reg-hint {
+  text-align: center; font-size: .78rem; color: var(--muted); margin-top: 1.1rem;
+}
+.reg-hint a { color: var(--violet2); text-decoration: none; font-weight: 600; }
+
+/* DaData autocomplete */
+.dd-wrap { position: relative; }
+.dd-dropdown {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  background: #1a1b2e;
+  border: 1px solid rgba(124,107,255,.3);
+  border-radius: 10px;
+  z-index: 500;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,.6);
+  display: none;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.dd-dropdown.open { display: block; }
+.dd-item {
+  padding: .65rem 1rem;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  transition: background .12s;
+}
+.dd-item:last-child { border-bottom: none; }
+.dd-item:hover, .dd-item.active { background: rgba(124,107,255,.12); }
+.dd-name { font-size: .88rem; color: #e0e3f5; font-weight: 600; line-height: 1.3; }
+.dd-meta { font-size: .74rem; color: var(--muted); margin-top: .18rem; }
+.dd-empty { padding: .75rem 1rem; font-size: .84rem; color: var(--muted); text-align: center; }
+
+/* Карточка реквизитов */
+.org-req-card {
+  margin-top: .6rem;
+  background: rgba(124,107,255,.07);
+  border: 1px solid rgba(124,107,255,.25);
+  border-radius: 10px;
+  padding: .9rem 1rem;
+}
+.org-req-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem;
+  margin-bottom: .65rem;
+}
+.org-req-full-name {
+  font-size: .88rem; font-weight: 700; color: #e0e3f5; line-height: 1.4;
+}
+.org-req-clear {
+  flex-shrink: 0;
+  background: none; border: none; color: var(--muted);
+  cursor: pointer; font-size: .95rem; padding: 0 .2rem; line-height: 1;
+  transition: color .15s;
+}
+.org-req-clear:hover { color: #fff; }
+.org-req-rows { display: flex; flex-direction: column; gap: .3rem; }
+.org-req-row {
+  display: flex; gap: .5rem; font-size: .78rem;
+}
+.org-req-row-label {
+  color: var(--muted); font-weight: 600; flex-shrink: 0; min-width: 52px;
+}
+.org-req-row-val { color: #b0b5cf; word-break: break-word; }
+
+/* ─── SUCCESS ─── */
+.success-wrap { text-align: center; }
+.success-check {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: rgba(74,222,128,.1); border: 1px solid rgba(74,222,128,.3);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 1.25rem;
+  box-shadow: 0 0 40px rgba(74,222,128,.2);
+}
+.success-check svg { width: 28px; height: 28px; }
+.success-title { font-size: 1.15rem; font-weight: 800; color: var(--green); margin-bottom: .6rem; }
+.success-text { font-size: .88rem; color: var(--sub); line-height: 1.7; margin-bottom: 1.25rem; }
+.code-box {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 1.35rem; font-weight: 800; letter-spacing: .12em;
+  background: rgba(74,222,128,.06); border: 1px solid rgba(74,222,128,.25);
+  border-radius: 10px; padding: .65rem 1.25rem;
+  color: var(--green); cursor: pointer; user-select: all;
+  display: inline-block; margin: .5rem 0 1.25rem;
+  transition: background .15s;
+}
+.code-box:hover { background: rgba(74,222,128,.1); }
+.tg-btn {
+  display: inline-flex; align-items: center; gap: .6rem;
+  padding: .7rem 1.6rem;
+  background: #229ED9; color: #fff;
+  border-radius: 10px; font-weight: 700; font-size: .9rem;
+  text-decoration: none; transition: filter .15s;
+}
+.tg-btn:hover { filter: brightness(1.1); }
+
+/* ─── FOOTER ─── */
+.footer {
+  background: #030408;
+  border-top: 1px solid var(--border);
+  padding: 3rem 2rem 2.5rem; text-align: center;
+}
+.footer-logo {
+  font-size: 1.1rem; font-weight: 800; color: #fff;
+  letter-spacing: -.04em; margin-bottom: .5rem;
+  display: inline-flex; align-items: center; gap: .4rem;
+}
+.footer-sub { font-size: .8rem; color: #3d4260; margin-bottom: 1.5rem; }
+.footer-links { display: flex; gap: 2rem; justify-content: center; flex-wrap: wrap; margin-bottom: 2rem; }
+.footer-links a { font-size: .82rem; color: #3d4260; text-decoration: none; transition: color .15s; }
+.footer-links a:hover { color: #8890b0; }
+.footer-copy { font-size: .78rem; color: #1e2135; }
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 900px) {
+  .features-grid { grid-template-columns: repeat(2, 1fr); }
+  .foundation-grid, .agents-grid, .reg-wrap { grid-template-columns: 1fr; gap: 2.5rem; }
+  .orbit-wrap { margin: 0 auto; }
+  .steps-grid { grid-template-columns: repeat(2, 1fr); gap: 2rem; }
+  .steps-grid::before { display: none; }
+}
+@media (max-width: 600px) {
+  .hero { padding: 4.5rem 1.25rem 3.5rem; }
+  .section { padding: 4rem 1.25rem; }
+  .features-grid { grid-template-columns: 1fr; }
+  .steps-grid { grid-template-columns: 1fr; }
+  .mockup-body { grid-template-columns: 1fr; }
+  .mockup-sidebar { display: none; }
+  .nav { padding: 0 1rem; }
+  .reg-card { padding: 1.5rem 1.25rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      <span class="nav-logo-dot"></span>
+      magickp
+    </a>
+    <ul class="nav-links">
+      <li><a href="#foundation">Концепция</a></li>
+      <li><a href="#features">Возможности</a></li>
+      <li><a href="#agents">AI-агенты</a></li>
+    </ul>
+    <a href="#register" class="nav-cta">Подключить организацию</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-glow2"></div>
+  <div class="container" style="position:relative;z-index:1;">
+    <div class="hero-label">
+      <span class="hero-label-dot"></span>
+      <span>Живая база знаний бизнеса</span>
+    </div>
+    <h1>Знания компании — <br><span class="grad">основа для AI</span></h1>
+    <p class="hero-sub">
+      Встречи, решения, документы складываются в базу знаний автоматически. AI-агенты используют её для работы. Чем богаче база — тем умнее агенты.
+    </p>
+    <div class="hero-cta-row">
+      <a href="#register" class="btn-hero">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0z"/></svg>
+        Подключить организацию
+      </a>
+      <a href="#register" class="btn-ghost" id="btn-meeting" data-intent="meeting">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="17" height="17"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
+        Создать встречу в AI ВКС
+      </a>
+    </div>
+
+    <!-- MOCKUP -->
+    <div class="mockup-wrap">
+      <div class="mockup-bar">
+        <div class="mbar-dot" style="background:#ff5f57"></div>
+        <div class="mbar-dot" style="background:#febc2e"></div>
+        <div class="mbar-dot" style="background:#28c840"></div>
+        <div class="mbar-url">magickp.ru / база знаний</div>
+      </div>
+      <div class="mockup-body">
+        <div class="mockup-sidebar">
+          <div class="msb-label">База знаний</div>
+          <div class="msb-item active">
+            <svg class="msb-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2a1 1 0 011-1h10a1 1 0 011 1v12a1 1 0 01-1 1H3a1 1 0 01-1-1V2zm9 0H5v12h6V2z" fill-opacity=".5"/><path d="M4 4h8v1H4zm0 2h8v1H4zm0 2h5v1H4z"/></svg>
+            Встреча с клиентом
+          </div>
+          <div class="msb-item">
+            <svg class="msb-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M9.828 3h3.982a2 2 0 011.992 2.181l-.637 7A2 2 0 0113.174 14H2.825a2 2 0 01-1.991-1.819l-.637-7a1.99 1.99 0 01.342-1.31L.5 3a2 2 0 012-2h3.672a2 2 0 011.414.586l.828.828A2 2 0 009.828 3z"/></svg>
+            Планирование Q2
+          </div>
+          <div class="msb-item">
+            <svg class="msb-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2a1 1 0 011-1h10a1 1 0 011 1v12a1 1 0 01-1 1H3a1 1 0 01-1-1V2zm9 0H5v12h6V2z" fill-opacity=".5"/><path d="M4 4h8v1H4zm0 2h8v1H4zm0 2h5v1H4z"/></svg>
+            Техническое ревью
+          </div>
+          <div class="msb-item">
+            <svg class="msb-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2a1 1 0 011-1h10a1 1 0 011 1v12a1 1 0 01-1 1H3a1 1 0 01-1-1V2zm9 0H5v12h6V2z" fill-opacity=".5"/><path d="M4 4h8v1H4zm0 2h8v1H4zm0 2h5v1H4z"/></svg>
+            Онбординг команды
+          </div>
+        </div>
+        <div class="mockup-content">
+          <div class="mc-tag"><span class="mc-tag-dot"></span>AI-сгенерировано</div>
+          <div class="mc-title">Встреча с клиентом ООО Ромашка</div>
+          <div class="mc-meta">05.03.2026 · 47 мин · Изменено час назад</div>
+          <div class="mc-line" style="width:93%"></div>
+          <div class="mc-line" style="width:77%"></div>
+          <div class="mc-line" style="width:86%"></div>
+          <div class="mc-line" style="width:62%"></div>
+          <div class="mc-line" style="width:81%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOUNDATION -->
+<section class="section foundation-section" id="foundation">
+  <div class="container">
+    <div class="foundation-grid">
+      <div>
+        <div class="sec-eyebrow">Концепция</div>
+        <h2 class="sec-title">База знаний — это фундамент, а не архив</h2>
+        <p class="sec-sub" style="margin-bottom:2.5rem;">
+          Большинство компаний теряют знания вместе с каждой встречей. Мы делаем наоборот: каждое обсуждение становится структурированным знанием, которое живёт и используется.
+        </p>
+        <div class="foundation-points">
+          <div class="fp">
+            <div class="fp-line"></div>
+            <div>
+              <div class="fp-title">Знания накапливаются автоматически</div>
+              <div class="fp-desc">Запись встречи → расшифровка → AI-статья. Без ручного конспектирования и потерянных договорённостей.</div>
+            </div>
+          </div>
+          <div class="fp">
+            <div class="fp-line"></div>
+            <div>
+              <div class="fp-title">AI-агенты питаются от базы</div>
+              <div class="fp-desc">Агент без контекста — дорогой калькулятор. Агент с вашей базой знаний — полноценный сотрудник, знающий историю компании.</div>
+            </div>
+          </div>
+          <div class="fp">
+            <div class="fp-line"></div>
+            <div>
+              <div class="fp-title">Знания принадлежат вам</div>
+              <div class="fp-desc">Полная изоляция данных между организациями. Ваша база — только ваша, со сквозным поиском и публичными ссылками.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="foundation-visual">
+        <div class="orbit-wrap">
+          <div class="orbit-ring"></div>
+          <div class="orbit-ring"></div>
+          <div class="orbit-ring"></div>
+          <div class="orbit-center">
+            <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          </div>
+          <!-- Nodes -->
+          <div class="orbit-node n1" style="color:var(--violet2)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          </div>
+          <div class="orbit-node n2" style="color:#22d3ee">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3m-4.22-7.78l-2.12 2.12M6.34 17.66l-2.12 2.12M17.66 17.66l2.12 2.12M6.34 6.34L4.22 4.22"/></svg>
+          </div>
+          <div class="orbit-node n3" style="color:#4ade80">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          </div>
+          <div class="orbit-node n4" style="color:#f59e0b">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+          </div>
+          <div class="orbit-node n5" style="color:#f472b6">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="section" id="features" style="background:var(--bg);">
+  <div class="container">
+    <div class="text-center">
+      <div class="sec-eyebrow">Возможности</div>
+      <h2 class="sec-title">Всё что нужно для живой базы знаний</h2>
+      <p class="sec-sub">От сырой записи до готовой статьи — полностью автоматически</p>
+    </div>
+    <div class="features-grid">
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--violet2)" stroke-width="1.5"><path d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+        </div>
+        <div class="feat-title">Автоматическая расшифровка</div>
+        <div class="feat-desc">MP3, MP4, WAV — загружаете файл встречи, система транскрибирует речь в текст. Русский, английский, смешанный.</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3m-4.22-7.78l-2.12 2.12M6.34 17.66l-2.12 2.12M17.66 17.66l2.12 2.12M6.34 6.34L4.22 4.22"/></svg>
+        </div>
+        <div class="feat-title">AI-резюме и решения</div>
+        <div class="feat-desc">AI выделяет ключевые решения, задачи и ответственных. Из часовой встречи — структурированная статья за секунды.</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="1.5"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+        </div>
+        <div class="feat-title">Иерархия знаний</div>
+        <div class="feat-desc">Статьи организуются в дерево: разделы, подразделы, связанные записи. Знания не теряются в плоском списке.</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </div>
+        <div class="feat-title">Семантический поиск</div>
+        <div class="feat-desc">Поиск по смыслу, а не по ключевым словам. Найдите решение полугодовой давности по любому синониму.</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#f472b6" stroke-width="1.5"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+        </div>
+        <div class="feat-title">Изоляция по организациям</div>
+        <div class="feat-desc">Данные каждой компании полностью изолированы. Ни один сторонний пользователь не увидит ваши встречи или статьи.</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--violet2)" stroke-width="1.5"><path d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+        </div>
+        <div class="feat-title">Публичные ссылки</div>
+        <div class="feat-desc">Поделитесь статьёй или записью по уникальной ссылке. Получатель видит контент без регистрации.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- AI AGENTS -->
+<section class="section agents-section" id="agents">
+  <div class="container">
+    <div class="text-center" style="margin-bottom:1rem;">
+      <div class="sec-eyebrow">Магазин AI-агентов</div>
+      <h2 class="sec-title">База знаний — топливо для агентов</h2>
+      <p class="sec-sub">Мы строим экосистему агентов, которые работают с вашими данными. Каждый агент знает историю вашей компании — потому что она уже в базе.</p>
+    </div>
+    <div class="agents-grid">
+      <div class="agents-intro">
+        <div class="agents-badge">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          <span>Подключаются к вашей базе</span>
+        </div>
+        <div class="agents-intro-title">Агенты, которые знают вашу компанию</div>
+        <div class="agents-intro-sub">
+          Обычные AI-инструменты работают вслепую. Наши агенты стартуют с контекстом: кто принял какое решение, что обсудили на прошлой неделе, какие задачи подвисли. База знаний — это их долгосрочная память.
+        </div>
+        <a href="#register" class="agents-cta">
+          Подключиться к экосистеме
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+        </a>
+      </div>
+      <div class="agents-list">
+        <div class="agent-card">
+          <div class="agent-icon" style="background:rgba(124,107,255,.1);border:1px solid rgba(124,107,255,.2);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--violet2)" stroke-width="1.5"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+          </div>
+          <div>
+            <div class="agent-title">Агент-ответчик</div>
+            <div class="agent-desc">Отвечает на вопросы сотрудников, опираясь на историю встреч и статьи базы. "Что решили по проекту X?" — ответит за секунду.</div>
+            <span class="agent-tag">Доступен</span>
+          </div>
+        </div>
+        <div class="agent-card">
+          <div class="agent-icon" style="background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.2);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+          </div>
+          <div>
+            <div class="agent-title">Агент по задачам</div>
+            <div class="agent-desc">Извлекает из встреч задачи и ответственных, трекает статус. Знает, что обещали сделать — и кто не сделал.</div>
+            <span class="agent-tag soon">Скоро</span>
+          </div>
+        </div>
+        <div class="agent-card">
+          <div class="agent-icon" style="background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.2);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.5"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          </div>
+          <div>
+            <div class="agent-title">Агент-аналитик</div>
+            <div class="agent-desc">Анализирует паттерны: о чём чаще всего спорят, какие темы повторяются, где команда теряет время.</div>
+            <span class="agent-tag soon">Скоро</span>
+          </div>
+        </div>
+        <div class="agent-card">
+          <div class="agent-icon" style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.5"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          </div>
+          <div>
+            <div class="agent-title">Агент-письмовик</div>
+            <div class="agent-desc">Составляет письма и документы в стиле вашей компании. Знает клиентов, историю переговоров, предыдущие договорённости.</div>
+            <span class="agent-tag soon">Скоро</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section steps-section">
+  <div class="container">
+    <div class="text-center">
+      <div class="sec-eyebrow">Как это работает</div>
+      <h2 class="sec-title">От встречи до базы знаний — четыре шага</h2>
+    </div>
+    <div class="steps-grid">
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-title">Загрузите запись</div>
+        <div class="step-desc">MP3, MP4 или WAV — любой формат записи встречи или звонка</div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-title">AI расшифровывает</div>
+        <div class="step-desc">Полная транскрипция + краткое саммари с ключевыми решениями</div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-title">Статья в базе</div>
+        <div class="step-desc">Структурированная статья автоматически добавляется в нужный раздел</div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">4</div>
+        <div class="step-title">Агенты работают</div>
+        <div class="step-desc">AI-агенты используют накопленные знания для ответов, задач и анализа</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- REGISTER -->
+<section class="section register-section" id="register">
+  <div class="container">
+    <div class="reg-wrap">
+      <div class="reg-left">
+        <div class="sec-eyebrow">Начать работу</div>
+        <div class="reg-left-title">Подключите организацию сегодня</div>
+        <div class="reg-left-sub">
+          Регистрация занимает минуту. Подтверждение — через Telegram. Никаких карт, никаких обязательств — начните накапливать знания прямо сейчас.
+        </div>
+        <div class="reg-proof">
+          <div class="reg-proof-item">
+            <div class="rp-check">
+              <svg viewBox="0 0 12 12" fill="none" stroke="var(--green)" stroke-width="2"><path d="M2 6l3 3 5-5"/></svg>
+            </div>
+            Бесплатный доступ без ограничений по времени
+          </div>
+          <div class="reg-proof-item">
+            <div class="rp-check">
+              <svg viewBox="0 0 12 12" fill="none" stroke="var(--green)" stroke-width="2"><path d="M2 6l3 3 5-5"/></svg>
+            </div>
+            Данные вашей организации изолированы
+          </div>
+          <div class="reg-proof-item">
+            <div class="rp-check">
+              <svg viewBox="0 0 12 12" fill="none" stroke="var(--green)" stroke-width="2"><path d="M2 6l3 3 5-5"/></svg>
+            </div>
+            Пароль доступа — сразу в Telegram
+          </div>
+          <div class="reg-proof-item">
+            <div class="rp-check">
+              <svg viewBox="0 0 12 12" fill="none" stroke="var(--green)" stroke-width="2"><path d="M2 6l3 3 5-5"/></svg>
+            </div>
+            Доступ к магазину AI-агентов
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="reg-card">
+          {% if success_code %}
+            <div class="success-wrap">
+              <div class="success-check">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+              </div>
+              <div class="success-title">Заявка принята!</div>
+              <div class="success-text">Нажмите кнопку ниже — бот автоматически получит ваш код и пришлёт пароль:</div>
+              {% if bot_username %}
+              <a href="https://t.me/{{ bot_username }}?start={{ success_code }}" target="_blank" class="tg-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248-1.97 9.285c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.936z"/></svg>
+                Открыть @{{ bot_username }} и получить пароль
+              </a>
+              {% else %}
+              <div class="code-box" onclick="copyCode(this)" title="Нажмите чтобы скопировать">/verify {{ success_code }}</div>
+              <div class="success-text">Отправьте боту эту команду, чтобы получить пароль.</div>
+              {% endif %}
+              <div class="success-text" style="margin-top:1rem;">После получения пароля:</div>
+              {% if intent == 'meeting' %}
+              <a href="https://baza.business-pad.com/pilot-login/?next=/uploads/" class="reg-btn" style="display:block;text-align:center;text-decoration:none;margin-top:.5rem;">
+                Войти и создать встречу →
+              </a>
+              {% else %}
+              <a href="https://baza.business-pad.com/pilot-login/" class="reg-btn" style="display:block;text-align:center;text-decoration:none;margin-top:.5rem;">
+                Войти в систему →
+              </a>
+              {% endif %}
+            </div>
+          {% else %}
+            <div class="rfc-head">
+              <div class="rfc-title">Регистрация организации</div>
+              <div class="rfc-sub">Подтверждение через Telegram — 1 минута</div>
+            </div>
+            {% if error %}
+            <div class="reg-error">{{ error }}</div>
+            {% endif %}
+            <form method="post" action="{% url 'recordings:landing' %}" id="reg-form">
+              {% csrf_token %}
+              <input type="hidden" name="intent" id="reg-intent" value="{{ intent }}">
+              <div class="reg-field">
+                <label class="reg-label" for="org-search">Организация</label>
+                <div class="dd-wrap" id="dd-search-wrap">
+                  <input class="reg-input" type="text" id="org-search"
+                         placeholder="Название или ИНН…"
+                         autocomplete="off" value="{{ request.POST.org_name|default:'' }}">
+                  <div class="dd-dropdown" id="dd-dropdown"></div>
+                </div>
+
+                <!-- Карточка реквизитов (показывается после выбора) -->
+                <div id="org-selected-card" style="display:none;">
+                  <div class="org-req-card">
+                    <div class="org-req-head">
+                      <div class="org-req-full-name" id="org-req-name"></div>
+                      <button type="button" class="org-req-clear" id="org-req-clear" title="Изменить">✕</button>
+                    </div>
+                    <div class="org-req-rows" id="org-req-rows"></div>
+                  </div>
+                </div>
+
+                <!-- Скрытые поля для сабмита -->
+                <input type="hidden" name="org_name" id="org_name">
+                <input type="hidden" name="org_inn" id="org_inn">
+              </div>
+              <div class="reg-field">
+                <label class="reg-label" for="email">Email</label>
+                <input class="reg-input" type="email" id="email" name="email"
+                       placeholder="admin@company.ru" required
+                       value="{{ request.POST.email|default:'' }}">
+              </div>
+              <button type="submit" class="reg-btn">Получить доступ →</button>
+            </form>
+            <div class="reg-hint">
+              Уже есть аккаунт? <a href="https://baza.business-pad.com/pilot-login/">Войти</a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-logo">
+    <span style="width:8px;height:8px;border-radius:50%;background:var(--violet);box-shadow:0 0 10px var(--violet);display:inline-block;"></span>
+    magickp
+  </div>
+  <div class="footer-sub">Живая база знаний и экосистема AI-агентов</div>
+  <div class="footer-links">
+    <a href="#foundation">Концепция</a>
+    <a href="#agents">AI-агенты</a>
+    <a href="#register">Регистрация</a>
+    <a href="https://baza.business-pad.com/pilot-login/">Войти</a>
+    {% if bot_username %}<a href="https://t.me/{{ bot_username }}" target="_blank">Telegram-бот</a>{% endif %}
+  </div>
+  <div class="footer-copy">© 2026 BusinessPad. Все права защищены.</div>
+</footer>
+
+<script>
+// ── DaData autocomplete ──────────────────────────────────────────────────────
+(function () {
+  var searchInput  = document.getElementById('org-search');
+  var orgNameField = document.getElementById('org_name');
+  var innField     = document.getElementById('org_inn');
+  var dropdown     = document.getElementById('dd-dropdown');
+  var selectedCard = document.getElementById('org-selected-card');
+  var reqName      = document.getElementById('org-req-name');
+  var reqRows      = document.getElementById('org-req-rows');
+  var clearBtn     = document.getElementById('org-req-clear');
+  var form         = document.getElementById('reg-form');
+  if (!searchInput || !dropdown) return;
+
+  var timer = null;
+  var activeIdx = -1;
+  var items = [];
+
+  function esc(str) {
+    return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function row(label, val) {
+    if (!val) return '';
+    return '<div class="org-req-row"><span class="org-req-row-label">' + label + '</span><span class="org-req-row-val">' + esc(val) + '</span></div>';
+  }
+
+  function showSelected(s) {
+    orgNameField.value = s.value;
+    innField.value = s.inn || '';
+    reqName.textContent = s.value;
+    var typeLabel = s.type === 'INDIVIDUAL' ? 'ИП' : 'ЮЛ';
+    reqRows.innerHTML =
+      row('ИНН', s.inn) +
+      (s.kpp  ? row('КПП', s.kpp)  : '') +
+      (s.ogrn ? row('ОГРН', s.ogrn) : '') +
+      row('Тип', typeLabel) +
+      (s.address ? row('Адрес', s.address) : '');
+    searchInput.style.display = 'none';
+    selectedCard.style.display = '';
+  }
+
+  function clearSelected() {
+    orgNameField.value = '';
+    innField.value = '';
+    searchInput.style.display = '';
+    searchInput.value = '';
+    selectedCard.style.display = 'none';
+    setTimeout(function() { searchInput.focus(); }, 50);
+  }
+
+  if (clearBtn) clearBtn.addEventListener('click', clearSelected);
+
+  // Если форма вернулась с ошибкой — показать поиск
+  if (orgNameField && orgNameField.value) {
+    searchInput.value = orgNameField.value;
+  }
+
+  // Валидация: org_name обязателен
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      if (!orgNameField.value) {
+        e.preventDefault();
+        searchInput.style.display = '';
+        searchInput.focus();
+        searchInput.style.borderColor = 'rgba(239,68,68,.7)';
+        setTimeout(function() { searchInput.style.borderColor = ''; }, 2000);
+      }
+    });
+  }
+
+  function render(suggestions) {
+    items = suggestions;
+    activeIdx = -1;
+    dropdown.innerHTML = '';
+    if (!suggestions.length) {
+      dropdown.innerHTML = '<div class="dd-empty">Ничего не найдено</div>';
+      dropdown.classList.add('open');
+      return;
+    }
+    suggestions.forEach(function (s, i) {
+      var el = document.createElement('div');
+      el.className = 'dd-item';
+      var typeLabel = s.type === 'INDIVIDUAL' ? ' <span style="opacity:.55;font-size:.73rem;">(ИП)</span>' : '';
+      var meta = [s.inn ? 'ИНН ' + s.inn : '', s.address].filter(Boolean).join(' · ');
+      el.innerHTML =
+        '<div class="dd-name">' + esc(s.value) + typeLabel + '</div>' +
+        (meta ? '<div class="dd-meta">' + esc(meta) + '</div>' : '');
+      el.addEventListener('mousedown', function (e) { e.preventDefault(); select(i); });
+      dropdown.appendChild(el);
+    });
+    dropdown.classList.add('open');
+  }
+
+  function select(i) {
+    var s = items[i];
+    if (!s) return;
+    closeDropdown();
+    showSelected(s);
+  }
+
+  function closeDropdown() {
+    dropdown.classList.remove('open');
+    dropdown.innerHTML = '';
+    items = [];
+    activeIdx = -1;
+  }
+
+  function setActive(idx) {
+    var els = dropdown.querySelectorAll('.dd-item');
+    els.forEach(function (el) { el.classList.remove('active'); });
+    activeIdx = Math.max(-1, Math.min(idx, items.length - 1));
+    if (activeIdx >= 0 && els[activeIdx]) els[activeIdx].classList.add('active');
+  }
+
+  searchInput.addEventListener('input', function () {
+    var q = searchInput.value.trim();
+    clearTimeout(timer);
+    if (q.length < 2) { closeDropdown(); return; }
+    timer = setTimeout(function () {
+      fetch('/api/dadata-suggest/?q=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(function (d) { render(d.suggestions || []); })
+        .catch(function () { closeDropdown(); });
+    }, 280);
+  });
+
+  searchInput.addEventListener('keydown', function (e) {
+    if (!dropdown.classList.contains('open')) return;
+    if (e.key === 'ArrowDown')  { e.preventDefault(); setActive(activeIdx + 1); }
+    if (e.key === 'ArrowUp')    { e.preventDefault(); setActive(activeIdx - 1); }
+    if (e.key === 'Enter' && activeIdx >= 0) { e.preventDefault(); select(activeIdx); }
+    if (e.key === 'Escape') closeDropdown();
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) closeDropdown();
+  });
+})();
+
+function copyCode(el) {
+  navigator.clipboard.writeText(el.textContent.trim()).then(function() {
+    var orig = el.textContent;
+    el.textContent = 'Скопировано!';
+    setTimeout(function() { el.textContent = orig; }, 1500);
+  });
+}
+
+// "Создать встречу" кнопка — устанавливает intent=meeting и прокручивает к форме
+var btnMeeting = document.getElementById('btn-meeting');
+if (btnMeeting) {
+  btnMeeting.addEventListener('click', function(e) {
+    e.preventDefault();
+    var intentField = document.getElementById('reg-intent');
+    if (intentField) intentField.value = 'meeting';
+    var regTitle = document.querySelector('.rfc-title');
+    if (regTitle) regTitle.textContent = 'Регистрация для создания встречи';
+    var regSection = document.getElementById('register');
+    if (regSection) regSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
+document.querySelectorAll('a[href^="#"]').forEach(function(a) {
+  if (a.id === 'btn-meeting') return; // уже обработан выше
+  a.addEventListener('click', function(e) {
+    var id = this.getAttribute('href');
+    if (id === '#') return;
+    var t = document.querySelector(id);
+    if (t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  });
+});
+</script>
+</body>
+</html>

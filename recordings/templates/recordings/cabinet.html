@@ -1,0 +1,109 @@
+{% extends "recordings/base.html" %}
+{% block title %}Личный кабинет{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>Личный кабинет</h1>
+</div>
+
+<div class="card" style="margin-bottom:1rem;">
+    <div class="cabinet-hero">
+        <div class="cabinet-avatar">{{ user.email|slice:":1"|upper }}</div>
+        <div>
+            <div class="cabinet-name">{{ user.email }}</div>
+            <div class="cabinet-sub">
+                {% if user.space %}{{ user.space.name }}{% else %}Без пространства{% endif %}
+                &nbsp;·&nbsp;
+                {% if user.first_login_at %}С нами с {{ user.first_login_at|date:"d.m.Y" }}{% else %}Аккаунт не активирован{% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Тариф -->
+{% if is_bp %}
+<div class="plan-card plan-premium">
+    <div class="plan-badge plan-badge-premium">★ Премиум</div>
+    <div class="plan-title">Премиум тариф — действует 1 год</div>
+    <div class="plan-desc">
+        Как сотрудник BusinessPad вы пользуетесь безлимитными транскрибациями без ограничений по времени.<br>
+        Тариф продлевается автоматически.
+    </div>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        <span style="font-size:0.83rem;color:var(--muted);">✓ Безлимитные транскрибации</span>
+        &nbsp;·&nbsp;
+        <span style="font-size:0.83rem;color:var(--muted);">✓ Семантический поиск</span>
+        &nbsp;·&nbsp;
+        <span style="font-size:0.83rem;color:var(--muted);">✓ AI-агенты</span>
+    </div>
+</div>
+
+{% elif is_premium %}
+<div class="plan-card plan-premium">
+    <div class="plan-badge plan-badge-premium">★ Премиум</div>
+    <div class="plan-title">Премиум тариф</div>
+    <div class="plan-desc">
+        Безлимитные транскрибации. Доступ ко всем функциям платформы.
+    </div>
+</div>
+
+{% else %}
+<div class="plan-card plan-free">
+    <div class="plan-badge plan-badge-free">Бесплатный тариф</div>
+    <div class="plan-title">Осталось транскрибаций</div>
+    <div class="transcription-counter">
+        <div class="count-num">{{ user.free_left|default:"0" }}</div>
+        <div class="count-label">
+            бесплатных транскрибаций<br>
+            <span style="font-size:0.8rem;opacity:0.7;">Всего расшифровано записей: {{ total_done }}</span>
+        </div>
+    </div>
+    <div class="plan-desc">
+        На бесплатном тарифе доступны {{ user.free_left|default:"0" }} транскрибации.
+        Перейдите на Премиум, чтобы снять ограничение.
+    </div>
+    <a href="https://t.me/bp_labs_baza_bot" target="_blank" class="upgrade-cta">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Перейти на Премиум
+    </a>
+    <p style="font-size:0.78rem;color:var(--muted);margin-top:0.75rem;">
+        Напишите нам в Telegram — расскажем об условиях и подключим в течение дня.
+    </p>
+</div>
+{% endif %}
+
+<!-- Статистика -->
+<div class="card" style="margin-top:1rem;">
+    <p class="section-title" style="margin-bottom:0.75rem;">Статистика</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;">
+        <div style="background:var(--bg-soft);border:1px solid var(--border);border-radius:10px;padding:1rem;text-align:center;">
+            <div style="font-size:1.75rem;font-weight:800;color:var(--accent);">{{ total_done }}</div>
+            <div style="font-size:0.82rem;color:var(--muted);margin-top:0.25rem;">расшифровано записей</div>
+        </div>
+        {% if user.space %}
+        <div style="background:var(--bg-soft);border:1px solid var(--border);border-radius:10px;padding:1rem;text-align:center;">
+            <div style="font-size:1.75rem;font-weight:800;color:var(--text);">{{ user.space.members.count }}</div>
+            <div style="font-size:0.82rem;color:var(--muted);margin-top:0.25rem;">участников пространства</div>
+        </div>
+        {% endif %}
+        <div style="background:var(--bg-soft);border:1px solid var(--border);border-radius:10px;padding:1rem;text-align:center;">
+            <div style="font-size:1rem;font-weight:700;color:{% if is_premium %}#ca8a04{% else %}var(--muted){% endif %};">
+                {% if is_premium %}★ Премиум{% else %}Базовый{% endif %}
+            </div>
+            <div style="font-size:0.82rem;color:var(--muted);margin-top:0.25rem;">текущий тариф</div>
+        </div>
+    </div>
+</div>
+
+{% if user.space %}
+<div class="card" style="margin-top:1rem;">
+    <p class="section-title" style="margin-bottom:0.5rem;">Пространство</p>
+    <p style="font-size:0.9rem;color:var(--text-secondary);">
+        <strong>{{ user.space.name }}</strong><br>
+        <span style="color:var(--muted);font-size:0.83rem;font-family:monospace;">slug: {{ user.space.slug }}</span>
+    </p>
+    <p style="margin-top:0.75rem;">
+        <a href="{% url 'recordings:space_members' %}" class="btn btn-ghost" style="font-size:0.88rem;">Управление участниками →</a>
+    </p>
+</div>
+{% endif %}
+{% endblock %}

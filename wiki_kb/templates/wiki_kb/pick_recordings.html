@@ -1,0 +1,416 @@
+{% extends "recordings/base.html" %}
+{% block title %}Выбор записей — {{ article.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.pick-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+.pick-header h1 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0;
+}
+.pick-subhead {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 0.15rem;
+}
+
+/* Фильтры */
+.pick-filters {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 1rem;
+    overflow: hidden;
+}
+.pick-filters-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.25rem;
+    cursor: pointer;
+    background: none;
+    border: none;
+    width: 100%;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text);
+    transition: background var(--transition);
+}
+.pick-filters-strip:hover { background: var(--bg-soft); }
+.pick-filters-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.28s ease;
+    padding: 0 1.25rem;
+}
+.pick-filters-body.open { max-height: 300px; padding-bottom: 1.25rem; }
+.pick-filters-form {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    margin-top: 0.75rem;
+}
+.pick-filter-group label {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+}
+.pick-filter-input {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-soft);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.88rem;
+    transition: border-color var(--transition);
+}
+.pick-filter-input:focus { outline: none; border-color: var(--accent); }
+.pick-filter-input[type="text"] { min-width: 200px; }
+
+/* Панель сохранения */
+.pick-save-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    padding: 0.75rem 1.25rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+.pick-count {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+.pick-count strong { color: var(--accent); }
+.pick-actions { display: flex; gap: 0.5rem; }
+
+/* Кнопки */
+.pick-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.45rem 1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-decoration: none;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font: inherit;
+    transition: all var(--transition);
+}
+.pick-btn:hover { background: var(--bg-soft); color: var(--accent); border-color: var(--accent); }
+.pick-btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.pick-btn-primary:hover { background: var(--accent-light); border-color: var(--accent-light); color: #fff; }
+
+/* Список записей */
+.pick-rec {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--success);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 0.85rem 1.1rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    cursor: pointer;
+    transition: border-color var(--transition), background var(--transition);
+}
+.pick-rec:hover { border-color: var(--accent); background: var(--bg-soft); }
+.pick-rec.selected {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+.pick-rec-check {
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+.pick-rec-body { flex: 1; min-width: 0; }
+.pick-rec-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 0.15rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pick-rec-filename {
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-family: monospace;
+    margin-bottom: 0.25rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pick-rec-meta {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 0.35rem;
+}
+.pick-rec-summary {
+    font-size: 0.83rem;
+    color: var(--muted);
+    font-style: italic;
+    margin-bottom: 0.3rem;
+    line-height: 1.4;
+}
+.pick-rec-preview {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+}
+
+/* Поиск клиентский */
+.pick-search-bar {
+    margin-bottom: 0.75rem;
+    position: relative;
+}
+.pick-search-input {
+    width: 100%;
+    padding: 0.6rem 1rem 0.6rem 2.25rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--card);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.9rem;
+    box-sizing: border-box;
+    transition: border-color var(--transition);
+}
+.pick-search-input:focus { outline: none; border-color: var(--accent); }
+.pick-search-icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 0.85rem;
+    pointer-events: none;
+}
+
+.pick-empty { text-align: center; color: var(--muted); padding: 2rem; font-size: 0.9rem; }
+
+@media (max-width: 768px) {
+    .pick-header { flex-direction: column; align-items: flex-start; }
+    .pick-filter-input[type="text"] { min-width: auto; width: 100%; }
+    .pick-filters-form { flex-direction: column; gap: 0.5rem; }
+    .pick-filter-group { width: 100%; }
+    .pick-filter-group select, .pick-filter-group input { width: 100%; box-sizing: border-box; }
+    .pick-save-bar { flex-direction: column; align-items: stretch; }
+    .pick-actions { flex-direction: row; justify-content: flex-end; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<form method="post" id="pick-form">
+{% csrf_token %}
+
+<div class="pick-header">
+    <div>
+        <h1>Записи для «{{ article.title }}»</h1>
+        <div class="pick-subhead">Отметьте записи, транскрипции которых лежат в основе этой статьи</div>
+    </div>
+</div>
+
+<!-- Строка фильтров -->
+<div class="pick-filters">
+    <button type="button" class="pick-filters-strip" id="pick-filters-toggle">
+        <span>Фильтры поиска</span>
+        <span id="pick-filters-arrow">▼</span>
+    </button>
+    <div class="pick-filters-body" id="pick-filters-body">
+        <div class="pick-filters-form">
+            <div class="pick-filter-group">
+                <label for="filter-date">Дата</label>
+                <input type="date" id="filter-date" class="pick-filter-input" value="{{ date_str }}" placeholder="гггг-мм-дд">
+            </div>
+            <div class="pick-filter-group">
+                <label for="filter-tag">Тег</label>
+                <select id="filter-tag" class="pick-filter-input">
+                    <option value="">Все теги</option>
+                    {% for tval, tlabel in tag_choices %}
+                    {% if tval %}<option value="{{ tval }}" {% if tag_filter == tval %}selected{% endif %}>{{ tlabel }}</option>{% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Панель сохранения -->
+<div class="pick-save-bar">
+    <div class="pick-count">Выбрано: <strong id="pick-count-num">{{ selected_ids|length }}</strong></div>
+    <div class="pick-actions">
+        <a href="{% url 'wiki_kb:article_detail' slug=article.slug %}" class="pick-btn">Отмена</a>
+        <button type="submit" class="pick-btn pick-btn-primary">Сохранить выбор</button>
+    </div>
+</div>
+
+<!-- Быстрый поиск -->
+<div class="pick-search-bar">
+    <span class="pick-search-icon">🔍</span>
+    <input type="text" id="pick-search" class="pick-search-input"
+           placeholder="Поиск по названию, файлу или тексту..." value="{{ q }}" autocomplete="off">
+</div>
+
+<!-- Список записей -->
+<div id="pick-list">
+{% for rec in recordings %}
+<label class="pick-rec {% if rec.pk in selected_ids %}selected{% endif %}"
+       data-title="{{ rec.ai_title|default:rec.filename|lower }}"
+       data-filename="{{ rec.filename|lower }}"
+       data-summary="{{ rec.ai_summary|lower }}"
+       data-transcript="{{ rec.transcription|truncatewords:30|lower }}"
+       data-date="{{ rec.created_at|date:'Y-m-d' }}"
+       data-tag="{{ rec.tag }}">
+    <input type="checkbox" class="pick-rec-check" name="recording_ids" value="{{ rec.pk }}"
+           {% if rec.pk in selected_ids %}checked{% endif %}
+           onclick="updateCount()">
+    <div class="pick-rec-body">
+        <div class="pick-rec-title">{{ rec.ai_title|default:rec.filename }}</div>
+        {% if rec.ai_title %}<div class="pick-rec-filename">{{ rec.filename }}</div>{% endif %}
+        <div class="pick-rec-meta">
+            {{ rec.created_at|date:"d.m.Y H:i" }}
+            {% if rec.tag %} · {{ rec.get_tag_display }}{% endif %}
+        </div>
+        {% if rec.ai_summary %}<div class="pick-rec-summary">{{ rec.ai_summary|truncatewords:25 }}</div>{% endif %}
+        {% if rec.transcription %}<div class="pick-rec-preview">{{ rec.transcription|truncatewords:35 }}</div>{% endif %}
+    </div>
+</label>
+{% empty %}
+<div class="pick-empty">Записей не найдено</div>
+{% endfor %}
+</div>
+
+<!-- Нижняя панель -->
+{% if recordings %}
+<div class="pick-save-bar" style="margin-top:1rem;margin-bottom:0;">
+    <div class="pick-count">Выбрано: <strong id="pick-count-num-bottom">{{ selected_ids|length }}</strong></div>
+    <div class="pick-actions">
+        <a href="{% url 'wiki_kb:article_detail' slug=article.slug %}" class="pick-btn">Отмена</a>
+        <button type="submit" class="pick-btn pick-btn-primary">Сохранить выбор</button>
+    </div>
+</div>
+{% endif %}
+
+</form>
+
+<script>
+(function () {
+    /* Счётчик выбранных */
+    function updateCount() {
+        var n = document.querySelectorAll('#pick-list input[type="checkbox"]:checked').length;
+        var els = document.querySelectorAll('#pick-count-num, #pick-count-num-bottom');
+        els.forEach(function (el) { el.textContent = n; });
+    }
+    window.updateCount = updateCount;
+
+    /* Подсветка выбранных */
+    document.querySelectorAll('.pick-rec-check').forEach(function (cb) {
+        cb.addEventListener('change', function () {
+            var card = cb.closest('.pick-rec');
+            if (cb.checked) card.classList.add('selected');
+            else card.classList.remove('selected');
+            updateCount();
+        });
+    });
+
+    /* Клик по всей карточке выбирает чекбокс */
+    document.querySelectorAll('.pick-rec').forEach(function (card) {
+        card.addEventListener('click', function (e) {
+            if (e.target.closest('input[type="checkbox"]')) return; // нативный чекбокс
+            var cb = card.querySelector('.pick-rec-check');
+            cb.checked = !cb.checked;
+            if (cb.checked) card.classList.add('selected');
+            else card.classList.remove('selected');
+            updateCount();
+        });
+    });
+
+    /* Клиентский поиск */
+    var searchInput = document.getElementById('pick-search');
+    var filterDate = document.getElementById('filter-date');
+    var filterTag = document.getElementById('filter-tag');
+    var cards = document.querySelectorAll('.pick-rec');
+
+    function applyFilters() {
+        var q = (searchInput ? searchInput.value : '').toLowerCase().trim();
+        var date = filterDate ? filterDate.value : '';
+        var tag = filterTag ? filterTag.value : '';
+        var visible = 0;
+        cards.forEach(function (card) {
+            var matchQ = !q || card.dataset.title.includes(q) || card.dataset.filename.includes(q)
+                || card.dataset.summary.includes(q) || card.dataset.transcript.includes(q);
+            var matchDate = !date || card.dataset.date === date;
+            var matchTag = !tag || card.dataset.tag === tag;
+            var show = matchQ && matchDate && matchTag;
+            card.style.display = show ? '' : 'none';
+            if (show) visible++;
+        });
+        // Показать "не найдено"
+        var empty = document.querySelector('.pick-empty');
+        if (!empty && visible === 0) {
+            var d = document.createElement('div');
+            d.className = 'pick-empty'; d.id = 'pick-js-empty';
+            d.textContent = 'По фильтрам ничего не найдено';
+            document.getElementById('pick-list').appendChild(d);
+        } else if (empty && empty.id !== 'pick-empty-orig') {
+            empty.style.display = visible === 0 ? '' : 'none';
+        }
+    }
+
+    if (searchInput) searchInput.addEventListener('input', applyFilters);
+    if (filterDate) filterDate.addEventListener('change', applyFilters);
+    if (filterTag) filterTag.addEventListener('change', applyFilters);
+
+    /* Фильтры collapsible */
+    var filtersToggle = document.getElementById('pick-filters-toggle');
+    var filtersBody = document.getElementById('pick-filters-body');
+    var filtersArrow = document.getElementById('pick-filters-arrow');
+    if (filtersToggle) {
+        filtersToggle.addEventListener('click', function () {
+            filtersBody.classList.toggle('open');
+            filtersArrow.textContent = filtersBody.classList.contains('open') ? '▲' : '▼';
+        });
+    }
+
+    /* Начальный подсчёт */
+    updateCount();
+}());
+</script>
+{% endblock %}

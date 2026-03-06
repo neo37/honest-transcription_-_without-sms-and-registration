@@ -1,0 +1,330 @@
+{% extends "recordings/base.html" %}
+{% load static %}
+
+{% block title %}{% if is_create %}Новая статья{% else %}Редактировать: {{ article.title }}{% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.wiki-edit-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+    margin-top: 0.5rem;
+}
+.wiki-sidebar {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1rem;
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+}
+.wiki-sidebar-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);
+}
+.wiki-sidebar-title { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.wiki-tree { list-style: none; margin: 0; padding: 0; }
+.wiki-tree li { margin: 0; }
+.wiki-tree-item { display: flex; align-items: center; gap: 0.25rem; }
+.wiki-tree-toggle { background: none; border: none; cursor: pointer; padding: 0 2px; color: var(--muted); font-size: 0.65rem; line-height: 1; flex-shrink: 0; transition: transform var(--transition); }
+.wiki-tree-toggle.open { transform: rotate(90deg); }
+.wiki-tree-toggle.hidden { visibility: hidden; }
+.wiki-tree-link { display: block; padding: 0.3rem 0.4rem; border-radius: 6px; text-decoration: none; color: var(--text-secondary); font-size: 0.85rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: background var(--transition), color var(--transition); }
+.wiki-tree-link:hover { background: var(--bg-soft); color: var(--accent); }
+.wiki-tree-children { list-style: none; margin: 0; padding: 0 0 0 1rem; display: none; }
+.wiki-tree-children.open { display: block; }
+
+.wiki-edit-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.5rem;
+}
+.wiki-edit-title-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1.25rem;
+}
+.wiki-edit-heading { font-size: 1.1rem; font-weight: 700; color: var(--text); margin: 0; }
+
+.wiki-form-group { margin-bottom: 1rem; }
+.wiki-form-label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--muted); margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.wiki-form-input {
+    width: 100%; padding: 0.6rem 0.85rem;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--bg-soft); color: var(--text);
+    font-size: 0.95rem; font-family: inherit;
+    transition: border-color var(--transition), box-shadow var(--transition);
+    box-sizing: border-box;
+}
+.wiki-form-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(13,42,122,0.08); }
+.wiki-form-textarea {
+    width: 100%; padding: 0.75rem 1rem;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--bg-soft); color: var(--text);
+    font-size: 0.88rem; font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    line-height: 1.65; resize: vertical; min-height: 420px;
+    transition: border-color var(--transition), box-shadow var(--transition);
+    box-sizing: border-box;
+}
+.wiki-form-textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(13,42,122,0.08); }
+.wiki-form-hint { font-size: 0.75rem; color: var(--muted); margin-top: 0.3rem; }
+
+.wiki-error {
+    background: var(--error-soft); color: var(--error);
+    border: 1px solid var(--error); border-radius: var(--radius-sm);
+    padding: 0.6rem 1rem; margin-bottom: 1rem; font-size: 0.88rem;
+}
+
+.wiki-btn-row { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.25rem; }
+.wiki-btn {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    padding: 0.5rem 1.1rem; border-radius: 8px; font-size: 0.88rem;
+    font-weight: 500; text-decoration: none; border: 1px solid var(--border);
+    background: var(--card); color: var(--text-secondary); cursor: pointer;
+    transition: all var(--transition);
+}
+.wiki-btn:hover { background: var(--bg-soft); color: var(--accent); border-color: var(--accent); }
+.wiki-btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.wiki-btn-primary:hover { background: var(--accent-light); border-color: var(--accent-light); color: #fff; }
+
+.wiki-toolbar {
+    display: flex; align-items: center; gap: 2px;
+    padding: 0.4rem 0.5rem; background: var(--bg-soft);
+    border: 1px solid var(--border); border-bottom: none;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    flex-wrap: wrap;
+}
+.wiki-tb-btn {
+    background: none; border: 1px solid transparent; border-radius: 5px;
+    padding: 0.25rem 0.5rem; cursor: pointer; font-size: 0.82rem;
+    color: var(--text-secondary); transition: all 0.15s; min-width: 30px;
+    font-family: inherit; line-height: 1.4;
+}
+.wiki-tb-btn:hover { background: var(--card); border-color: var(--border); color: var(--accent); }
+.wiki-tb-sep { width: 1px; height: 18px; background: var(--border); margin: 0 3px; flex-shrink: 0; }
+.wiki-form-textarea { border-radius: 0 0 var(--radius-sm) var(--radius-sm) !important; }
+
+.wiki-sidebar-toggle-edit {
+    display: none;
+    width: 100%; background: none; border: none; cursor: pointer;
+    font: inherit; font-size: 0.75rem; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--muted); padding: 0; text-align: left;
+    align-items: center; justify-content: space-between; gap: 0.5rem;
+}
+@media (max-width: 768px) {
+    .wiki-edit-layout { grid-template-columns: 1fr; }
+    .wiki-sidebar {
+        position: static;
+        max-height: none;
+        overflow: visible;
+    }
+    .wiki-sidebar.mob-collapsed .wiki-tree { display: none; }
+    .wiki-sidebar-toggle-edit { display: flex; }
+    .wiki-sidebar-title { display: none; }
+    .wiki-form-textarea { min-height: 260px; }
+    .wiki-edit-card { padding: 1rem; }
+    .wiki-edit-title-row { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+    .wiki-btn-row { flex-direction: column; align-items: stretch; }
+    .wiki-btn-row .wiki-btn { width: 100%; justify-content: center; box-sizing: border-box; }
+    .wiki-toolbar { gap: 1px; overflow-x: auto; flex-wrap: nowrap; padding: 0.35rem 0.4rem; }
+    .wiki-tb-sep { flex-shrink: 0; }
+    .wiki-tb-btn { padding: 0.2rem 0.4rem; font-size: 0.8rem; min-width: 28px; flex-shrink: 0; }
+}
+@media (min-width: 769px) {
+    .wiki-sidebar.mob-collapsed .wiki-tree { display: block !important; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wiki-edit-layout">
+    <aside class="wiki-sidebar mob-collapsed" id="edit-sidebar">
+        <div class="wiki-sidebar-header">
+            <button class="wiki-sidebar-toggle-edit" id="edit-sidebar-toggle" type="button">
+                <span>База знаний</span>
+                <span id="edit-sidebar-arrow">▶</span>
+            </button>
+            <span class="wiki-sidebar-title">База знаний</span>
+        </div>
+        <ul class="wiki-tree">
+            {% for root in roots %}
+                {% include "wiki_kb/_tree_node.html" with node=root current=article depth=0 %}
+            {% empty %}
+                <li style="color:var(--muted);font-size:0.82rem;padding:0.5rem 0.4rem;">Нет статей</li>
+            {% endfor %}
+        </ul>
+    </aside>
+
+    <main>
+        <div class="wiki-edit-card">
+            <div class="wiki-edit-title-row">
+                <h1 class="wiki-edit-heading">
+                    {% if is_create %}Новая статья{% else %}Редактировать «{{ article.title }}»{% endif %}
+                </h1>
+                {% if article %}
+                <a href="{% url 'wiki_kb:article_detail' slug=article.slug %}" class="wiki-btn">Отмена</a>
+                {% else %}
+                <a href="{% url 'wiki_kb:kb_index' %}" class="wiki-btn">Отмена</a>
+                {% endif %}
+            </div>
+
+            {% if error %}<div class="wiki-error">{{ error }}</div>{% endif %}
+
+            <form method="post">
+                {% csrf_token %}
+                {% if parent %}<input type="hidden" name="parent_id" value="{{ parent.pk }}">{% endif %}
+
+                <div class="wiki-form-group">
+                    <label class="wiki-form-label" for="wiki-title">Заголовок</label>
+                    <input type="text" id="wiki-title" name="title" class="wiki-form-input"
+                           value="{{ form.title|default:'' }}"
+                           placeholder="Название статьи" autofocus required>
+                    {% if parent %}<div class="wiki-form-hint">Подстатья: <strong>{{ parent.title }}</strong></div>{% endif %}
+                </div>
+
+                <div class="wiki-form-group">
+                    <label class="wiki-form-label" for="wiki-content">Содержимое (Markdown)</label>
+                    <div class="wiki-toolbar" id="wiki-toolbar">
+                        <button type="button" class="wiki-tb-btn" data-action="h1" title="Заголовок 1"><b>H1</b></button>
+                        <button type="button" class="wiki-tb-btn" data-action="h2" title="Заголовок 2"><b>H2</b></button>
+                        <button type="button" class="wiki-tb-btn" data-action="h3" title="Заголовок 3"><b>H3</b></button>
+                        <span class="wiki-tb-sep"></span>
+                        <button type="button" class="wiki-tb-btn" data-action="bold" title="Жирный"><b>Ж</b></button>
+                        <button type="button" class="wiki-tb-btn" data-action="italic" title="Курсив"><i>К</i></button>
+                        <button type="button" class="wiki-tb-btn" data-action="strike" title="Зачёркнутый"><s>З</s></button>
+                        <span class="wiki-tb-sep"></span>
+                        <button type="button" class="wiki-tb-btn" data-action="code" title="Код">‹›</button>
+                        <button type="button" class="wiki-tb-btn" data-action="codeblock" title="Блок кода">```</button>
+                        <span class="wiki-tb-sep"></span>
+                        <button type="button" class="wiki-tb-btn" data-action="link" title="Ссылка">🔗</button>
+                        <button type="button" class="wiki-tb-btn" data-action="ul" title="Маркированный список">• —</button>
+                        <button type="button" class="wiki-tb-btn" data-action="ol" title="Нумерованный список">1. —</button>
+                        <button type="button" class="wiki-tb-btn" data-action="quote" title="Цитата">❝</button>
+                        <button type="button" class="wiki-tb-btn" data-action="table" title="Таблица">⊞</button>
+                        <button type="button" class="wiki-tb-btn" data-action="hr" title="Горизонтальная линия">—</button>
+                    </div>
+                    <textarea id="wiki-content" name="content" class="wiki-form-textarea"
+                              placeholder="Пишите в формате Markdown...">{{ form.content|default:'' }}</textarea>
+                </div>
+
+                <div class="wiki-btn-row">
+                    <button type="submit" class="wiki-btn wiki-btn-primary">
+                        {% if is_create %}Создать статью{% else %}Сохранить изменения{% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </main>
+</div>
+
+<script>
+document.querySelectorAll('.wiki-tree-toggle:not(.hidden)').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        var children = btn.parentElement.nextElementSibling;
+        if (children && children.classList.contains('wiki-tree-children')) {
+            children.classList.toggle('open');
+            btn.classList.toggle('open');
+        }
+    });
+});
+
+(function () {
+    var sidebar = document.getElementById('edit-sidebar');
+    var toggle = document.getElementById('edit-sidebar-toggle');
+    var arrow = document.getElementById('edit-sidebar-arrow');
+    function onResize() {
+        if (window.innerWidth > 768 && sidebar) {
+            sidebar.classList.remove('mob-collapsed');
+        }
+    }
+    if (toggle) {
+        toggle.addEventListener('click', function () {
+            if (window.innerWidth > 768) return;
+            var collapsed = sidebar.classList.toggle('mob-collapsed');
+            if (arrow) arrow.textContent = collapsed ? '▶' : '▼';
+        });
+    }
+    onResize();
+    window.addEventListener('resize', onResize);
+}());
+
+/* ── Markdown toolbar ── */
+(function () {
+    var ta = document.getElementById('wiki-content');
+    if (!ta) return;
+
+    function wrap(before, after, placeholder) {
+        var start = ta.selectionStart, end = ta.selectionEnd;
+        var sel = ta.value.substring(start, end) || placeholder || '';
+        var replacement = before + sel + after;
+        ta.setRangeText(replacement, start, end, 'select');
+        if (!ta.value.substring(start, end)) {
+            ta.selectionStart = start + before.length;
+            ta.selectionEnd = start + before.length + sel.length;
+        }
+        ta.focus();
+    }
+
+    function insertLine(prefix, placeholder) {
+        var start = ta.selectionStart;
+        var lineStart = ta.value.lastIndexOf('\n', start - 1) + 1;
+        var lineEnd = ta.value.indexOf('\n', start);
+        if (lineEnd === -1) lineEnd = ta.value.length;
+        var line = ta.value.substring(lineStart, lineEnd);
+        if (line.startsWith(prefix)) {
+            ta.setRangeText(line.substring(prefix.length), lineStart, lineEnd, 'end');
+        } else {
+            ta.setRangeText(prefix + (line || placeholder || ''), lineStart, lineEnd, 'end');
+        }
+        ta.focus();
+    }
+
+    var actions = {
+        h1: function() { insertLine('# ', 'Заголовок'); },
+        h2: function() { insertLine('## ', 'Заголовок'); },
+        h3: function() { insertLine('### ', 'Заголовок'); },
+        bold: function() { wrap('**', '**', 'жирный'); },
+        italic: function() { wrap('*', '*', 'курсив'); },
+        strike: function() { wrap('~~', '~~', 'зачёркнутый'); },
+        code: function() { wrap('`', '`', 'код'); },
+        codeblock: function() { wrap('\n```\n', '\n```\n', 'код'); },
+        link: function() {
+            var sel = ta.value.substring(ta.selectionStart, ta.selectionEnd);
+            if (sel && (sel.startsWith('http') || sel.includes('.'))) {
+                wrap('[', '](' + sel + ')', 'текст ссылки');
+            } else {
+                wrap('[', '](https://)', sel || 'текст ссылки');
+            }
+        },
+        ul: function() { insertLine('- ', 'пункт'); },
+        ol: function() { insertLine('1. ', 'пункт'); },
+        quote: function() { insertLine('> ', 'цитата'); },
+        hr: function() {
+            var pos = ta.selectionStart;
+            ta.setRangeText('\n---\n', pos, pos, 'end');
+            ta.focus();
+        },
+        table: function() {
+            var tmpl = '\n| Столбец 1 | Столбец 2 | Столбец 3 |\n| --- | --- | --- |\n| Ячейка | Ячейка | Ячейка |\n';
+            var pos = ta.selectionStart;
+            ta.setRangeText(tmpl, pos, pos, 'end');
+            ta.focus();
+        },
+    };
+
+    document.getElementById('wiki-toolbar').addEventListener('click', function (e) {
+        var btn = e.target.closest('.wiki-tb-btn');
+        if (!btn) return;
+        var action = btn.dataset.action;
+        if (actions[action]) actions[action]();
+    });
+}());
+</script>
+{% endblock %}

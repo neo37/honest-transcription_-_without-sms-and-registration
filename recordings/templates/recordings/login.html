@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0D2A7A">
+    <title>Вход</title>
+    {% load static %}
+    <link rel="manifest" href="{% url 'recordings:manifest' %}">
+    <link rel="stylesheet" href="{% static 'recordings/css/style.css' %}">
+    <style>
+        .login-page { min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+        .login-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; width: 100%; max-width: 400px; box-shadow: var(--shadow-md); position: relative; z-index: 1; }
+        .login-card .logo { display: block; width: 100%; max-width: 200px; height: auto; margin: 0 auto 1.5rem; }
+        .login-card h1 { font-size: 1.35rem; margin-bottom: 0.5rem; color: var(--text); text-align: center; }
+        .login-card .sub { font-size: 0.82rem; color: var(--muted); text-align: center; margin-bottom: 1.5rem; }
+        .login-card label { display: block; margin-bottom: 0.35rem; color: var(--muted); font-size: 0.9rem; font-weight: 500; margin-top: 0.9rem; }
+        .login-card label:first-of-type { margin-top: 0; }
+        .login-card input { width: 100%; padding: 0.65rem 0.9rem; background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px; color: var(--text-secondary); font-size: 1rem; font-family: inherit; box-sizing: border-box; }
+        .login-card input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+        .login-card .btn { width: 100%; padding: 0.75rem; font-size: 1rem; margin-top: 1rem; }
+        .login-card .error { color: var(--error); margin-bottom: 1rem; font-size: 0.9rem; background: var(--bg-soft); border: 1px solid var(--error); border-radius: 8px; padding: 0.6rem 0.8rem; }
+        .login-card .hint { font-size: 0.78rem; color: var(--muted); margin-top: 0.4rem; }
+
+        .login-header { position: fixed; top: 1rem; right: 1rem; z-index: 2; }
+        .login-header .btn-create { padding: 0.5rem 1rem; }
+
+        /* Step indicators */
+        .step-badge { display: inline-block; background: var(--bg-soft); border: 1px solid var(--border); border-radius: 20px; font-size: 0.72rem; color: var(--muted); padding: 0.2rem 0.65rem; margin-bottom: 1.25rem; }
+
+        /* Modals */
+        .modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.55);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 100;
+            backdrop-filter: blur(2px);
+        }
+        .modal-box {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem 1.75rem;
+            max-width: 340px; width: 90%;
+            text-align: center;
+            box-shadow: var(--shadow-md);
+        }
+        .modal-box h3 { font-size: 1.1rem; margin-bottom: 0.6rem; color: var(--text); }
+        .modal-box .modal-email { font-size: 0.95rem; font-weight: 600; color: var(--accent); margin-bottom: 1.25rem; word-break: break-all; }
+        .modal-box p { color: var(--muted); font-size: 0.85rem; margin-bottom: 1.25rem; line-height: 1.5; }
+        .modal-box .modal-btns { display: flex; flex-direction: column; gap: 0.5rem; }
+        .modal-box .btn-modal-primary { width: 100%; padding: 0.7rem; background: var(--accent); border: none; border-radius: 8px; color: #fff; font-size: 0.95rem; font-family: inherit; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+        .modal-box .btn-modal-primary:hover { opacity: 0.88; }
+        .modal-box .btn-modal-ghost { width: 100%; padding: 0.6rem; background: transparent; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); font-size: 0.9rem; font-family: inherit; cursor: pointer; transition: border-color 0.15s; }
+        .modal-box .btn-modal-ghost:hover { border-color: var(--text); color: var(--text); }
+
+        /* TG verify step */
+        .tg-code-box { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; text-align: center; margin: 1rem 0; }
+        .tg-code-box .tg-code { font-size: 1.5rem; font-weight: 700; letter-spacing: 0.12em; color: var(--text); font-family: monospace; margin-bottom: 0.5rem; }
+        .tg-code-box .tg-hint { font-size: 0.8rem; color: var(--muted); }
+        .tg-status { font-size: 0.9rem; color: var(--muted); text-align: center; margin-top: 0.75rem; }
+        .tg-status.ok { color: #22c55e; font-weight: 600; }
+
+        /* "ну смотри у меня" modal emphasis */
+        .modal-box .nusm { font-size: 1.6rem; font-weight: 800; color: var(--text); margin-bottom: 0.5rem; letter-spacing: -0.02em; }
+
+        @media (max-width: 480px) {
+            .login-page { padding: 0.75rem; align-items: flex-start; padding-top: 2rem; }
+            .login-card { padding: 1.5rem; border-radius: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-header">
+        <button type="button" class="btn btn-ghost" id="pwa-install-login" style="display:none; margin-right: 0.5rem;">Установить</button>
+        <button type="button" class="btn btn-create" id="btn-create-login" title="Создать комнату">Создать</button>
+    </div>
+
+    <div class="login-page">
+        <div class="login-card">
+            <img src="{% static 'recordings/img/bp_logo.svg' %}" alt="Logo" class="logo" width="200" height="61">
+
+            {% if error %}
+            <p class="error" id="server-error">{{ error }}</p>
+            {% endif %}
+
+            <!-- Step 1: Email -->
+            <div id="step-email">
+                <span class="step-badge">1 из 3 — выбор email</span>
+                <h1>Вход</h1>
+                <p class="sub">Для сотрудников BusinessPad</p>
+
+                <label for="id_email_input">Ваш email</label>
+                <input id="id_email_input" type="text" list="bp-emails-list"
+                       placeholder="v.kiselev@core.business-pad.com"
+                       autocomplete="username" autofocus spellcheck="false"
+                       autocorrect="off" autocapitalize="off">
+                <datalist id="bp-emails-list">
+                    {% for e in bp_emails %}<option value="{{ e }}">{% endfor %}
+                </datalist>
+                <p class="hint">Начните вводить имя — выберите из списка или введите полный адрес</p>
+                <p id="step1-error" class="error" style="display:none; margin-top:0.75rem;"></p>
+                <button type="button" class="btn" id="btn-continue">Продолжить →</button>
+            </div>
+
+            <!-- Step TG: Telegram verification (first login only, hidden) -->
+            <div id="step-tg" style="display:none;">
+                <span class="step-badge">2 из 3 — подтверждение</span>
+                <h1>Подтвердите аккаунт</h1>
+                <p class="sub">Только для первого входа — нужно подтвердить, что вы сотрудник BusinessPad</p>
+
+                <div class="tg-code-box">
+                    <div class="tg-code" id="tg-code-display"></div>
+                    <div class="tg-hint">Отправьте этот код боту в Telegram</div>
+                </div>
+
+                <a id="tg-bot-link" href="#" target="_blank" class="btn" style="display:block; text-align:center; text-decoration:none; margin-bottom: 0.5rem;">Открыть бота →</a>
+                <p class="hint" style="text-align:center;">Нажмите кнопку, откроется бот — он автоматически получит код</p>
+
+                <div class="tg-status" id="tg-status">Ожидаем подтверждения…</div>
+                <p id="step-tg-error" class="error" style="display:none; margin-top:0.75rem;"></p>
+                <button type="button" class="btn btn-ghost" id="btn-tg-back" style="margin-top:0.75rem; font-size:0.9rem;">← Назад</button>
+            </div>
+
+            <!-- Step 2: Password (hidden) -->
+            <div id="step-password" style="display:none;">
+                <span class="step-badge" id="step2-badge">3 из 3 — вход</span>
+                <h1 id="step2-title">Вход</h1>
+                <p class="sub" id="step2-sub"></p>
+
+                <!-- First login: set own password -->
+                <div id="fields-first" style="display:none;">
+                    <label for="id_pwd1">Придумайте пароль</label>
+                    <input id="id_pwd1" type="password" autocomplete="new-password" placeholder="Не менее 6 символов">
+                    <label for="id_pwd2">Повторите пароль</label>
+                    <input id="id_pwd2" type="password" autocomplete="new-password" placeholder="Ещё раз">
+                </div>
+
+                <!-- Existing user: enter password -->
+                <div id="fields-existing" style="display:none;">
+                    <label for="id_pwd_existing">Пароль</label>
+                    <input id="id_pwd_existing" type="password" autocomplete="current-password">
+                </div>
+
+                <p id="step2-error" class="error" style="display:none; margin-top:0.75rem;"></p>
+                <button type="button" class="btn" id="btn-login">Войти</button>
+                <button type="button" class="btn btn-ghost" id="btn-back" style="margin-top:0.5rem; font-size:0.9rem;">← Назад</button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Modal 1: Confirm email -->
+    <div class="modal-overlay" id="modal-confirm" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="modal-confirm-title">
+        <div class="modal-box">
+            <h3 id="modal-confirm-title">Это точно ты?</h3>
+            <p class="modal-email" id="modal-confirm-email"></p>
+            <div class="modal-btns">
+                <button type="button" class="btn-modal-primary" id="modal-confirm-yes">Да, это я →</button>
+                <button type="button" class="btn-modal-ghost" id="modal-confirm-no">← Нет, другой email</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: "ну смотри у меня" (first login only) -->
+    <div class="modal-overlay" id="modal-remember" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="modal-remember-title">
+        <div class="modal-box">
+            <p class="nusm">ну смотри у меня</p>
+            <h3 id="modal-remember-title" style="margin-bottom:0.75rem;">Пароль установлен</h3>
+            <p>Запомните или сохраните пароль — если забудете, потребуется помощь администратора.</p>
+            <div class="modal-btns">
+                <button type="button" class="btn-modal-primary" id="modal-remember-ok">Понял, запомнил →</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden form that actually submits -->
+    <form method="post" id="login-form" style="display:none;" action="{% url 'recordings:login' %}">
+        {% csrf_token %}
+        <input type="hidden" name="email" id="form-email">
+        <input type="hidden" name="password" id="form-password">
+        <input type="hidden" name="password2" id="form-password2">
+    </form>
+
+    <script>
+    (function() {
+        var emailInput   = document.getElementById('id_email_input');
+        var btnContinue  = document.getElementById('btn-continue');
+        var btnBack      = document.getElementById('btn-back');
+        var btnLogin     = document.getElementById('btn-login');
+        var stepEmail    = document.getElementById('step-email');
+        var stepPassword = document.getElementById('step-password');
+        var step2Badge   = document.getElementById('step2-badge');
+        var step2Title   = document.getElementById('step2-title');
+        var step2Sub     = document.getElementById('step2-sub');
+        var fieldsFirst  = document.getElementById('fields-first');
+        var fieldsExist  = document.getElementById('fields-existing');
+        var pwd1         = document.getElementById('id_pwd1');
+        var pwd2         = document.getElementById('id_pwd2');
+        var pwdExist     = document.getElementById('id_pwd_existing');
+        var step1Err     = document.getElementById('step1-error');
+        var step2Err     = document.getElementById('step2-error');
+
+        var modalConfirm     = document.getElementById('modal-confirm');
+        var modalConfirmEmail= document.getElementById('modal-confirm-email');
+        var modalConfirmYes  = document.getElementById('modal-confirm-yes');
+        var modalConfirmNo   = document.getElementById('modal-confirm-no');
+        var modalRemember    = document.getElementById('modal-remember');
+        var modalRememberOk  = document.getElementById('modal-remember-ok');
+
+        var stepTg       = document.getElementById('step-tg');
+        var tgCodeDisplay= document.getElementById('tg-code-display');
+        var tgBotLink    = document.getElementById('tg-bot-link');
+        var tgStatus     = document.getElementById('tg-status');
+        var stepTgError  = document.getElementById('step-tg-error');
+        var btnTgBack    = document.getElementById('btn-tg-back');
+
+        var loginForm   = document.getElementById('login-form');
+        var formEmail   = document.getElementById('form-email');
+        var formPwd     = document.getElementById('form-password');
+        var formPwd2    = document.getElementById('form-password2');
+
+        var checkedEmail = '';
+        var isFirstLogin = false;
+        var tgPollTimer  = null;
+
+        function getCsrfToken() {
+            var m = document.cookie.match(/csrftoken=([^;]+)/);
+            return m ? m[1] : '';
+        }
+
+        function showStep1Err(msg) {
+            step1Err.textContent = msg;
+            step1Err.style.display = '';
+        }
+        function clearStep1Err() { step1Err.style.display = 'none'; }
+        function showStep2Err(msg) {
+            step2Err.textContent = msg;
+            step2Err.style.display = '';
+        }
+        function clearStep2Err() { step2Err.style.display = 'none'; }
+
+        // If server returned an error, stay on the right step
+        var serverError = document.getElementById('server-error');
+        if (serverError) {
+            // There was a server error — the form was submitted, re-show step 2
+            // We can't easily restore state, so just show the email step with the error visible
+        }
+
+        /* ── Step 1: Continue ── */
+        btnContinue.addEventListener('click', function() {
+            clearStep1Err();
+            var email = emailInput.value.trim().toLowerCase();
+            if (!email) { showStep1Err('Введите email.'); return; }
+            // Auto-append domain if only prefix entered
+            if (!email.includes('@')) {
+                email = email + '@core.business-pad.com';
+                emailInput.value = email;
+            }
+            if (!email.endsWith('@core.business-pad.com')) {
+                showStep1Err('Этот вход только для @core.business-pad.com. Участники других организаций — по ссылке ниже.');
+                return;
+            }
+
+            btnContinue.disabled = true;
+            btnContinue.textContent = '…';
+
+            fetch('{% url "recordings:api_check_email" %}?email=' + encodeURIComponent(email))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    btnContinue.disabled = false;
+                    btnContinue.textContent = 'Продолжить →';
+                    if (!data.ok) {
+                        showStep1Err('Email не найден в системе BusinessPad.');
+                        return;
+                    }
+                    checkedEmail = email;
+                    isFirstLogin = data.first_login;
+                    modalConfirmEmail.textContent = email;
+                    modalConfirm.style.display = 'flex';
+                })
+                .catch(function() {
+                    btnContinue.disabled = false;
+                    btnContinue.textContent = 'Продолжить →';
+                    showStep1Err('Ошибка соединения. Попробуйте ещё раз.');
+                });
+        });
+
+        emailInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); btnContinue.click(); }
+        });
+
+        // Show datalist dropdown immediately on focus
+        emailInput.addEventListener('focus', function() {
+            var list = this.getAttribute('list');
+            this.removeAttribute('list');
+            // Force browser to open dropdown on next tick
+            var self = this;
+            setTimeout(function() { self.setAttribute('list', list); }, 0);
+        });
+
+        function showPasswordStep() {
+            stepTg.style.display = 'none';
+            stepEmail.style.display = 'none';
+            stepPassword.style.display = '';
+            clearStep2Err();
+            if (isFirstLogin) {
+                step2Badge.textContent = '3 из 3 — новый пароль';
+                step2Title.textContent = 'Первый вход';
+                step2Sub.textContent = 'Придумайте пароль — он будет использоваться для всех следующих входов';
+                fieldsFirst.style.display = '';
+                fieldsExist.style.display = 'none';
+                setTimeout(function() { pwd1.focus(); }, 50);
+            } else {
+                step2Badge.textContent = '3 из 3 — вход';
+                step2Title.textContent = 'Введите пароль';
+                step2Sub.textContent = checkedEmail;
+                fieldsFirst.style.display = 'none';
+                fieldsExist.style.display = '';
+                setTimeout(function() { pwdExist.focus(); }, 50);
+            }
+        }
+
+        function startTgPoll() {
+            if (tgPollTimer) clearInterval(tgPollTimer);
+            tgPollTimer = setInterval(function() {
+                fetch('{% url "recordings:api_check_tg_verify" %}?email=' + encodeURIComponent(checkedEmail))
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.verified) {
+                            clearInterval(tgPollTimer);
+                            tgPollTimer = null;
+                            tgStatus.textContent = 'Аккаунт подтверждён!';
+                            tgStatus.className = 'tg-status ok';
+                            setTimeout(function() { showPasswordStep(); }, 800);
+                        }
+                    })
+                    .catch(function() {});
+            }, 2500);
+        }
+
+        /* ── Modal 1 ── */
+        modalConfirmYes.addEventListener('click', function() {
+            modalConfirm.style.display = 'none';
+            if (isFirstLogin) {
+                // Show TG verification step
+                stepEmail.style.display = 'none';
+                stepTg.style.display = '';
+                tgStatus.textContent = 'Запрашиваем код…';
+                tgStatus.className = 'tg-status';
+                stepTgError.style.display = 'none';
+                tgCodeDisplay.textContent = '';
+                tgBotLink.href = '#';
+
+                fetch('{% url "recordings:api_request_tg_verify" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': getCsrfToken(),
+                    },
+                    body: 'email=' + encodeURIComponent(checkedEmail),
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (!data.ok) {
+                        stepTgError.textContent = 'Не удалось создать код. Попробуйте позже.';
+                        stepTgError.style.display = '';
+                        tgStatus.textContent = '';
+                        return;
+                    }
+                    tgCodeDisplay.textContent = data.code;
+                    if (data.bot_link) {
+                        tgBotLink.href = data.bot_link;
+                    } else {
+                        tgBotLink.style.display = 'none';
+                    }
+                    tgStatus.textContent = 'Ожидаем подтверждения…';
+                    startTgPoll();
+                })
+                .catch(function() {
+                    stepTgError.textContent = 'Ошибка соединения. Попробуйте ещё раз.';
+                    stepTgError.style.display = '';
+                    tgStatus.textContent = '';
+                });
+            } else {
+                showPasswordStep();
+            }
+        });
+
+        modalConfirmNo.addEventListener('click', function() {
+            modalConfirm.style.display = 'none';
+            emailInput.focus();
+        });
+
+        /* ── TG step: Back ── */
+        btnTgBack.addEventListener('click', function() {
+            if (tgPollTimer) { clearInterval(tgPollTimer); tgPollTimer = null; }
+            stepTg.style.display = 'none';
+            stepEmail.style.display = '';
+            setTimeout(function() { emailInput.focus(); }, 50);
+        });
+
+        /* ── Step 2: Back ── */
+        btnBack.addEventListener('click', function() {
+            stepPassword.style.display = 'none';
+            stepEmail.style.display = '';
+            clearStep2Err();
+            setTimeout(function() { emailInput.focus(); }, 50);
+        });
+
+        /* ── Step 2: Login ── */
+        btnLogin.addEventListener('click', function() {
+            clearStep2Err();
+            if (isFirstLogin) {
+                var p1 = pwd1.value;
+                var p2 = pwd2.value;
+                if (!p1) { showStep2Err('Введите пароль.'); pwd1.focus(); return; }
+                if (p1.length < 6) { showStep2Err('Пароль должен быть не короче 6 символов.'); pwd1.focus(); return; }
+                if (p1 !== p2) { showStep2Err('Пароли не совпадают.'); pwd2.focus(); return; }
+                // Show modal 2
+                modalRemember.style.display = 'flex';
+            } else {
+                var p = pwdExist.value;
+                if (!p) { showStep2Err('Введите пароль.'); pwdExist.focus(); return; }
+                submitForm(p, '');
+            }
+        });
+
+        pwd1.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); pwd2.focus(); } });
+        pwd2.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); btnLogin.click(); } });
+        pwdExist.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); btnLogin.click(); } });
+
+        /* ── Modal 2 ── */
+        modalRememberOk.addEventListener('click', function() {
+            modalRemember.style.display = 'none';
+            submitForm(pwd1.value, pwd2.value);
+        });
+
+        function submitForm(pwd, pwd2val) {
+            formEmail.value = checkedEmail;
+            formPwd.value = pwd;
+            formPwd2.value = pwd2val;
+            loginForm.submit();
+        }
+
+        /* ── Кнопка «Создать» ── */
+        var btn = document.getElementById('btn-create-login');
+        if (btn) {
+            btn.addEventListener('click', function() {
+                var a = 'abcdefghijklmnopqrstuvwxyz0123456789';
+                var p1 = '', p2 = '';
+                for (var i = 0; i < 4; i++) {
+                    p1 += a[Math.floor(Math.random() * a.length)];
+                    p2 += a[Math.floor(Math.random() * a.length)];
+                }
+                window.open('https://meet.business-pad.com/rooms/' + p1 + '-' + p2, '_blank');
+            });
+        }
+
+        /* ── PWA ── */
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('{% url "recordings:service_worker" %}', { scope: '/' }).catch(function() {});
+        }
+        var installPrompt = null;
+        var pwaBtn = document.getElementById('pwa-install-login');
+        window.addEventListener('beforeinstallprompt', function(e) {
+            e.preventDefault(); installPrompt = e;
+            if (pwaBtn) pwaBtn.style.display = '';
+        });
+        if (pwaBtn) {
+            pwaBtn.addEventListener('click', function() {
+                if (!installPrompt) return;
+                installPrompt.prompt();
+                installPrompt.userChoice.then(function(c) {
+                    if (c.outcome === 'accepted' && pwaBtn) pwaBtn.style.display = 'none';
+                    installPrompt = null;
+                });
+            });
+        }
+    })();
+    </script>
+</body>
+</html>

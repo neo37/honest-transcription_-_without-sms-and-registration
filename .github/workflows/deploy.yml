@@ -1,0 +1,71 @@
+# Деплой Meet Recordings на сервер при пуше в main.
+# Секреты: DEPLOY_HOST, DEPLOY_USER, DEPLOY_PASS (Settings → Secrets and variables → Actions).
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+env:
+  REMOTE_DIR: /opt/meetrec
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install ruff
+      - run: ruff check . --output-format=github
+
+  build:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build web image
+        run: docker compose build web
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Create tarball
+        run: |
+          GZIP=-1 tar --exclude='.git' --exclude='.env' --exclude='__pycache__' \
+            --exclude='.venv' --exclude='venv' --exclude='db.sqlite3' \
+            --exclude='media' --exclude='staticfiles' --exclude='*.tar.gz' \
+            -czf meetrec-deploy.tar.gz .
+
+      - name: Copy and deploy on server
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PASS: ${{ secrets.DEPLOY_PASS }}
+        run: |
+          sshpass -p "$DEPLOY_PASS" scp -o StrictHostKeyChecking=no meetrec-deploy.tar.gz "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/meetrec-deploy.tar.gz"
+          sshpass -p "$DEPLOY_PASS" ssh -o StrictHostKeyChecking=no "${DEPLOY_USER}@${DEPLOY_HOST}" "
+            set -e
+            mkdir -p $REMOTE_DIR && cd $REMOTE_DIR
+            tar -xzf /tmp/meetrec-deploy.tar.gz -C .
+            rm -f /tmp/meetrec-deploy.tar.gz
+            grep -q 'CSRF_TRUSTED_ORIGINS' .env 2>/dev/null || echo 'CSRF_TRUSTED_ORIGINS=https://baza.business-pad.com' >> .env
+            grep -q 'ALLOWED_HOSTS' .env 2>/dev/null || echo 'ALLOWED_HOSTS=baza.business-pad.com,185.245.106.80,localhost' >> .env
+            grep -q 'OCR_API_URL' .env 2>/dev/null || echo 'OCR_API_URL=http://ocr:8001/ocr' >> .env
+            grep -q '^OCR_API_KEY=' .env 2>/dev/null || echo 'OCR_API_KEY=' >> .env
+            docker ps -aq -f name=meetrec | xargs -r docker rm -f 2>/dev/null || true
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache web poller
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+            sleep 15
+            docker ps -a --filter name=meetrec --format 'table {{.Names}}\t{{.Status}}'
+          "
+      - name: Deploy done
+        run: echo "Деплой завершён. Сайт: https://baza.business-pad.com/"

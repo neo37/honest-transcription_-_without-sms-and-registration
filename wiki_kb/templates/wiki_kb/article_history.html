@@ -1,0 +1,40 @@
+{% extends "recordings/base.html" %}
+
+{% block title %}История: {{ article.title }}{% endblock %}
+
+{% block content %}
+<div style="max-width:700px;margin:0 auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <h1 style="font-size:1.15rem;font-weight:700;color:var(--text);margin:0;">
+            История правок — {{ article.title }}
+        </h1>
+        <a href="{% url 'wiki_kb:article_detail' slug=article.slug %}"
+           style="font-size:0.85rem;color:var(--accent);text-decoration:none;">← К статье</a>
+    </div>
+
+    {% if revisions %}
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;">
+        {% for rev in revisions %}
+        <div style="padding:0.85rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:1rem;">
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:0.88rem;color:var(--text);font-weight:500;">
+                    {{ rev.created_at|date:"d.m.Y H:i" }}
+                    {% if rev.revised_by %} · <span style="color:var(--muted);">{{ rev.revised_by.email }}</span>{% endif %}
+                </div>
+                {% if rev.comment %}
+                <div style="font-size:0.78rem;color:var(--muted);margin-top:0.2rem;">{{ rev.comment }}</div>
+                {% endif %}
+                <div style="font-size:0.75rem;color:var(--muted);margin-top:0.25rem;">
+                    {{ rev.content|length }} символов
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:2.5rem;text-align:center;color:var(--muted);">
+        История правок пуста.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
