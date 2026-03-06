@@ -1,51 +1,54 @@
-# BusinessPad — Meeting Transcription & Knowledge Platform
+# BusinessPad Baza — Meeting Intelligence for BusinessPad ERP
 
-> Платформа для автоматической транскрибации встреч, OCR документов и накопления знаний организации.
+> Support tooling for [BusinessPad](https://business-pad.com) ERP — automatic meeting transcription, document OCR, and an AI-powered knowledge base built on top of your recordings.
 
 ---
 
 ## English
 
-### What is BusinessPad?
+### Context
 
-BusinessPad is a self-hosted platform for teams and organizations that turns meeting recordings into structured knowledge. Upload a meeting recording — get a full transcription, an AI-generated summary, and instant answers to any question about the meeting content. Everything is stored in a built-in wiki knowledge base, linked directly to the original recordings.
+[BusinessPad](https://business-pad.com) is an ERP system for business process management. This project — **BusinessPad Baza** — is a companion service that integrates with the BusinessPad ecosystem and solves a specific pain point: capturing and structuring the knowledge that lives inside meetings, calls, and documents.
 
-### Key Features
+Instead of manually writing meeting minutes, team members upload recordings (or connect a meeting room via the BusinessPad Meet integration) and get transcriptions, summaries, and a searchable knowledge base automatically.
 
-**Transcription**
-- Upload audio/video files (MP3, MP4, WAV, M4A, and more) for automatic transcription via Whisper
-- Choose transcription quality (standard / high) and language (Russian, English, auto-detect)
-- AI-generated title and summary for each recording
-- Full-text search and semantic (vector) search across all transcriptions
+### What it does
 
-**OCR**
-- Extract text from PDF, PNG, and JPEG documents
+**Meeting transcription**
+- Upload audio/video recordings (MP3, MP4, WAV, M4A, and more)
+- Automatic transcription via Whisper (faster-whisper)
+- AI-generated title and summary per recording
+- Full-text and semantic (vector) search across all transcriptions
+- Comments, tags, public share links per recording
+
+**Document OCR**
+- Extract text from PDF, PNG, JPEG — output is clean Markdown
 - REST API for programmatic document processing
-- Results returned as clean Markdown
+- Results stored per organization space
 
-**Knowledge Base (Wiki)**
-- Hierarchical wiki linked to recordings
-- Ask a question about any meeting — the AI answers and automatically creates a wiki article:
+**AI Knowledge Base (Wiki)**
+- Hierarchical wiki linked directly to recordings
+- Ask any question about a meeting — the AI creates a structured wiki article:
   - Parent page: meeting summary
-  - Child page: your question + detailed answer
-- The question is also posted as a comment on the recording with a link to the wiki article
+  - Child page: question + detailed answer
+- The question is also added as a comment on the recording with a link to the wiki article
 - Full-text search, article versioning, public share links, article merging
 - Markdown editor with toolbar
 
-**Organizations & Spaces**
-- Multi-tenant: each organization gets its own isolated space
+**Multi-tenant organizations**
+- Each organization gets an isolated space with its own recordings, wiki, and API key
 - Member management within a space
-- Organization registration via Telegram bot (no email confirmation needed)
-- Magic login links — one click, no password required
+- Organization onboarding via Telegram bot (no email confirmation required)
+- Magic login links — one-click login, no password entry
 
 **REST API**
-- OCR submission and retrieval by URL
-- Organization management (master key)
-- Per-space UUID API keys
+- OCR submission by URL or file upload
+- Organization provisioning (master key)
+- Per-space UUID API keys for all operations
 
 **MCP Server**
-- `businesspad-mcp` — integrate BusinessPad tools directly into Claude Desktop, Claude Code, or any MCP-compatible AI assistant
-- Tools: `ocr_submit_url`, `ocr_get_status`, `ocr_extract`, `ocr_list_done`, `org_create`
+- `businesspad-mcp` — exposes platform tools to Claude Desktop, Claude Code, and other MCP-compatible AI assistants
+- Available tools: `ocr_submit_url`, `ocr_get_status`, `ocr_extract`, `ocr_list_done`, `org_create`
 
 ### Technology Stack
 
@@ -53,7 +56,7 @@ BusinessPad is a self-hosted platform for teams and organizations that turns mee
 |-------|-----------|
 | Backend | Django 4.x, Gunicorn |
 | Database | PostgreSQL + pgvector (semantic search) |
-| Transcription | faster-whisper (separate OCR/transcription microservice) |
+| Transcription | faster-whisper (separate microservice) |
 | Storage | S3-compatible object storage |
 | Containerization | Docker + Docker Compose |
 | Bot | Telegram Bot API |
@@ -66,11 +69,11 @@ BusinessPad is a self-hosted platform for teams and organizations that turns mee
 git clone https://github.com/neo37/honest-transcription_-_without-sms-and-registration.git
 cd honest-transcription_-_without-sms-and-registration
 
-# 2. Configure environment
+# 2. Configure
 cp .env.example .env
-# Edit .env — set SECRET_KEY, database credentials, S3 settings, Telegram token, SITE_URL
+# Edit .env: SECRET_KEY, database, S3, Telegram token, SITE_URL
 
-# 3. Build and run
+# 3. Run
 docker compose up -d --build
 
 # 4. Open
@@ -89,9 +92,9 @@ open http://localhost:8000
 | `S3_BUCKET` | S3 bucket name |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token |
 | `TELEGRAM_BOT_USERNAME` | Bot username (without @) |
-| `SITE_URL` | Public URL of the platform (required for magic links and webhooks) |
-| `MASTER_API_KEY` | Admin API key for org management via API |
-| `DADATA_TOKEN` | DaData API token (Russian company lookup by name/INN) |
+| `SITE_URL` | Public URL (required for magic links and Telegram webhooks) |
+| `MASTER_API_KEY` | Admin key for org provisioning via API |
+| `DADATA_TOKEN` | DaData token (Russian company lookup by name/INN) |
 
 ### API Reference
 
@@ -99,26 +102,25 @@ open http://localhost:8000
 
 ```bash
 # Submit document by URL
-curl -X POST https://your-domain/api/v1/ocr/ \
+curl -X POST https://baza.business-pad.com/api/v1/ocr/ \
   -H "X-Api-Key: YOUR_SPACE_UUID" \
   -H "Content-Type: application/json" \
   -d '{"url": "https://example.com/doc.pdf", "filename": "doc.pdf"}'
 # → {"task_id": 42, "status": "pending"}
 
 # Poll for result
-curl https://your-domain/api/v1/ocr/42/ \
+curl https://baza.business-pad.com/api/v1/ocr/42/ \
   -H "X-Api-Key: YOUR_SPACE_UUID"
-# → {"task_id": 42, "status": "done", "markdown": "# Document\n..."}
+# → {"task_id": 42, "status": "done", "markdown": "..."}
 
 # List completed jobs
-curl https://your-domain/api/space/YOUR_SPACE_UUID/ocr/
-# → {"space": "Acme", "results": [...]}
+curl https://baza.business-pad.com/api/space/YOUR_SPACE_UUID/ocr/
 ```
 
-#### Organization Management (master key)
+#### Organization Provisioning (master key)
 
 ```bash
-curl -X POST https://your-domain/api/v1/org/ \
+curl -X POST https://baza.business-pad.com/api/v1/org/ \
   -H "X-Api-Key: MASTER_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"name": "Acme Corp", "email": "admin@acme.com"}'
@@ -127,8 +129,6 @@ curl -X POST https://your-domain/api/v1/org/ \
 
 #### MCP Server (Claude integration)
 
-Add to `claude_desktop_config.json`:
-
 ```json
 {
   "mcpServers": {
@@ -136,7 +136,7 @@ Add to `claude_desktop_config.json`:
       "command": "businesspad-mcp",
       "env": {
         "BUSINESSPAD_API_KEY": "your-space-uuid",
-        "BUSINESSPAD_BASE_URL": "https://your-domain"
+        "BUSINESSPAD_BASE_URL": "https://baza.business-pad.com"
       }
     }
   }
@@ -152,7 +152,6 @@ Add to `claude_desktop_config.json`:
 │   ├── views.py             # All views and REST API endpoints
 │   ├── services.py          # S3 poller, transcription logic, LLM calls
 │   ├── telegram_service.py  # Telegram bot handler
-│   ├── s3_client.py         # S3 upload/download helpers
 │   └── templates/           # HTML templates
 ├── wiki_kb/                 # Wiki knowledge base app
 │   ├── models.py            # WikiArticle, WikiRevision
@@ -167,45 +166,48 @@ Add to `claude_desktop_config.json`:
 
 ## Русский
 
-### Что такое BusinessPad?
+### Контекст
 
-BusinessPad — self-hosted платформа для команд и организаций, которая превращает записи встреч в структурированные знания. Загрузите запись встречи — получите полную транскрипцию, AI-резюме и возможность задавать любые вопросы по её содержанию. Всё хранится во встроенной вики, привязанной к оригинальным записям.
+[BusinessPad](https://business-pad.com) — ERP-система для управления бизнес-процессами. Этот проект — **BusinessPad Baza** — вспомогательный сервис, который интегрируется в экосистему BusinessPad и решает конкретную задачу: захватить и структурировать знания, которые остаются в записях встреч, звонков и документах.
 
-### Ключевые возможности
+Вместо того чтобы вручную писать протоколы встреч, сотрудники загружают записи (или подключают переговорную через BusinessPad Meet) и автоматически получают транскрипции, резюме и поисковую базу знаний.
 
-**Транскрибация**
-- Загрузка аудио/видео файлов (MP3, MP4, WAV, M4A и др.) для автоматической транскрибации через Whisper
-- Выбор качества транскрибации (стандарт / высокое) и языка (русский, английский, авто)
+### Что умеет
+
+**Транскрибация встреч**
+- Загрузка аудио/видео записей (MP3, MP4, WAV, M4A и др.)
+- Автоматическая транскрибация через Whisper (faster-whisper)
 - AI-заголовок и резюме для каждой записи
-- Полнотекстовый поиск и семантический (векторный) поиск по всем транскрипциям
+- Полнотекстовый и семантический (векторный) поиск по всем транскрипциям
+- Комментарии, теги, публичные ссылки к каждой записи
 
-**OCR**
-- Извлечение текста из PDF, PNG и JPEG документов
+**OCR документов**
+- Извлечение текста из PDF, PNG, JPEG — результат в Markdown
 - REST API для программной обработки документов
-- Результат — чистый Markdown
+- Результаты хранятся в пространстве организации
 
-**База знаний (Вики)**
+**AI База знаний (Вики)**
 - Иерархическая вики, привязанная к записям встреч
-- Задайте вопрос по любой встрече — AI отвечает и автоматически создаёт две статьи в вики:
-  - Родительская: суть встречи (создаётся один раз, переиспользуется)
-  - Дочерняя: вопрос пользователя + развёрнутый ответ
-- Вопрос также публикуется как комментарий к записи со ссылкой на статью в вики
-- Полнотекстовый поиск, версионирование статей, публичные ссылки, слияние статей
+- Задайте вопрос по встрече — AI создаёт структурированную статью:
+  - Родительская страница: суть встречи (создаётся один раз, переиспользуется)
+  - Дочерняя страница: вопрос + развёрнутый ответ
+- Вопрос также публикуется как комментарий к записи со ссылкой на статью
+- Полнотекстовый поиск, версионирование, публичные ссылки, слияние статей
 - Markdown-редактор с тулбаром
 
-**Организации и пространства**
-- Мультитенантность: у каждой организации своё изолированное пространство
-- Управление участниками пространства
-- Регистрация организации через Telegram-бот (без подтверждения по email)
+**Мультитенантные организации**
+- Каждая организация получает изолированное пространство с записями, вики и API-ключом
+- Управление участниками внутри пространства
+- Подключение организаций через Telegram-бот (без подтверждения по email)
 - Magic-ссылки для входа — один клик, без пароля
 
 **REST API**
-- Загрузка документов на OCR и получение результата по URL
-- Управление организациями (мастер-ключ)
+- OCR по URL или загрузкой файла
+- Создание организаций (мастер-ключ)
 - UUID API-ключи для каждого пространства
 
 **MCP-сервер**
-- `businesspad-mcp` — интегрируйте инструменты BusinessPad напрямую в Claude Desktop, Claude Code или любой MCP-совместимый ИИ-ассистент
+- `businesspad-mcp` — инструменты платформы доступны напрямую из Claude Desktop, Claude Code и других MCP-совместимых ИИ-ассистентов
 - Инструменты: `ocr_submit_url`, `ocr_get_status`, `ocr_extract`, `ocr_list_done`, `org_create`
 
 ### Технологический стек
@@ -223,7 +225,7 @@ BusinessPad — self-hosted платформа для команд и орган
 ### Быстрый старт
 
 ```bash
-# 1. Клонировать репозиторий
+# 1. Клонировать
 git clone https://github.com/neo37/honest-transcription_-_without-sms-and-registration.git
 cd honest-transcription_-_without-sms-and-registration
 
@@ -231,10 +233,10 @@ cd honest-transcription_-_without-sms-and-registration
 cp .env.example .env
 # Отредактируйте .env: SECRET_KEY, параметры БД, S3, токен Telegram, SITE_URL
 
-# 3. Собрать и запустить
+# 3. Запустить
 docker compose up -d --build
 
-# 4. Открыть платформу
+# 4. Открыть
 open http://localhost:8000
 ```
 
@@ -244,14 +246,14 @@ open http://localhost:8000
 |------------|----------|
 | `SECRET_KEY` | Секретный ключ Django |
 | `DATABASE_URL` | Строка подключения PostgreSQL |
-| `S3_ENDPOINT_URL` | Эндпоинт S3-совместимого хранилища |
+| `S3_ENDPOINT_URL` | Эндпоинт S3-хранилища |
 | `S3_ACCESS_KEY` | Ключ доступа S3 |
 | `S3_SECRET_KEY` | Секретный ключ S3 |
-| `S3_BUCKET` | Имя бакета S3 |
+| `S3_BUCKET` | Имя бакета |
 | `TELEGRAM_BOT_TOKEN` | Токен Telegram-бота |
 | `TELEGRAM_BOT_USERNAME` | Имя бота (без @) |
-| `SITE_URL` | Публичный URL платформы (нужен для magic-ссылок и вебхуков) |
-| `MASTER_API_KEY` | Мастер-ключ для управления организациями через API |
+| `SITE_URL` | Публичный URL (нужен для magic-ссылок и вебхуков) |
+| `MASTER_API_KEY` | Мастер-ключ для создания организаций через API |
 | `DADATA_TOKEN` | Токен DaData (поиск компаний по названию/ИНН) |
 
 ### API — краткий справочник
@@ -260,34 +262,26 @@ open http://localhost:8000
 
 ```bash
 # Отправить документ по URL
-curl -X POST https://ваш-домен/api/v1/ocr/ \
+curl -X POST https://baza.business-pad.com/api/v1/ocr/ \
   -H "X-Api-Key: ВАШ_UUID_КЛЮЧ" \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://example.com/doc.pdf", "filename": "doc.pdf"}'
-# → {"task_id": 42, "status": "pending"}
+  -d '{"url": "https://example.com/doc.pdf"}'
 
 # Получить результат
-curl https://ваш-домен/api/v1/ocr/42/ \
+curl https://baza.business-pad.com/api/v1/ocr/42/ \
   -H "X-Api-Key: ВАШ_UUID_КЛЮЧ"
-# → {"task_id": 42, "status": "done", "markdown": "..."}
-
-# Список выполненных задач
-curl https://ваш-домен/api/space/ВАШ_UUID/ocr/
 ```
 
 #### Создание организации (мастер-ключ)
 
 ```bash
-curl -X POST https://ваш-домен/api/v1/org/ \
+curl -X POST https://baza.business-pad.com/api/v1/org/ \
   -H "X-Api-Key: MASTER_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"name": "Ромашка ООО", "email": "admin@romashka.ru"}'
-# → {"org_id": 1, "api_key": "uuid", "password": "...", "magic_link": "https://..."}
 ```
 
 #### MCP-сервер (интеграция с Claude)
-
-Добавьте в `claude_desktop_config.json`:
 
 ```json
 {
@@ -296,7 +290,7 @@ curl -X POST https://ваш-домен/api/v1/org/ \
       "command": "businesspad-mcp",
       "env": {
         "BUSINESSPAD_API_KEY": "ваш-uuid-ключ",
-        "BUSINESSPAD_BASE_URL": "https://ваш-домен"
+        "BUSINESSPAD_BASE_URL": "https://baza.business-pad.com"
       }
     }
   }
@@ -308,19 +302,11 @@ curl -X POST https://ваш-домен/api/v1/org/ \
 ```
 .
 ├── recordings/              # Основное приложение: записи, транскрибация, OCR, auth, API
-│   ├── models.py            # Recording, Space, SiteUser, OcrJob, Comment, ...
-│   ├── views.py             # Все представления и REST API эндпоинты
-│   ├── services.py          # S3-поллер, транскрибация, вызовы LLM
-│   ├── telegram_service.py  # Обработчик Telegram-бота
-│   ├── s3_client.py         # Загрузка/скачивание из S3
-│   └── templates/           # HTML-шаблоны
-├── wiki_kb/                 # Приложение базы знаний
-│   ├── models.py            # WikiArticle, WikiRevision
-│   └── views.py             # CRUD, поиск, слияние, история, шаринг
+├── wiki_kb/                 # База знаний (вики)
 ├── businesspad-mcp/         # MCP-сервер для интеграции с ИИ-ассистентами
-├── ocr_server/              # Отдельный микросервис OCR (faster-whisper)
-├── docker-compose.yml       # Стек для локальной разработки
-└── Dockerfile               # Основной контейнер веб-приложения
+├── ocr_server/              # Микросервис OCR (faster-whisper)
+├── docker-compose.yml       # Стек для разработки
+└── Dockerfile               # Контейнер веб-приложения
 ```
 
 ### Лицензия
