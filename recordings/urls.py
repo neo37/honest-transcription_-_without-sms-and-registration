@@ -12,6 +12,7 @@ urlpatterns = [
     path('pilot_integration/', views.pilot_integration, name='pilot_integration'),
     path('pilot-login/', views.pilot_login, name='pilot_login'),
     path('smarty-login/', views.smarty_login, name='smarty_login'),
+    path('smarty-register/', views.smarty_register, name='smarty_register'),
     path('admin-passwords/', views.admin_passwords, name='admin_passwords'),
     path('api/check-email/', views.api_check_email, name='api_check_email'),
     path('api/ask-transcription/', views.api_ask_transcription, name='api_ask_transcription'),

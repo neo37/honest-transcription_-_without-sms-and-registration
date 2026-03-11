@@ -385,6 +385,11 @@ class OrgRegistration(models.Model):
         Space, null=True, blank=True, on_delete=models.SET_NULL,
         verbose_name='Пространство', related_name='org_registrations',
     )
+    target_space = models.ForeignKey(
+        Space, null=True, blank=True, on_delete=models.SET_NULL,
+        verbose_name='Целевое пространство (если задано — не создаётся новое)',
+        related_name='target_registrations',
+    )
     created_at = models.DateTimeField('Создано', auto_now_add=True)
 
     class Meta:

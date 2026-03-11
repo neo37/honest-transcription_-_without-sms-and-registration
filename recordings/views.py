@@ -399,6 +399,52 @@ def pilot_login(request):
 
 SMARTY_SPACE_SLUG = 'spacecode-smarty'
 
+def smarty_register(request):
+    """Регистрация для smarty.rest — создаёт OrgRegistration в пространстве spacecode-smarty."""
+    import random, string
+    from .telegram_service import get_bot_info
+
+    bot_username = getattr(settings, 'TELEGRAM_BOT_USERNAME', '') or ''
+    if not bot_username:
+        info = get_bot_info()
+        bot_username = info.get('username', '')
+
+    error = None
+    success_code = None
+
+    if request.method == 'POST':
+        name = (request.POST.get('name') or '').strip()
+        email = (request.POST.get('email') or '').strip().lower()
+        if not name or not email:
+            error = 'Заполните все поля.'
+        elif SiteUser.objects.filter(email__iexact=email).exists():
+            error = 'Пользователь с таким email уже зарегистрирован.'
+        elif OrgRegistration.objects.filter(email__iexact=email, status='pending').exists():
+            reg = OrgRegistration.objects.filter(email__iexact=email, status='pending').first()
+            success_code = reg.verify_code
+        else:
+            try:
+                target_space = Space.objects.get(slug=SMARTY_SPACE_SLUG)
+            except Space.DoesNotExist:
+                target_space = Space.objects.create(name='SpaceCode Smarty', slug=SMARTY_SPACE_SLUG)
+            chars = string.ascii_uppercase + string.digits
+            code = ''.join(random.choices(chars, k=8))
+            while OrgRegistration.objects.filter(verify_code=code).exists():
+                code = ''.join(random.choices(chars, k=8))
+            OrgRegistration.objects.create(
+                org_name=name, email=email, verify_code=code,
+                target_space=target_space,
+            )
+            success_code = code
+
+    return JsonResponse({
+        'ok': success_code is not None,
+        'code': success_code,
+        'bot_username': bot_username,
+        'error': error,
+    })
+
+
 def smarty_login(request):
     """Landing + login для домена smarty.rest."""
     if request.session.get('user_id'):

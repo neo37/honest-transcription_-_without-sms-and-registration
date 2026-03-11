@@ -311,18 +311,20 @@
   .service-card[data-color="green"]  { --glow: rgba(16,217,138,0.12); }
 
   .service-icon {
-    width: 52px; height: 52px;
-    border-radius: 14px;
+    width: 64px; height: 64px;
+    border-radius: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 24px;
     margin-bottom: 20px;
+    overflow: hidden;
+    position: relative;
   }
-  .icon-cyan   { background: rgba(6,200,240,0.15); box-shadow: 0 0 20px rgba(6,200,240,0.2); }
-  .icon-violet { background: rgba(139,92,246,0.15); box-shadow: 0 0 20px rgba(139,92,246,0.2); }
-  .icon-blue   { background: rgba(59,130,246,0.15); box-shadow: 0 0 20px rgba(59,130,246,0.2); }
-  .icon-green  { background: rgba(16,217,138,0.15); box-shadow: 0 0 20px rgba(16,217,138,0.2); }
+  .service-icon canvas { display: block; }
+  .icon-cyan   { background: rgba(6,200,240,0.08); box-shadow: 0 0 24px rgba(6,200,240,0.25); }
+  .icon-violet { background: rgba(139,92,246,0.08); box-shadow: 0 0 24px rgba(139,92,246,0.25); }
+  .icon-blue   { background: rgba(59,130,246,0.08); box-shadow: 0 0 24px rgba(59,130,246,0.25); }
+  .icon-green  { background: rgba(16,217,138,0.08); box-shadow: 0 0 24px rgba(16,217,138,0.25); }
 
   .service-title {
     font-family: 'Space Grotesk', sans-serif;
@@ -419,19 +421,469 @@
   /* ─── Login section ────────────────────────── */
   .login-section {
     padding: 80px 24px 120px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .login-section-header {
+    text-align: center;
+    margin-bottom: 56px;
+  }
+  .login-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    align-items: start;
+  }
+  @media(max-width: 860px) {
+    .login-row { grid-template-columns: 1fr; }
+  }
+
+  /* ─── Platform banner ──────────────────────── */
+  .platform-banner {
+    position: relative;
+    border-radius: 24px;
+    overflow: hidden;
+    cursor: pointer;
+    background: linear-gradient(135deg, #060d1a 0%, #0c1528 60%, #0d1035 100%);
+    border: 1px solid rgba(6,200,240,0.18);
+    padding: 40px 36px 36px;
+    transition: transform 0.35s, box-shadow 0.35s, border-color 0.35s;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    min-height: 520px;
     display: flex;
     flex-direction: column;
-    align-items: center;
+    justify-content: space-between;
   }
+  .platform-banner:hover {
+    transform: translateY(-6px);
+    border-color: rgba(6,200,240,0.45);
+    box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 60px rgba(6,200,240,0.12);
+  }
+  /* animated gradient blob */
+  .banner-blob {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    border-radius: 24px;
+  }
+  .banner-blob::before {
+    content: '';
+    position: absolute;
+    width: 360px; height: 360px;
+    top: -80px; right: -80px;
+    background: radial-gradient(circle, rgba(6,200,240,0.15) 0%, transparent 70%);
+    animation: blobFloat 6s ease-in-out infinite;
+  }
+  .banner-blob::after {
+    content: '';
+    position: absolute;
+    width: 280px; height: 280px;
+    bottom: -40px; left: -60px;
+    background: radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%);
+    animation: blobFloat 8s ease-in-out infinite reverse;
+  }
+  @keyframes blobFloat {
+    0%,100% { transform: translate(0,0) scale(1); }
+    50%      { transform: translate(20px,-20px) scale(1.1); }
+  }
+
+  .banner-top { position: relative; z-index: 1; }
+  .banner-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 18px;
+  }
+  .banner-eyebrow-dot {
+    width: 6px; height: 6px;
+    background: var(--cyan);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--cyan);
+    animation: pulse 2s infinite;
+  }
+  .banner-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: -0.8px;
+    line-height: 1.15;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, #fff 30%, var(--cyan) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .banner-desc {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.7;
+    margin-bottom: 28px;
+  }
+
+  .banner-features {
+    position: relative; z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  .banner-feat {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    color: rgba(226,234,245,0.85);
+  }
+  .banner-feat-icon {
+    width: 32px; height: 32px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .banner-cta {
+    position: relative; z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(135deg, rgba(6,200,240,0.12), rgba(139,92,246,0.12));
+    border: 1px solid rgba(6,200,240,0.2);
+    border-radius: 14px;
+    padding: 16px 20px;
+    transition: all 0.3s;
+  }
+  .platform-banner:hover .banner-cta {
+    background: linear-gradient(135deg, rgba(6,200,240,0.2), rgba(139,92,246,0.2));
+    border-color: rgba(6,200,240,0.4);
+  }
+  .banner-cta-text {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .banner-cta-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .banner-cta-arrow {
+    width: 38px; height: 38px;
+    background: linear-gradient(135deg, var(--cyan), var(--blue));
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 16px rgba(6,200,240,0.4);
+    transition: transform 0.3s;
+    flex-shrink: 0;
+  }
+  .platform-banner:hover .banner-cta-arrow { transform: translateX(4px); }
+
+  /* ─── Auth card tabs ────────────────────────── */
+  .auth-card {
+    background: rgba(8,15,26,0.8);
+    border: 1px solid rgba(6,200,240,0.15);
+    border-radius: 24px;
+    width: 100%;
+    backdrop-filter: blur(30px);
+    box-shadow: 0 40px 80px rgba(0,0,0,0.5), 0 0 60px rgba(6,200,240,0.06);
+    overflow: hidden;
+  }
+  .auth-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-bottom: 1px solid rgba(6,200,240,0.1);
+  }
+  .auth-tab {
+    padding: 18px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.25s;
+    border: none;
+    background: transparent;
+    font-family: 'Inter', sans-serif;
+    letter-spacing: 0.2px;
+  }
+  .auth-tab.active {
+    color: var(--cyan);
+    background: rgba(6,200,240,0.06);
+    border-bottom: 2px solid var(--cyan);
+    margin-bottom: -1px;
+  }
+  .auth-tab:not(.active):hover { color: var(--text); background: rgba(255,255,255,0.03); }
+
+  .auth-panel { display: none; padding: 40px 44px; }
+  .auth-panel.active { display: block; }
+
+  /* ─── Login card (keep existing, adjust) ────── */
   .login-card {
     background: rgba(8,15,26,0.8);
     border: 1px solid rgba(6,200,240,0.15);
     border-radius: 24px;
     padding: 48px;
     width: 100%;
-    max-width: 460px;
     backdrop-filter: blur(30px);
     box-shadow: 0 40px 80px rgba(0,0,0,0.5), 0 0 60px rgba(6,200,240,0.06);
+  }
+
+  /* ─── Register success state ─────────────────── */
+  .reg-success {
+    display: none;
+    text-align: center;
+    padding: 24px 0 8px;
+  }
+  .reg-success-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    display: block;
+  }
+  .reg-success-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .reg-code-box {
+    background: rgba(6,200,240,0.06);
+    border: 1px solid rgba(6,200,240,0.25);
+    border-radius: 14px;
+    padding: 18px 20px;
+    margin: 20px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .reg-code {
+    font-family: 'Space Grotesk', monospace;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: 4px;
+    color: var(--cyan);
+  }
+  .copy-btn {
+    background: rgba(6,200,240,0.1);
+    border: 1px solid rgba(6,200,240,0.2);
+    border-radius: 8px;
+    color: var(--cyan);
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Inter', sans-serif;
+    white-space: nowrap;
+  }
+  .copy-btn:hover { background: rgba(6,200,240,0.2); }
+  .reg-instruction {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .reg-instruction a { color: var(--cyan); text-decoration: none; }
+  .reg-instruction strong { color: var(--text); }
+
+  /* ─── Platform modal ────────────────────────── */
+  .platform-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(3,6,14,0.85);
+    backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s;
+  }
+  .platform-modal-overlay.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+  .platform-modal {
+    background: #080f1a;
+    border: 1px solid rgba(6,200,240,0.2);
+    border-radius: 28px;
+    max-width: 780px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 52px 52px 48px;
+    position: relative;
+    transform: scale(0.93) translateY(20px);
+    transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(6,200,240,0.2) transparent;
+    box-shadow: 0 40px 100px rgba(0,0,0,0.7), 0 0 80px rgba(6,200,240,0.08);
+  }
+  .platform-modal-overlay.open .platform-modal {
+    transform: scale(1) translateY(0);
+  }
+  @media(max-width: 640px) {
+    .platform-modal { padding: 32px 24px; }
+  }
+  .modal-close {
+    position: absolute;
+    top: 20px; right: 20px;
+    width: 38px; height: 38px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--glass-border);
+    border-radius: 50%;
+    color: var(--muted);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+    line-height: 1;
+  }
+  .modal-close:hover { background: rgba(255,255,255,0.12); color: var(--text); }
+
+  .modal-header { margin-bottom: 36px; }
+  .modal-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 12px;
+  }
+  .modal-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: clamp(24px, 4vw, 38px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1.15;
+    background: linear-gradient(135deg, #fff, var(--cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 16px;
+  }
+  .modal-intro {
+    font-size: 15px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  .modal-modules {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 36px;
+  }
+  @media(max-width: 560px) { .modal-modules { grid-template-columns: 1fr; } }
+
+  .modal-module {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 22px 20px;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .modal-module:hover {
+    border-color: rgba(6,200,240,0.25);
+    background: rgba(6,200,240,0.04);
+  }
+  .modal-module-icon {
+    font-size: 22px;
+    margin-bottom: 10px;
+    display: block;
+  }
+  .modal-module-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  .modal-module-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .modal-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(6,200,240,0.2), transparent);
+    margin: 32px 0;
+  }
+
+  .modal-workflow {
+    margin-bottom: 36px;
+  }
+  .modal-section-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 20px;
+  }
+  .workflow-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .workflow-step {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  .step-num {
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg, var(--cyan), var(--blue));
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    font-weight: 800;
+    flex-shrink: 0;
+    margin-top: 1px;
+    box-shadow: 0 0 12px rgba(6,200,240,0.4);
+  }
+  .step-body { flex: 1; }
+  .step-title { font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+  .step-desc  { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+  .modal-cta {
+    background: linear-gradient(135deg, rgba(6,200,240,0.08), rgba(139,92,246,0.08));
+    border: 1px solid rgba(6,200,240,0.2);
+    border-radius: 16px;
+    padding: 28px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .modal-cta-text { font-size: 16px; font-weight: 700; }
+  .modal-cta-sub  { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .btn-modal-login {
+    background: linear-gradient(135deg, var(--cyan), var(--blue));
+    color: #fff;
+    border: none;
+    padding: 14px 28px;
+    border-radius: 50px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(6,200,240,0.4);
+    transition: all 0.3s;
+    white-space: nowrap;
+    font-family: 'Inter', sans-serif;
+  }
+  .btn-modal-login:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 30px rgba(6,200,240,0.6);
   }
   .login-card h2 {
     font-family: 'Space Grotesk', sans-serif;
@@ -660,7 +1112,7 @@
   <div class="services-grid fade-in">
     <!-- AI Agents -->
     <div class="service-card" data-color="cyan">
-      <div class="service-icon icon-cyan">🤖</div>
+      <div class="service-icon icon-cyan"><canvas class="icon3d" data-shape="brain" data-color="#06c8f0" width="64" height="64"></canvas></div>
       <div class="service-title">
         <span data-lang="ru" class="lang-active inline-lang">AI-агенты</span>
         <span data-lang="en" class="inline-lang">AI Agents</span>
@@ -678,7 +1130,7 @@
 
     <!-- 3D -->
     <div class="service-card" data-color="violet">
-      <div class="service-icon icon-violet">🌐</div>
+      <div class="service-icon icon-violet"><canvas class="icon3d" data-shape="torus" data-color="#8b5cf6" width="64" height="64"></canvas></div>
       <div class="service-title">
         <span data-lang="ru" class="lang-active inline-lang">3D-решения</span>
         <span data-lang="en" class="inline-lang">3D Solutions</span>
@@ -696,7 +1148,7 @@
 
     <!-- AI/ML -->
     <div class="service-card" data-color="blue">
-      <div class="service-icon icon-blue">📊</div>
+      <div class="service-icon icon-blue"><canvas class="icon3d" data-shape="octahedron" data-color="#3b82f6" width="64" height="64"></canvas></div>
       <div class="service-title">
         <span data-lang="ru" class="lang-active inline-lang">AI / ML сервисы</span>
         <span data-lang="en" class="inline-lang">AI / ML Services</span>
@@ -714,7 +1166,7 @@
 
     <!-- Web Dev -->
     <div class="service-card" data-color="green">
-      <div class="service-icon icon-green">💻</div>
+      <div class="service-icon icon-green"><canvas class="icon3d" data-shape="box" data-color="#10d98a" width="64" height="64"></canvas></div>
       <div class="service-title">
         <span data-lang="ru" class="lang-active inline-lang">Веб-разработка</span>
         <span data-lang="en" class="inline-lang">Web Development</span>
@@ -732,7 +1184,7 @@
 
     <!-- VR/AR -->
     <div class="service-card" data-color="cyan">
-      <div class="service-icon icon-cyan">🥽</div>
+      <div class="service-icon icon-cyan"><canvas class="icon3d" data-shape="icosahedron" data-color="#06c8f0" width="64" height="64"></canvas></div>
       <div class="service-title">
         <span data-lang="ru" class="lang-active inline-lang">VR / AR решения</span>
         <span data-lang="en" class="inline-lang">VR / AR Solutions</span>
@@ -750,7 +1202,7 @@
 
     <!-- Hardware -->
     <div class="service-card" data-color="violet">
-      <div class="service-icon icon-violet">⚡</div>
+      <div class="service-icon icon-violet"><canvas class="icon3d" data-shape="tetra" data-color="#8b5cf6" width="64" height="64"></canvas></div>
       <div class="service-title">
         <span data-lang="ru" class="lang-active inline-lang">Аппаратные решения</span>
         <span data-lang="en" class="inline-lang">Hardware & Engineering</span>
@@ -868,7 +1320,7 @@
 
 <!-- LOGIN -->
 <div class="login-section" id="login-section">
-  <div style="text-align:center; margin-bottom:40px;" class="fade-in">
+  <div class="login-section-header fade-in">
     <span class="section-label">
       <span data-lang="ru" class="lang-active inline-lang">Доступ к платформе</span>
       <span data-lang="en" class="inline-lang">Platform access</span>
@@ -881,47 +1333,439 @@
     </h2>
   </div>
 
-  <div class="login-card fade-in">
-    <h2>
-      <span data-lang="ru" class="lang-active inline-lang">Вход</span>
-      <span data-lang="en" class="inline-lang">Sign In</span>
-      <span data-lang="sr" class="inline-lang">Prijava</span>
-    </h2>
-    <p>
-      <span data-lang="ru" class="lang-active">Введите email и пароль для доступа к платформе SpaceCode.</span>
-      <span data-lang="en">Enter your email and password to access the SpaceCode platform.</span>
-      <span data-lang="sr">Unesite email i lozinku za pristup SpaceCode platformi.</span>
-    </p>
+  <div class="login-row">
 
-    {% if error %}
-    <div class="login-error">{{ error }}</div>
-    {% endif %}
+    <!-- PLATFORM BANNER -->
+    <div class="platform-banner fade-in" onclick="openPlatformModal()">
+      <div class="banner-blob"></div>
 
-    <form method="post" action="{% url 'recordings:smarty_login' %}">
-      {% csrf_token %}
-      {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
-      <div class="form-group">
-        <label>
-          <span data-lang="ru" class="lang-active inline-lang">Email</span>
-          <span data-lang="en" class="inline-lang">Email</span>
-          <span data-lang="sr" class="inline-lang">Email</span>
-        </label>
-        <input type="email" name="email" placeholder="you@example.com" required autofocus>
+      <div class="banner-top">
+        <div class="banner-eyebrow">
+          <span class="banner-eyebrow-dot"></span>
+          <span data-lang="ru" class="lang-active inline-lang">Платформа SpaceCode</span>
+          <span data-lang="en" class="inline-lang">SpaceCode Platform</span>
+          <span data-lang="sr" class="inline-lang">SpaceCode Platforma</span>
+        </div>
+        <div class="banner-title">
+          <span data-lang="ru" class="lang-active">Умная система<br>для команды</span>
+          <span data-lang="en">Intelligent system<br>for your team</span>
+          <span data-lang="sr">Inteligentni sistem<br>za vaš tim</span>
+        </div>
+        <div class="banner-desc">
+          <span data-lang="ru" class="lang-active">Всё что нужно для работы с информацией внутри компании — в одном месте. AI-транскрипция, база знаний, боты и OCR.</span>
+          <span data-lang="en">Everything your team needs to work with information — in one place. AI transcription, knowledge base, bots, and OCR.</span>
+          <span data-lang="sr">Sve što vaš tim treba za rad s informacijama — na jednom mjestu. AI transkripcija, baza znanja, botovi i OCR.</span>
+        </div>
       </div>
-      <div class="form-group">
-        <label>
-          <span data-lang="ru" class="lang-active inline-lang">Пароль</span>
-          <span data-lang="en" class="inline-lang">Password</span>
-          <span data-lang="sr" class="inline-lang">Lozinka</span>
-        </label>
-        <input type="password" name="password" placeholder="••••••••" required>
+
+      <div class="banner-features">
+        <div class="banner-feat">
+          <div class="banner-feat-icon">🎙</div>
+          <span>
+            <span data-lang="ru" class="lang-active inline-lang">AI-транскрипция встреч с диаризацией спикеров</span>
+            <span data-lang="en" class="inline-lang">AI meeting transcription with speaker diarization</span>
+            <span data-lang="sr" class="inline-lang">AI transkripcija sastanaka s identifikacijom govornika</span>
+          </span>
+        </div>
+        <div class="banner-feat">
+          <div class="banner-feat-icon">🧠</div>
+          <span>
+            <span data-lang="ru" class="lang-active inline-lang">База знаний с семантическим поиском и RAG</span>
+            <span data-lang="en" class="inline-lang">Knowledge base with semantic search and RAG</span>
+            <span data-lang="sr" class="inline-lang">Baza znanja sa semantičkim pretraživanjem i RAG</span>
+          </span>
+        </div>
+        <div class="banner-feat">
+          <div class="banner-feat-icon">🤖</div>
+          <span>
+            <span data-lang="ru" class="lang-active inline-lang">Telegram-бот с доступом к базе знаний</span>
+            <span data-lang="en" class="inline-lang">Telegram bot with knowledge base access</span>
+            <span data-lang="sr" class="inline-lang">Telegram bot s pristupom bazi znanja</span>
+          </span>
+        </div>
+        <div class="banner-feat">
+          <div class="banner-feat-icon">📄</div>
+          <span>
+            <span data-lang="ru" class="lang-active inline-lang">OCR документов и PDF в Markdown</span>
+            <span data-lang="en" class="inline-lang">OCR for documents and PDF to Markdown</span>
+            <span data-lang="sr" class="inline-lang">OCR dokumenata i PDF u Markdown</span>
+          </span>
+        </div>
+        <div class="banner-feat">
+          <div class="banner-feat-icon">📹</div>
+          <span>
+            <span data-lang="ru" class="lang-active inline-lang">Видеоконференции с AI-ассистентом в комнате</span>
+            <span data-lang="en" class="inline-lang">Video meetings with an AI assistant in the room</span>
+            <span data-lang="sr" class="inline-lang">Video konferencije s AI asistentom u sobi</span>
+          </span>
+        </div>
       </div>
-      <button type="submit" class="btn-login">
+
+      <div class="banner-cta">
+        <div>
+          <div class="banner-cta-text">
+            <span data-lang="ru" class="lang-active inline-lang">Узнать подробнее о платформе</span>
+            <span data-lang="en" class="inline-lang">Learn more about the platform</span>
+            <span data-lang="sr" class="inline-lang">Saznajte više o platformi</span>
+          </div>
+          <div class="banner-cta-sub">
+            <span data-lang="ru" class="lang-active inline-lang">Все модули и возможности →</span>
+            <span data-lang="en" class="inline-lang">All modules and features →</span>
+            <span data-lang="sr" class="inline-lang">Svi moduli i mogućnosti →</span>
+          </div>
+        </div>
+        <div class="banner-cta-arrow">
+          <svg width="18" height="18" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- AUTH CARD (login + register tabs) -->
+    <div class="auth-card fade-in">
+
+      <!-- Tabs -->
+      <div class="auth-tabs">
+        <button class="auth-tab {% if not error or error %}active{% endif %}" id="tab-login" onclick="switchTab('login')">
+          <span data-lang="ru" class="lang-active inline-lang">Войти</span>
+          <span data-lang="en" class="inline-lang">Sign In</span>
+          <span data-lang="sr" class="inline-lang">Prijava</span>
+        </button>
+        <button class="auth-tab" id="tab-register" onclick="switchTab('register')">
+          <span data-lang="ru" class="lang-active inline-lang">Регистрация</span>
+          <span data-lang="en" class="inline-lang">Register</span>
+          <span data-lang="sr" class="inline-lang">Registracija</span>
+        </button>
+      </div>
+
+      <!-- LOGIN PANEL -->
+      <div class="auth-panel active" id="panel-login">
+        <h2 style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;margin-bottom:8px;letter-spacing:-0.4px;">
+          <span data-lang="ru" class="lang-active inline-lang">Вход в платформу</span>
+          <span data-lang="en" class="inline-lang">Sign in to platform</span>
+          <span data-lang="sr" class="inline-lang">Prijava na platformu</span>
+        </h2>
+        <p style="font-size:14px;color:var(--muted);margin-bottom:28px;line-height:1.6;">
+          <span data-lang="ru" class="lang-active">Введите email и пароль для доступа к платформе SpaceCode.</span>
+          <span data-lang="en" class="inline-lang">Enter your email and password to access SpaceCode.</span>
+          <span data-lang="sr" class="inline-lang">Unesite email i lozinku za pristup SpaceCode.</span>
+        </p>
+
+        {% if error %}
+        <div class="login-error">{{ error }}</div>
+        {% endif %}
+
+        <form method="post" action="{% url 'recordings:smarty_login' %}">
+          {% csrf_token %}
+          {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" name="email" placeholder="you@example.com" required autofocus>
+          </div>
+          <div class="form-group">
+            <label>
+              <span data-lang="ru" class="lang-active inline-lang">Пароль</span>
+              <span data-lang="en" class="inline-lang">Password</span>
+              <span data-lang="sr" class="inline-lang">Lozinka</span>
+            </label>
+            <input type="password" name="password" placeholder="••••••••" required>
+          </div>
+          <button type="submit" class="btn-login">
+            <span data-lang="ru" class="lang-active inline-lang">Войти →</span>
+            <span data-lang="en" class="inline-lang">Sign In →</span>
+            <span data-lang="sr" class="inline-lang">Prijavite se →</span>
+          </button>
+        </form>
+
+        <p style="margin-top:20px;font-size:13px;color:var(--muted);text-align:center;">
+          <span data-lang="ru" class="lang-active inline-lang">Нет аккаунта?</span>
+          <span data-lang="en" class="inline-lang">No account?</span>
+          <span data-lang="sr" class="inline-lang">Nemate nalog?</span>
+          <a href="#" onclick="switchTab('register');return false;" style="color:var(--cyan);margin-left:4px;text-decoration:none;font-weight:600;">
+            <span data-lang="ru" class="lang-active inline-lang">Зарегистрироваться</span>
+            <span data-lang="en" class="inline-lang">Register</span>
+            <span data-lang="sr" class="inline-lang">Registrujte se</span>
+          </a>
+        </p>
+      </div>
+
+      <!-- REGISTER PANEL -->
+      <div class="auth-panel" id="panel-register">
+        <!-- Form state -->
+        <div id="reg-form-state">
+          <h2 style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;margin-bottom:8px;letter-spacing:-0.4px;">
+            <span data-lang="ru" class="lang-active inline-lang">Создать аккаунт</span>
+            <span data-lang="en" class="inline-lang">Create account</span>
+            <span data-lang="sr" class="inline-lang">Kreirati nalog</span>
+          </h2>
+          <p style="font-size:14px;color:var(--muted);margin-bottom:28px;line-height:1.6;">
+            <span data-lang="ru" class="lang-active">Введите имя и email — получите код, отправьте его боту в Telegram, и аккаунт готов.</span>
+            <span data-lang="en" class="inline-lang">Enter your name and email — get a code, send it to the Telegram bot, and your account is ready.</span>
+            <span data-lang="sr" class="inline-lang">Unesite ime i email — dobijete kod, pošaljite ga Telegram botu i nalog je spreman.</span>
+          </p>
+          <div id="reg-error" class="login-error" style="display:none;"></div>
+          <div class="form-group">
+            <label>
+              <span data-lang="ru" class="lang-active inline-lang">Ваше имя</span>
+              <span data-lang="en" class="inline-lang">Your name</span>
+              <span data-lang="sr" class="inline-lang">Vaše ime</span>
+            </label>
+            <input type="text" id="reg-name" placeholder="Иван Иванов / Ivan / Иван" autocomplete="name">
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="reg-email" placeholder="you@example.com">
+          </div>
+          <button class="btn-login" id="reg-submit-btn" onclick="submitRegister()">
+            <span data-lang="ru" class="lang-active inline-lang">Получить код →</span>
+            <span data-lang="en" class="inline-lang">Get code →</span>
+            <span data-lang="sr" class="inline-lang">Dobiti kod →</span>
+          </button>
+          <p style="margin-top:20px;font-size:13px;color:var(--muted);text-align:center;">
+            <span data-lang="ru" class="lang-active inline-lang">Уже есть аккаунт?</span>
+            <span data-lang="en" class="inline-lang">Already have an account?</span>
+            <span data-lang="sr" class="inline-lang">Već imate nalog?</span>
+            <a href="#" onclick="switchTab('login');return false;" style="color:var(--cyan);margin-left:4px;text-decoration:none;font-weight:600;">
+              <span data-lang="ru" class="lang-active inline-lang">Войти</span>
+              <span data-lang="en" class="inline-lang">Sign In</span>
+              <span data-lang="sr" class="inline-lang">Prijava</span>
+            </a>
+          </p>
+        </div>
+
+        <!-- Success state -->
+        <div class="reg-success" id="reg-success-state">
+          <span class="reg-success-icon">✅</span>
+          <div class="reg-success-title">
+            <span data-lang="ru" class="lang-active inline-lang">Код отправлен!</span>
+            <span data-lang="en" class="inline-lang">Code issued!</span>
+            <span data-lang="sr" class="inline-lang">Kod je izdat!</span>
+          </div>
+          <p style="font-size:14px;color:var(--muted);margin-bottom:4px;">
+            <span data-lang="ru" class="lang-active inline-lang">Ваш код подтверждения:</span>
+            <span data-lang="en" class="inline-lang">Your confirmation code:</span>
+            <span data-lang="sr" class="inline-lang">Vaš kod za potvrdu:</span>
+          </p>
+          <div class="reg-code-box">
+            <div class="reg-code" id="reg-code-display"></div>
+            <button class="copy-btn" onclick="copyCode()">
+              <span data-lang="ru" class="lang-active inline-lang">Скопировать</span>
+              <span data-lang="en" class="inline-lang">Copy</span>
+              <span data-lang="sr" class="inline-lang">Kopiraj</span>
+            </button>
+          </div>
+          <div class="reg-instruction">
+            <span data-lang="ru" class="lang-active">
+              Откройте Telegram-бот <a id="reg-bot-link" href="#" target="_blank"><strong id="reg-bot-name">@бот</strong></a> и отправьте команду:<br><br>
+              <strong>/verify <span id="reg-code-inline"></span></strong><br><br>
+              После подтверждения бот пришлёт пароль и ссылку для входа.
+            </span>
+            <span data-lang="en">
+              Open Telegram bot <a id="reg-bot-link-en" href="#" target="_blank"><strong id="reg-bot-name-en">@bot</strong></a> and send the command:<br><br>
+              <strong>/verify <span id="reg-code-inline-en"></span></strong><br><br>
+              After confirmation, the bot will send your password and login link.
+            </span>
+            <span data-lang="sr">
+              Otvorite Telegram bot <a id="reg-bot-link-sr" href="#" target="_blank"><strong id="reg-bot-name-sr">@bot</strong></a> i pošaljite naredbu:<br><br>
+              <strong>/verify <span id="reg-code-inline-sr"></span></strong><br><br>
+              Nakon potvrde, bot će poslati lozinku i link za prijavu.
+            </span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<!-- PLATFORM MODAL -->
+<div class="platform-modal-overlay" id="platformModal" onclick="closePlatformModal(event)">
+  <div class="platform-modal">
+    <button class="modal-close" onclick="closePlatformModalDirect()">&times;</button>
+
+    <div class="modal-header">
+      <div class="modal-eyebrow">SpaceCode Platform</div>
+      <div class="modal-title">
+        <span data-lang="ru" class="lang-active">AI-платформа для работы<br>с корпоративными знаниями</span>
+        <span data-lang="en">AI platform for working<br>with corporate knowledge</span>
+        <span data-lang="sr">AI platforma za rad<br>s korporativnim znanjem</span>
+      </div>
+      <div class="modal-intro">
+        <span data-lang="ru" class="lang-active">SpaceCode объединяет в одной платформе всё необходимое для команды: автоматическая расшифровка встреч, умная база знаний, Telegram-бот, OCR документов и видеоконференции с AI-ассистентом.</span>
+        <span data-lang="en">SpaceCode brings together everything a team needs: automatic meeting transcription, smart knowledge base, Telegram bot, document OCR, and video meetings with an AI assistant.</span>
+        <span data-lang="sr">SpaceCode objedinjuje sve što tim treba: automatsku transkripciju sastanaka, pametnu bazu znanja, Telegram bot, OCR dokumenata i video konferencije s AI asistentom.</span>
+      </div>
+    </div>
+
+    <div class="modal-modules">
+      <div class="modal-module">
+        <span class="modal-module-icon">🎙</span>
+        <div class="modal-module-title">
+          <span data-lang="ru" class="lang-active inline-lang">Транскрипция</span>
+          <span data-lang="en" class="inline-lang">Transcription</span>
+          <span data-lang="sr" class="inline-lang">Transkripcija</span>
+        </div>
+        <div class="modal-module-desc">
+          <span data-lang="ru" class="lang-active">WhisperX + pyannote — авторасшифровка аудио/видео с разбивкой по спикерам. Загрузка через сайт, S3 или Telegram.</span>
+          <span data-lang="en">WhisperX + pyannote — auto-transcription of audio/video with speaker diarization. Upload via site, S3 or Telegram.</span>
+          <span data-lang="sr">WhisperX + pyannote — automatska transkripcija audio/videa s identifikacijom govornika. Upload putem stranice, S3 ili Telegrama.</span>
+        </div>
+      </div>
+      <div class="modal-module">
+        <span class="modal-module-icon">🧠</span>
+        <div class="modal-module-title">
+          <span data-lang="ru" class="lang-active inline-lang">База знаний</span>
+          <span data-lang="en" class="inline-lang">Knowledge Base</span>
+          <span data-lang="sr" class="inline-lang">Baza znanja</span>
+        </div>
+        <div class="modal-module-desc">
+          <span data-lang="ru" class="lang-active">Wiki с иерархическими статьями, Markdown-редактором и семантическим поиском на нейросетевых эмбеддингах.</span>
+          <span data-lang="en">Wiki with hierarchical articles, Markdown editor, and semantic search on neural embeddings.</span>
+          <span data-lang="sr">Wiki s hijerarhijskim člancima, Markdown editorom i semantičkim pretraživanjem na neuronskim ulaganjima.</span>
+        </div>
+      </div>
+      <div class="modal-module">
+        <span class="modal-module-icon">🤖</span>
+        <div class="modal-module-title">
+          <span data-lang="ru" class="lang-active inline-lang">AI-агент в Telegram</span>
+          <span data-lang="en" class="inline-lang">AI Agent in Telegram</span>
+          <span data-lang="sr" class="inline-lang">AI Agent u Telegramu</span>
+        </div>
+        <div class="modal-module-desc">
+          <span data-lang="ru" class="lang-active">RAG-бот на базе знаний с ReAct-агентом. Отвечает на вопросы, цитирует источники, получает аудио и фото.</span>
+          <span data-lang="en">RAG bot on the knowledge base with ReAct agent. Answers questions, cites sources, receives audio and photos.</span>
+          <span data-lang="sr">RAG bot na bazi znanja s ReAct agentom. Odgovara na pitanja, citira izvore, prima audio i fotografije.</span>
+        </div>
+      </div>
+      <div class="modal-module">
+        <span class="modal-module-icon">📄</span>
+        <div class="modal-module-title">OCR</div>
+        <div class="modal-module-desc">
+          <span data-lang="ru" class="lang-active">Распознавание текста с фото, PDF и сканов. Результат — в Markdown, сразу в базу знаний или в историю чата.</span>
+          <span data-lang="en">Text recognition from photos, PDFs, and scans. Output in Markdown, directly to the knowledge base or chat history.</span>
+          <span data-lang="sr">Prepoznavanje teksta s fotografija, PDF-ova i skenova. Izlaz u Markdownu, direktno u bazu znanja ili historiju chata.</span>
+        </div>
+      </div>
+      <div class="modal-module">
+        <span class="modal-module-icon">📹</span>
+        <div class="modal-module-title">
+          <span data-lang="ru" class="lang-active inline-lang">Видеовстречи</span>
+          <span data-lang="en" class="inline-lang">Video Meetings</span>
+          <span data-lang="sr" class="inline-lang">Video Sastanci</span>
+        </div>
+        <div class="modal-module-desc">
+          <span data-lang="ru" class="lang-active">Встроенные видеоконференции на LiveKit с возможностью пригласить AI-ассистента прямо в комнату.</span>
+          <span data-lang="en">Built-in video conferences on LiveKit with the ability to invite an AI assistant directly into the room.</span>
+          <span data-lang="sr">Ugrađene video konferencije na LiveKitu s mogućnošću pozivanja AI asistenta direktno u sobu.</span>
+        </div>
+      </div>
+      <div class="modal-module">
+        <span class="modal-module-icon">🏢</span>
+        <div class="modal-module-title">
+          <span data-lang="ru" class="lang-active inline-lang">Мультитенантность</span>
+          <span data-lang="en" class="inline-lang">Multi-tenancy</span>
+          <span data-lang="sr" class="inline-lang">Multi-tenancy</span>
+        </div>
+        <div class="modal-module-desc">
+          <span data-lang="ru" class="lang-active">Каждая организация — своё изолированное пространство с пользователями, базой знаний, ботами и записями.</span>
+          <span data-lang="en">Each organization gets its own isolated space with users, knowledge base, bots, and recordings.</span>
+          <span data-lang="sr">Svaka organizacija dobiva vlastiti izolovani prostor s korisnicima, bazom znanja, botovima i snimkama.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-divider"></div>
+
+    <div class="modal-workflow">
+      <div class="modal-section-title">
+        <span data-lang="ru" class="lang-active inline-lang">Как это работает</span>
+        <span data-lang="en" class="inline-lang">How it works</span>
+        <span data-lang="sr" class="inline-lang">Kako to funkcioniše</span>
+      </div>
+      <div class="workflow-steps">
+        <div class="workflow-step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title">
+              <span data-lang="ru" class="lang-active inline-lang">Загружаете запись или текст</span>
+              <span data-lang="en" class="inline-lang">Upload a recording or text</span>
+              <span data-lang="sr" class="inline-lang">Uploadujete snimak ili tekst</span>
+            </div>
+            <div class="step-desc">
+              <span data-lang="ru" class="lang-active">Аудио/видео файл, PDF, фото или ссылка — через сайт, Telegram-бот или S3-бакет.</span>
+              <span data-lang="en">Audio/video file, PDF, photo or link — via the site, Telegram bot or S3 bucket.</span>
+              <span data-lang="sr">Audio/video fajl, PDF, fotografija ili link — putem stranice, Telegram bota ili S3 bucketa.</span>
+            </div>
+          </div>
+        </div>
+        <div class="workflow-step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title">
+              <span data-lang="ru" class="lang-active inline-lang">AI обрабатывает контент</span>
+              <span data-lang="en" class="inline-lang">AI processes the content</span>
+              <span data-lang="sr" class="inline-lang">AI obrađuje sadržaj</span>
+            </div>
+            <div class="step-desc">
+              <span data-lang="ru" class="lang-active">Транскрибирует, распознаёт текст, строит эмбеддинги и добавляет в базу знаний автоматически.</span>
+              <span data-lang="en">Transcribes, recognizes text, builds embeddings and adds to the knowledge base automatically.</span>
+              <span data-lang="sr">Transkribuje, prepoznaje tekst, gradi ugradnje i automatski dodaje u bazu znanja.</span>
+            </div>
+          </div>
+        </div>
+        <div class="workflow-step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title">
+              <span data-lang="ru" class="lang-active inline-lang">Команда работает со знаниями</span>
+              <span data-lang="en" class="inline-lang">Your team works with knowledge</span>
+              <span data-lang="sr" class="inline-lang">Tim radi sa znanjem</span>
+            </div>
+            <div class="step-desc">
+              <span data-lang="ru" class="lang-active">Задают вопросы боту в Telegram, ищут по базе знаний, создают и редактируют статьи Wiki.</span>
+              <span data-lang="en">Ask questions to the bot in Telegram, search the knowledge base, create and edit Wiki articles.</span>
+              <span data-lang="sr">Postavljaju pitanja botu u Telegramu, pretražuju bazu znanja, kreiraju i uređuju Wiki članke.</span>
+            </div>
+          </div>
+        </div>
+        <div class="workflow-step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <div class="step-title">
+              <span data-lang="ru" class="lang-active inline-lang">Встречи фиксируются сами</span>
+              <span data-lang="en" class="inline-lang">Meetings document themselves</span>
+              <span data-lang="sr" class="inline-lang">Sastanci se sami dokumentuju</span>
+            </div>
+            <div class="step-desc">
+              <span data-lang="ru" class="lang-active">Видеовстречи записываются, расшифровываются и попадают в базу знаний — без ручного труда.</span>
+              <span data-lang="en">Video meetings are recorded, transcribed, and added to the knowledge base — without manual effort.</span>
+              <span data-lang="sr">Video sastanci se snimaju, transkribuju i dodaju u bazu znanja — bez ručnog rada.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-cta">
+      <div>
+        <div class="modal-cta-text">
+          <span data-lang="ru" class="lang-active inline-lang">Готовы начать?</span>
+          <span data-lang="en" class="inline-lang">Ready to get started?</span>
+          <span data-lang="sr" class="inline-lang">Spremni za početak?</span>
+        </div>
+        <div class="modal-cta-sub">
+          <span data-lang="ru" class="lang-active inline-lang">Войдите в платформу прямо сейчас</span>
+          <span data-lang="en" class="inline-lang">Sign in to the platform right now</span>
+          <span data-lang="sr" class="inline-lang">Prijavite se na platformu odmah</span>
+        </div>
+      </div>
+      <button class="btn-modal-login" onclick="closePlatformModalDirect(); setTimeout(()=>document.querySelector('.login-card input[type=email]').focus(), 300)">
         <span data-lang="ru" class="lang-active inline-lang">Войти →</span>
         <span data-lang="en" class="inline-lang">Sign In →</span>
-        <span data-lang="sr" class="inline-lang">Prijavite se →</span>
+        <span data-lang="sr" class="inline-lang">Prijava →</span>
       </button>
-    </form>
+    </div>
+
   </div>
 </div>
 
@@ -929,9 +1773,6 @@
 <footer>
   <div class="footer-brand">SpaceCode</div>
   <p>SpaceCode д.о.о. — Черногория / Montenegro / Crna Gora</p>
-  <p style="margin-top:8px; font-size:13px;">
-    <a href="https://ai.obed.pro" style="color:var(--cyan); text-decoration:none;">ai.obed.pro</a>
-  </p>
 </footer>
 
 </div><!-- /.page-content -->
@@ -1169,6 +2010,232 @@ const observer = new IntersectionObserver((entries) => {
   entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
 }, { threshold: 0.1 });
 document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+// ═══════════════════════════════════════════════════════════
+// AUTH TABS
+// ═══════════════════════════════════════════════════════════
+function switchTab(tab) {
+  ['login','register'].forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+    document.getElementById('panel-' + t).classList.toggle('active', t === tab);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// REGISTER SUBMIT
+// ═══════════════════════════════════════════════════════════
+async function submitRegister() {
+  const name  = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const errEl = document.getElementById('reg-error');
+  const btn   = document.getElementById('reg-submit-btn');
+
+  errEl.style.display = 'none';
+  if (!name || !email) {
+    errEl.textContent = 'Заполните все поля.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.style.opacity = '0.7';
+
+  try {
+    const resp = await fetch('/smarty-register/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': getCsrf() },
+      body: new URLSearchParams({ name, email }),
+    });
+    const data = await resp.json();
+    if (data.ok && data.code) {
+      // show success state
+      document.getElementById('reg-form-state').style.display = 'none';
+      const suc = document.getElementById('reg-success-state');
+      suc.style.display = 'block';
+      document.getElementById('reg-code-display').textContent = data.code;
+      ['reg-code-inline','reg-code-inline-en','reg-code-inline-sr'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = data.code;
+      });
+      const botUrl = data.bot_username ? 'https://t.me/' + data.bot_username.replace('@','') : '#';
+      const botLabel = data.bot_username || '@бот';
+      ['','en','sr'].forEach(lang => {
+        const suffix = lang ? '-' + lang : '';
+        const lk = document.getElementById('reg-bot-link' + suffix);
+        const nm = document.getElementById('reg-bot-name' + suffix);
+        if (lk) lk.href = botUrl;
+        if (nm) nm.textContent = botLabel;
+      });
+    } else {
+      errEl.textContent = data.error || 'Ошибка. Попробуйте ещё раз.';
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.style.opacity = '';
+    }
+  } catch(e) {
+    errEl.textContent = 'Ошибка сети. Попробуйте ещё раз.';
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.style.opacity = '';
+  }
+}
+
+function copyCode() {
+  const code = document.getElementById('reg-code-display').textContent;
+  navigator.clipboard.writeText('/verify ' + code).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    const orig = btn.innerHTML;
+    btn.textContent = '✓';
+    setTimeout(() => btn.innerHTML = orig, 1500);
+  });
+}
+
+function getCsrf() {
+  const m = document.cookie.match(/csrftoken=([^;]+)/);
+  return m ? m[1] : '';
+}
+
+// ═══════════════════════════════════════════════════════════
+// PLATFORM MODAL
+// ═══════════════════════════════════════════════════════════
+function openPlatformModal() {
+  document.getElementById('platformModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closePlatformModalDirect() {
+  document.getElementById('platformModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function closePlatformModal(e) {
+  if (e.target === document.getElementById('platformModal')) closePlatformModalDirect();
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePlatformModalDirect(); });
+
+// ═══════════════════════════════════════════════════════════
+// AUTO-SCROLL TO LOGIN on load
+// ═══════════════════════════════════════════════════════════
+window.addEventListener('load', () => {
+  // slight delay so Three.js scene initializes first, then smooth scroll
+  setTimeout(() => {
+    const loginEl = document.getElementById('login-section');
+    if (!loginEl) return;
+    const targetY = loginEl.getBoundingClientRect().top + window.scrollY;
+    const startY = window.scrollY;
+    const distance = targetY - startY;
+    const duration = 2800; // ms — медленный плавный скролл через весь лендинг
+    let startTime = null;
+
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2;
+    }
+
+    function step(timestamp) {
+      if (!startTime) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      window.scrollTo(0, startY + distance * easeInOutCubic(progress));
+      if (progress < 1) requestAnimationFrame(step);
+    }
+
+    // stop auto-scroll if user scrolls manually
+    let userScrolled = false;
+    const stopScroll = () => { userScrolled = true; };
+    window.addEventListener('wheel', stopScroll, { once: true });
+    window.addEventListener('touchstart', stopScroll, { once: true });
+
+    requestAnimationFrame(function step2(timestamp) {
+      if (userScrolled) return;
+      if (!startTime) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      window.scrollTo(0, startY + distance * easeInOutCubic(progress));
+      if (progress < 1) requestAnimationFrame(step2);
+    });
+  }, 600);
+});
+
+// ═══════════════════════════════════════════════════════════
+// 3D ICON CANVASES — one mini Three.js scene per service card
+// ═══════════════════════════════════════════════════════════
+(function() {
+  // shape factories
+  function makeGeometry(shape) {
+    switch(shape) {
+      case 'torus':       return new THREE.TorusGeometry(0.55, 0.22, 14, 36);
+      case 'octahedron':  return new THREE.OctahedronGeometry(0.62, 0);
+      case 'box':         return new THREE.BoxGeometry(0.8, 0.8, 0.8);
+      case 'icosahedron': return new THREE.IcosahedronGeometry(0.65, 0);
+      case 'tetra':       return new THREE.TetrahedronGeometry(0.72, 0);
+      case 'brain':       return new THREE.SphereGeometry(0.58, 7, 6); // low-poly sphere → AI/brain feel
+      default:            return new THREE.SphereGeometry(0.58, 8, 8);
+    }
+  }
+
+  document.querySelectorAll('canvas.icon3d').forEach(canvas => {
+    const shape = canvas.dataset.shape;
+    const colorHex = canvas.dataset.color || '#06c8f0';
+    const color = new THREE.Color(colorHex);
+
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(64, 64);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 50);
+    camera.position.z = 2.6;
+
+    // solid mesh
+    const geo = makeGeometry(shape);
+    const mat = new THREE.MeshStandardMaterial({
+      color,
+      metalness: 0.7,
+      roughness: 0.2,
+      emissive: color,
+      emissiveIntensity: 0.18,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    scene.add(mesh);
+
+    // wireframe overlay for extra detail
+    const wmat = new THREE.MeshBasicMaterial({
+      color,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.25,
+    });
+    const wmesh = new THREE.Mesh(geo, wmat);
+    scene.add(wmesh);
+
+    // lights
+    const amb = new THREE.AmbientLight(0x111122, 2);
+    scene.add(amb);
+    const pl = new THREE.PointLight(0xffffff, 3, 10);
+    pl.position.set(2, 2, 3);
+    scene.add(pl);
+    const pl2 = new THREE.PointLight(colorHex, 4, 8);
+    pl2.position.set(-2, -1, 1);
+    scene.add(pl2);
+
+    // random rotation speed per icon
+    const rx = 0.007 + Math.random() * 0.006;
+    const ry = 0.010 + Math.random() * 0.008;
+
+    // animate only when visible in viewport
+    let visible = false;
+    const visObs = new IntersectionObserver(([e]) => { visible = e.isIntersecting; }, { threshold: 0 });
+    visObs.observe(canvas);
+
+    (function animate() {
+      requestAnimationFrame(animate);
+      if (!visible) return;
+      mesh.rotation.x += rx;
+      mesh.rotation.y += ry;
+      wmesh.rotation.x = mesh.rotation.x;
+      wmesh.rotation.y = mesh.rotation.y;
+      renderer.render(scene, camera);
+    })();
+  });
+})();
 </script>
 </body>
 </html>

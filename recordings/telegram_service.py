@@ -435,10 +435,17 @@ def _do_verify(chat_id, code, OrgRegistration, SiteUser, Space, generate_passwor
         send_message(chat_id, 'Пользователь с таким email уже зарегистрирован.', token=token)
         return
 
-    slug = make_unique_space_slug(reg.org_name)
-    space = Space.objects.create(name=reg.org_name, slug=slug)
+    # Если задано целевое пространство — входим в него, не создаём новое
+    if reg.target_space_id:
+        space = reg.target_space
+        join_existing = True
+    else:
+        slug = make_unique_space_slug(reg.org_name)
+        space = Space.objects.create(name=reg.org_name, slug=slug)
+        join_existing = False
+
     pwd = generate_password()
-    user = SiteUser.objects.create(email=email, space=space, free_left=5)
+    user = SiteUser.objects.create(email=email, space=space, free_left=None if join_existing else 5)
     user.set_password(pwd)
     user.save(update_fields=['password'])
 
