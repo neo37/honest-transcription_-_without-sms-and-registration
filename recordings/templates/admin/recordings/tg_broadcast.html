@@ -1,0 +1,63 @@
+{% extends "admin/base_site.html" %}
+{% block title %}Telegram-рассылка{% endblock %}
+
+{% block content %}
+<h1>📨 Telegram-рассылка</h1>
+
+{% if messages %}
+{% for msg in messages %}
+<p class="{% if msg.tags %}{{ msg.tags }}{% endif %}">{{ msg }}</p>
+{% endfor %}
+{% endif %}
+
+<form method="post">
+{% csrf_token %}
+
+<fieldset class="module aligned">
+    <h2>Текст сообщения</h2>
+    <div class="form-row">
+        <textarea name="text" rows="6" style="width:100%;max-width:700px;font-size:0.95rem;padding:0.5rem;" placeholder="Markdown поддерживается: *жирный*, _курсив_, `код`"></textarea>
+    </div>
+</fieldset>
+
+<fieldset class="module aligned">
+    <h2>Получатели</h2>
+    <div class="form-row">
+        <label style="margin-bottom:0.5rem;display:block;">
+            <input type="radio" name="mode" value="all"> <strong>Все</strong> пользователи с привязанным Telegram ({{ all_users|length }})
+        </label>
+        <label style="display:block;">
+            <input type="radio" name="mode" value="selected" checked> <strong>Выбранные</strong> (отметьте ниже)
+        </label>
+    </div>
+
+    <div class="form-row" style="margin-top:1rem;">
+        <p style="font-size:0.85rem;color:#666;margin-bottom:0.5rem;">
+            Пользователи с привязанным Telegram:
+            <a href="#" onclick="document.querySelectorAll('input[name=user_ids]').forEach(c=>c.checked=true);return false;">выбрать всех</a> /
+            <a href="#" onclick="document.querySelectorAll('input[name=user_ids]').forEach(c=>c.checked=false);return false;">снять</a>
+        </p>
+        <div style="max-height:400px;overflow-y:auto;border:1px solid #ddd;padding:0.5rem;border-radius:4px;">
+        {% for u in all_users %}
+        <label style="display:flex;align-items:center;gap:0.5rem;padding:0.3rem 0;border-bottom:1px solid #f0f0f0;">
+            <input type="checkbox" name="user_ids" value="{{ u.pk }}"
+                   {% if u.pk in selected_ids %}checked{% endif %}>
+            <span style="font-weight:{% if u.pk in selected_ids %}600{% else %}400{% endif %};">
+                {{ u.email }}
+            </span>
+            <span style="color:#888;font-size:0.82rem;">{{ u.space.name|default:"—" }}</span>
+            <span style="font-family:monospace;font-size:0.78rem;color:#aaa;">tg:{{ u.tg_chat_id }}</span>
+        </label>
+        {% empty %}
+        <p style="color:#888;">Нет пользователей с привязанным Telegram.</p>
+        {% endfor %}
+        </div>
+    </div>
+</fieldset>
+
+<div class="submit-row">
+    <input type="submit" value="📨 Отправить" class="default">
+    <a href="../../" class="closelink">Отмена</a>
+</div>
+</form>
+{% endblock %}

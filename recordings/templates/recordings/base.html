@@ -1,6 +1,6 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="ru" data-theme="">
+<html lang="ru" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -36,11 +36,14 @@
 
         <nav class="header-nav" id="header-nav" aria-label="Основная навигация">
             <a href="{% url 'recordings:index' %}">Записи</a>
+            <a href="{% url 'recordings:meetings_page' %}">Встречи</a>
+            <a href="{% url 'recordings:bot_sessions' %}">Чаты бота</a>
             <a href="{% url 'recordings:uploads' %}">Загрузки</a>
             <a href="{% url 'recordings:ocr' %}">OCR</a>
 {% if current_user and current_user.space %}<a href="{% url 'recordings:space_members' %}">Пространство</a>{% endif %}
             <a href="{% url 'wiki_kb:kb_index' %}">База знаний</a>
             <a href="{% url 'recordings:description' %}">О сервисе</a>
+{% if current_user and current_user.space and current_user.space.slug == 'org-bp' %}<a href="{% url 'recordings:system_config' %}">⚙ Настройки</a>{% endif %}
             <button type="button" class="nav-icon theme-toggle" id="theme-toggle" title="Сменить тему" aria-label="Сменить тему">
                 <span id="theme-icon">🌙</span>
             </button>
@@ -85,6 +88,47 @@
 
     {% block content %}{% endblock %}
 
+</div>
+
+<!-- ── Модал создания встречи (глобальный) ── -->
+<div class="modal-backdrop" id="global-meeting-modal" style="display:none;position:fixed;inset:0;background:#0009;z-index:3000;align-items:center;justify-content:center;">
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:1.75rem 2rem;max-width:460px;width:100%;box-shadow:0 8px 40px #0006;margin:1rem;">
+        <!-- Шаг 1: форма -->
+        <div id="gm-step1">
+            <h2 style="margin:0 0 1.25rem;font-size:1.2rem;">Новая встреча</h2>
+            <div style="margin-bottom:1rem;">
+                <label style="display:block;font-size:0.88rem;color:var(--muted);margin-bottom:0.35rem;">Название встречи</label>
+                <input type="text" id="gm-title" placeholder="Например: Планёрка команды" autocomplete="off"
+                    style="width:100%;padding:0.55rem 0.85rem;border:1px solid var(--border);border-radius:8px;background:var(--bg-soft);color:var(--text);font-size:1rem;box-sizing:border-box;">
+            </div>
+            <label style="display:flex;align-items:center;gap:0.6rem;padding:0.75rem 1rem;border:1px solid var(--border);border-radius:8px;background:var(--bg-soft);cursor:pointer;user-select:none;margin-bottom:1.25rem;">
+                <input type="checkbox" id="gm-mascot" style="width:18px;height:18px;cursor:pointer;">
+                <span>
+                    <span style="font-size:0.95rem;">🤖 Подключить маскота (Феликс)</span><br>
+                    <span style="font-size:0.8rem;color:var(--muted);">Голосовой ИИ-ассистент подключится к встрече автоматически</span>
+                </span>
+            </label>
+            <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                <button class="btn btn-ghost" onclick="closeMeetingModal()">Отмена</button>
+                <button class="btn btn-primary" id="gm-submit">Создать</button>
+            </div>
+        </div>
+        <!-- Шаг 2: пригласить -->
+        <div id="gm-step2" style="display:none;">
+            <h2 style="margin:0 0 0.75rem;font-size:1.2rem;">Встреча создана!</h2>
+            <p id="gm-join-url" style="word-break:break-all;font-size:0.85rem;color:var(--muted);margin-bottom:1rem;"></p>
+            <div style="margin-bottom:1rem;">
+                <div style="font-size:0.95rem;font-weight:600;margin-bottom:0.5rem;">Пригласить через Telegram</div>
+                <div id="gm-user-list" style="max-height:200px;overflow-y:auto;"></div>
+                <div id="gm-no-tg" style="display:none;font-size:0.85rem;color:var(--muted);">Нет пользователей с подключённым Telegram в вашем пространстве.</div>
+            </div>
+            <div style="display:flex;gap:0.75rem;justify-content:flex-end;flex-wrap:wrap;">
+                <button class="btn btn-ghost" id="gm-skip">Пропустить</button>
+                <button class="btn btn-primary" id="gm-invite" style="display:none;">Отправить приглашения</button>
+                <button class="btn btn-success" id="gm-open" style="display:none;">Открыть встречу →</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -134,7 +178,7 @@
         if (themeIcon) themeIcon.textContent = theme === 'dark' ? '☀️' : '🌙';
     }
 
-    var savedTheme = localStorage.getItem('bp_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    var savedTheme = localStorage.getItem('bp_theme') || 'dark';
     applyTheme(savedTheme);
 
     if (themeToggle) {
@@ -146,21 +190,105 @@
         });
     }
 
-    /* ── Создать комнату ── */
-    function createRoom() {
-        var slug = '{{ user_space_slug|escapejs }}';
-        var a = 'abcdefghijklmnopqrstuvwxyz0123456789';
-        var p1 = '', p2 = '';
-        for (var i = 0; i < 4; i++) {
-            p1 += a[Math.floor(Math.random() * a.length)];
-            p2 += a[Math.floor(Math.random() * a.length)];
-        }
-        var room = p1 + '-' + p2 + (slug ? '-org-' + slug : '');
-        window.open('https://meet.business-pad.com/rooms/' + room, '_blank');
+    /* ── Создать встречу (модал) ── */
+    var _gmRoom = null;
+
+    function openMeetingModal() {
+        document.getElementById('gm-title').value = '';
+        document.getElementById('gm-mascot').checked = false;
+        document.getElementById('gm-step1').style.display = '';
+        document.getElementById('gm-step2').style.display = 'none';
+        var m = document.getElementById('global-meeting-modal');
+        m.style.display = 'flex';
+        setTimeout(function() { document.getElementById('gm-title').focus(); }, 50);
     }
 
+    function closeMeetingModal() {
+        document.getElementById('global-meeting-modal').style.display = 'none';
+    }
+
+    // Глобальный доступ для onclick=""
+    window.openMeetingModal = openMeetingModal;
+    window.closeMeetingModal = closeMeetingModal;
+
+    document.getElementById('global-meeting-modal').addEventListener('click', function(e) {
+        if (e.target === this) closeMeetingModal();
+    });
+
+    document.getElementById('gm-submit').addEventListener('click', async function() {
+        var title = document.getElementById('gm-title').value.trim();
+        if (!title) { document.getElementById('gm-title').focus(); return; }
+        var with_mascot = document.getElementById('gm-mascot').checked;
+        var btn = this;
+        btn.disabled = true; btn.textContent = 'Создаём…';
+        try {
+            var resp = await fetch('/meetings/create/', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                body: JSON.stringify({title: title, with_mascot: with_mascot}),
+            });
+            var data = await resp.json();
+            if (!resp.ok) { alert(data.error || 'Ошибка'); return; }
+            _gmRoom = data.room_name;
+            _showInviteStep(data);
+            // Обновляем список встреч если открыта эта страница
+            if (typeof loadRooms === 'function') setTimeout(loadRooms, 1500);
+        } finally {
+            btn.disabled = false; btn.textContent = 'Создать';
+        }
+    });
+
+    function _showInviteStep(data) {
+        document.getElementById('gm-step1').style.display = 'none';
+        document.getElementById('gm-step2').style.display = '';
+        document.getElementById('gm-join-url').textContent = 'Ссылка: ' + data.join_url;
+        var openBtn = document.getElementById('gm-open');
+        openBtn.style.display = 'inline-flex';
+        openBtn.onclick = function() { window.open(data.join_url, '_blank'); closeMeetingModal(); };
+
+        var list = document.getElementById('gm-user-list');
+        list.innerHTML = '';
+        if (data.tg_users && data.tg_users.length > 0) {
+            document.getElementById('gm-no-tg').style.display = 'none';
+            document.getElementById('gm-invite').style.display = 'inline-flex';
+            data.tg_users.forEach(function(u) {
+                var lbl = document.createElement('label');
+                lbl.style.cssText = 'display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.2rem;border-bottom:1px solid var(--border);font-size:0.9rem;cursor:pointer;';
+                lbl.innerHTML = '<input type="checkbox" value="' + u.id + '" checked style="width:16px;height:16px;"> ' + u.email;
+                list.appendChild(lbl);
+            });
+        } else {
+            document.getElementById('gm-no-tg').style.display = '';
+            document.getElementById('gm-invite').style.display = 'none';
+        }
+    }
+
+    document.getElementById('gm-invite').addEventListener('click', async function() {
+        var checks = document.querySelectorAll('#gm-user-list input[type=checkbox]:checked');
+        var ids = Array.from(checks).map(function(c) { return parseInt(c.value); });
+        if (!ids.length) return;
+        var btn = this;
+        btn.disabled = true; btn.textContent = 'Отправляем…';
+        try {
+            var resp = await fetch('/meetings/' + _gmRoom + '/invite/', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                body: JSON.stringify({user_ids: ids}),
+            });
+            var data = await resp.json();
+            if (data.ok) { btn.textContent = 'Отправлено (' + data.sent + ')'; }
+        } catch(e) {
+            btn.disabled = false; btn.textContent = 'Отправить приглашения';
+        }
+    });
+
+    document.getElementById('gm-skip').addEventListener('click', function() {
+        if (_gmRoom) { window.open('https://meet.business-pad.com/rooms/' + _gmRoom, '_blank'); }
+        closeMeetingModal();
+    });
+
     var btnCreate = document.getElementById('btn-create-nav');
-    if (btnCreate) btnCreate.addEventListener('click', createRoom);
+    if (btnCreate) btnCreate.addEventListener('click', openMeetingModal);
 
     /* ── PWA install ── */
     var installPrompt = null;

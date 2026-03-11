@@ -1,0 +1,261 @@
+{% extends "recordings/base.html" %}
+{% block title %}Граф знаний{% endblock %}
+{% block extra_css %}
+<style>
+.kg-wrap { display:flex; gap:1rem; height:calc(100vh - 120px); }
+.kg-sidebar { width:240px; flex-shrink:0; display:flex; flex-direction:column; gap:0.75rem; }
+.kg-canvas { flex:1; background:var(--bg-soft); border:1px solid var(--border); border-radius:12px; overflow:hidden; position:relative; }
+#kg-svg { width:100%; height:100%; }
+
+.kg-filter-group { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:0.85rem; }
+.kg-filter-group h4 { font-size:0.78rem; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:0.04em; margin:0 0 0.6rem; }
+
+.type-chip { display:flex; align-items:center; gap:0.4rem; padding:0.3rem 0.5rem; border-radius:6px; cursor:pointer; font-size:0.85rem; transition:background 0.15s; }
+.type-chip:hover { background:var(--bg-soft); }
+.type-chip.off { opacity:0.35; }
+.type-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+
+.kg-stats { font-size:0.8rem; color:var(--muted); line-height:1.6; }
+
+#kg-tooltip {
+    position:fixed; background:var(--card); border:1px solid var(--border); border-radius:8px;
+    padding:0.5rem 0.75rem; font-size:0.82rem; pointer-events:none; z-index:9999;
+    max-width:220px; display:none; box-shadow:0 4px 12px rgba(0,0,0,0.15);
+}
+#kg-tooltip strong { display:block; margin-bottom:0.2rem; }
+
+.node circle { stroke:#fff; stroke-width:1.5px; cursor:pointer; transition:r 0.15s; }
+.node:hover circle { stroke-width:3px; }
+.node text { font-size:10px; fill:var(--text); pointer-events:none; }
+.link { stroke:var(--border); stroke-opacity:0.6; }
+.link.highlighted { stroke:var(--accent); stroke-opacity:1; }
+
+#kg-search { width:100%; padding:0.4rem 0.6rem; border:1px solid var(--border); border-radius:8px; background:var(--bg-soft); color:var(--text); font-size:0.88rem; }
+#kg-search:focus { outline:none; border-color:var(--accent); }
+
+.rebuild-btn { width:100%; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head" style="margin-bottom:0.75rem;">
+    <h1>Граф знаний</h1>
+    <p class="breadcrumb"><a href="{% url 'recordings:index' %}">← Записи</a></p>
+</div>
+
+<div class="kg-wrap">
+    <!-- Sidebar -->
+    <div class="kg-sidebar">
+        <div class="kg-filter-group">
+            <h4>Поиск</h4>
+            <input id="kg-search" type="text" placeholder="Фильтр по названию…">
+        </div>
+
+        <div class="kg-filter-group">
+            <h4>Типы узлов</h4>
+            <div id="type-filters">
+                <div class="type-chip" data-type="person">   <div class="type-dot" style="background:#4f8ef7"></div>Люди</div>
+                <div class="type-chip" data-type="topic">    <div class="type-dot" style="background:#f7a84f"></div>Темы</div>
+                <div class="type-chip" data-type="org">      <div class="type-dot" style="background:#7bc47b"></div>Организации</div>
+                <div class="type-chip" data-type="decision"> <div class="type-dot" style="background:#e05c5c"></div>Решения</div>
+                <div class="type-chip" data-type="task">     <div class="type-dot" style="background:#c47bbc"></div>Задачи</div>
+                <div class="type-chip" data-type="recording"><div class="type-dot" style="background:#5cd3d3"></div>Записи</div>
+                <div class="type-chip" data-type="wiki">     <div class="type-dot" style="background:#d3c55c"></div>Вики</div>
+            </div>
+        </div>
+
+        <div class="kg-filter-group kg-stats">
+            <h4>Статистика</h4>
+            <div id="kg-stats-text">Загрузка…</div>
+        </div>
+
+        <button class="btn rebuild-btn" id="rebuild-btn">Перестроить граф</button>
+        <div id="rebuild-status" style="font-size:0.8rem;color:var(--muted);text-align:center;"></div>
+    </div>
+
+    <!-- Graph canvas -->
+    <div class="kg-canvas">
+        <svg id="kg-svg"></svg>
+        <div style="position:absolute;bottom:0.75rem;right:0.75rem;font-size:0.75rem;color:var(--muted);">
+            Скролл — зум · Тащить — перемещение · Клик — переход
+        </div>
+    </div>
+</div>
+
+<div id="kg-tooltip"><strong id="tt-title"></strong><span id="tt-type"></span></div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+var activeTypes = new Set(['person','topic','org','decision','task','recording','wiki']);
+var searchQ = '';
+var allNodes = [], allLinks = [];
+
+var TYPE_LABEL = {
+    person:'Человек', topic:'Тема', org:'Организация',
+    decision:'Решение', task:'Задача', recording:'Запись', wiki:'Вики'
+};
+
+// ── SVG setup ─────────────────────────────────────────────────────────────────
+var svg = d3.select('#kg-svg');
+var g = svg.append('g');
+
+var zoom = d3.zoom().scaleExtent([0.1, 8]).on('zoom', function(event) {
+    g.attr('transform', event.transform);
+});
+svg.call(zoom);
+
+// ── Simulation ────────────────────────────────────────────────────────────────
+var simulation = d3.forceSimulation()
+    .force('link', d3.forceLink().id(function(d){ return d.id; }).distance(80))
+    .force('charge', d3.forceManyBody().strength(-200))
+    .force('center', d3.forceCenter(0, 0))
+    .force('collision', d3.forceCollide(18));
+
+var linkSel = g.append('g').attr('class','links').selectAll('line');
+var nodeSel = g.append('g').attr('class','nodes').selectAll('g');
+var tooltip = document.getElementById('kg-tooltip');
+
+// ── Load data ─────────────────────────────────────────────────────────────────
+function loadGraph() {
+    var params = new URLSearchParams();
+    if (searchQ) params.set('q', searchQ);
+    params.set('limit', '300');
+
+    fetch('/kg/api/data/?' + params.toString())
+        .then(function(r){ return r.json(); })
+        .then(function(data) {
+            allNodes = data.nodes || [];
+            allLinks = data.links || [];
+            var stats = data.stats || {};
+            document.getElementById('kg-stats-text').innerHTML =
+                'Всего узлов: <b>' + stats.total_nodes + '</b><br>Связей: <b>' + stats.total_edges + '</b><br>Показано: ' + allNodes.length;
+            render();
+        });
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() {
+    var nodes = allNodes.filter(function(n){ return activeTypes.has(n.type); });
+    var nodeIds = new Set(nodes.map(function(n){ return n.id; }));
+    var links = allLinks.filter(function(l){
+        return nodeIds.has(l.source.id || l.source) && nodeIds.has(l.target.id || l.target);
+    });
+
+    // Links
+    linkSel = g.select('.links').selectAll('line').data(links, function(d){
+        return (d.source.id||d.source) + '-' + (d.target.id||d.target) + '-' + d.type;
+    });
+    linkSel.exit().remove();
+    var linkEnter = linkSel.enter().append('line')
+        .attr('class','link')
+        .attr('stroke-width', function(d){ return Math.min(3, 0.5 + d.weight * 0.3); });
+    linkSel = linkEnter.merge(linkSel);
+
+    // Nodes
+    nodeSel = g.select('.nodes').selectAll('g').data(nodes, function(d){ return d.id; });
+    nodeSel.exit().remove();
+
+    var nodeEnter = nodeSel.enter().append('g').attr('class','node')
+        .call(d3.drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended))
+        .on('mouseover', function(event, d) {
+            tooltip.style.display = 'block';
+            document.getElementById('tt-title').textContent = d.label;
+            document.getElementById('tt-type').textContent = TYPE_LABEL[d.type] || d.type;
+        })
+        .on('mousemove', function(event) {
+            tooltip.style.left = (event.clientX + 12) + 'px';
+            tooltip.style.top  = (event.clientY - 28) + 'px';
+        })
+        .on('mouseout', function() { tooltip.style.display = 'none'; })
+        .on('click', function(event, d) {
+            if (d.rec_id) window.open('/r/' + d.rec_id + '/', '_blank');
+            else if (d.wiki_slug) window.open('/kb/' + d.wiki_slug + '/', '_blank');
+        });
+
+    nodeEnter.append('circle')
+        .attr('r', function(d){ return Math.min(20, 6 + Math.sqrt(d.weight) * 2); })
+        .attr('fill', function(d){ return d.color; });
+
+    nodeEnter.append('text')
+        .attr('dy', function(d){ return Math.min(20, 6 + Math.sqrt(d.weight) * 2) + 12; })
+        .attr('text-anchor','middle')
+        .text(function(d){ return d.label.length > 18 ? d.label.slice(0,16) + '…' : d.label; });
+
+    nodeSel = nodeEnter.merge(nodeSel);
+    nodeSel.select('circle')
+        .attr('r', function(d){ return Math.min(20, 6 + Math.sqrt(d.weight) * 2); })
+        .attr('fill', function(d){ return d.color; });
+
+    simulation.nodes(nodes).on('tick', ticked);
+    simulation.force('link').links(links);
+    simulation.alpha(0.5).restart();
+
+    // Center view
+    var w = svg.node().getBoundingClientRect().width;
+    var h = svg.node().getBoundingClientRect().height;
+    svg.call(zoom.transform, d3.zoomIdentity.translate(w/2, h/2).scale(0.8));
+}
+
+function ticked() {
+    linkSel
+        .attr('x1', function(d){ return d.source.x; })
+        .attr('y1', function(d){ return d.source.y; })
+        .attr('x2', function(d){ return d.target.x; })
+        .attr('y2', function(d){ return d.target.y; });
+    nodeSel.attr('transform', function(d){ return 'translate(' + d.x + ',' + d.y + ')'; });
+}
+
+function dragstarted(event, d) {
+    if (!event.active) simulation.alphaTarget(0.3).restart();
+    d.fx = d.x; d.fy = d.y;
+}
+function dragged(event, d) { d.fx = event.x; d.fy = event.y; }
+function dragended(event, d) {
+    if (!event.active) simulation.alphaTarget(0);
+    d.fx = null; d.fy = null;
+}
+
+// ── Controls ──────────────────────────────────────────────────────────────────
+document.querySelectorAll('.type-chip').forEach(function(chip) {
+    chip.addEventListener('click', function() {
+        var t = chip.dataset.type;
+        if (activeTypes.has(t)) { activeTypes.delete(t); chip.classList.add('off'); }
+        else { activeTypes.add(t); chip.classList.remove('off'); }
+        render();
+    });
+});
+
+var searchTimer;
+document.getElementById('kg-search').addEventListener('input', function() {
+    clearTimeout(searchTimer);
+    var val = this.value.trim();
+    searchTimer = setTimeout(function() {
+        searchQ = val;
+        loadGraph();
+    }, 400);
+});
+
+document.getElementById('rebuild-btn').addEventListener('click', function() {
+    var btn = this;
+    var status = document.getElementById('rebuild-status');
+    btn.disabled = true; status.textContent = 'Строю граф…';
+    fetch('/kg/api/rebuild/', {
+        method:'POST',
+        headers:{'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/)||[])[1]||''}
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+        status.textContent = 'Готово: ' + d.nodes + ' узлов, ' + d.edges + ' связей';
+        btn.disabled = false;
+        loadGraph();
+    })
+    .catch(function(){ status.textContent = 'Ошибка'; btn.disabled = false; });
+});
+
+// Initial load
+loadGraph();
+</script>
+{% endblock %}

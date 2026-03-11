@@ -3,13 +3,23 @@ from django.shortcuts import redirect
 from django.urls import reverse
 
 
+SMARTY_DOMAINS = {'smarty.rest', 'www.smarty.rest'}
+
 def site_login_required(view_func):
     """Decorator: require session login via session['user_id']."""
     @functools.wraps(view_func)
     def wrapped(request, *args, **kwargs):
         if request.session.get('user_id'):
             return view_func(request, *args, **kwargs)
-        return redirect(reverse('recordings:login'))
+        from urllib.parse import urlencode
+        next_url = request.get_full_path()
+        host = request.get_host().split(':')[0]
+        if host in SMARTY_DOMAINS:
+            login_name = 'recordings:smarty_login'
+        else:
+            login_name = 'recordings:login'
+        login_url = reverse(login_name) + '?' + urlencode({'next': next_url})
+        return redirect(login_url)
     return wrapped
 
 

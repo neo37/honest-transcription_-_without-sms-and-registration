@@ -1,17 +1,47 @@
 """
-Сервис OCR на базе olmOCR (https://github.com/allenai/olmocr).
+Сервис OCR на базе olmOCR / EasyOCR / Tesseract.
 Принимает POST /ocr с файлом, возвращает {"markdown": "..."}.
-Если заданы OCR_SERVER, OCR_MODEL, OCR_API_KEY — используется внешний inference (без GPU).
+
+Режимы:
+- auto (default): если GPU-режим включён в настройках → EasyOCR GPU,
+  иначе если OCR_SERVER задан → olmOCR (cloud), иначе → Tesseract CPU
+- tesseract: Tesseract CPU
+- easyocr: EasyOCR (GPU если доступен)
+- olmocr: внешний olmOCR inference
+
+Настройка GPU-режима: переменная среды OCR_USE_GPU=1 (задаётся из системных настроек)
 """
 import os
 import subprocess
-import tempfile
 import uuid
 from pathlib import Path
+from functools import lru_cache
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 
-app = FastAPI(title="OCR (olmOCR)", version="0.1")
+app = FastAPI(title="OCR", version="0.2")
+
+# Кэш EasyOCR reader (загружается один раз)
+_easyocr_reader = None
+
+
+def _get_easyocr_reader(gpu: bool):
+    global _easyocr_reader
+    if _easyocr_reader is None:
+        import easyocr
+        _easyocr_reader = easyocr.Reader(['ru', 'en'], gpu=gpu)
+    return _easyocr_reader
+
+
+_FLAG_PATH = os.path.join(os.environ.get('DATA_ROOT', '/app/data'), 'ocr_gpu_mode')
+
+
+def _is_gpu_mode() -> bool:
+    """Читаем файл-флаг из shared volume (обновляется веб-сервером при смене настройки)."""
+    try:
+        return Path(_FLAG_PATH).read_text().strip() == '1'
+    except Exception:
+        return os.environ.get('OCR_USE_GPU', '0').strip() == '1'
 
 WORKSPACE_BASE = Path(os.environ.get("OCR_WORKSPACE_BASE", "/tmp/ocr_workspace"))
 
@@ -36,6 +66,29 @@ def ocr_with_tesseract(input_path: Path) -> str:
     else:
         img = Image.open(input_path)
         return pytesseract.image_to_string(img, lang=lang).strip()
+
+
+def ocr_with_easyocr(input_path: Path) -> str:
+    """EasyOCR — поддерживает GPU. Для изображений и PDF (конвертируем через pdf2image)."""
+    gpu = _is_gpu_mode()
+    reader = _get_easyocr_reader(gpu=gpu)
+    suffix = input_path.suffix.lower()
+
+    if suffix == ".pdf":
+        from pdf2image import convert_from_path
+        pages = convert_from_path(str(input_path), dpi=200)
+        parts = []
+        for page in pages:
+            import tempfile, os
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+                page.save(tmp.name)
+                results = reader.readtext(tmp.name, detail=0, paragraph=True)
+                os.unlink(tmp.name)
+            parts.append('\n'.join(results))
+        return '\n\n'.join(parts)
+    else:
+        results = reader.readtext(str(input_path), detail=0, paragraph=True)
+        return '\n'.join(results)
 
 
 def run_olmocr(input_path: Path, workspace: Path) -> str:
@@ -128,8 +181,14 @@ async def ocr(file: UploadFile = File(...), method: str = "auto"):
     try:
         if method == "tesseract":
             markdown = ocr_with_tesseract(input_path)
+        elif method == "easyocr":
+            markdown = ocr_with_easyocr(input_path)
+        elif method == "auto":
+            if _is_gpu_mode():
+                markdown = ocr_with_easyocr(input_path)
+            else:
+                markdown = run_olmocr(input_path, workspace)
         else:
-            # olmocr или auto: run_olmocr сам выбирает tesseract если OCR_SERVER не задан
             markdown = run_olmocr(input_path, workspace)
         return {"markdown": markdown, "method": method}
     except HTTPException:

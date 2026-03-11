@@ -61,7 +61,7 @@ if [ "$IS_OBED" = true ]; then
   grep -q '^CSRF_TRUSTED_ORIGINS=' .env 2>/dev/null && sed -i "s|^CSRF_TRUSTED_ORIGINS=.*|CSRF_TRUSTED_ORIGINS=$ORIGINS|" .env || echo "CSRF_TRUSTED_ORIGINS=$ORIGINS" >> .env
   grep -q '^SESSION_COOKIE_SECURE=' .env 2>/dev/null && sed -i 's/^SESSION_COOKIE_SECURE=.*/SESSION_COOKIE_SECURE=True/' .env || echo "SESSION_COOKIE_SECURE=True" >> .env
   grep -q '^DJANGO_SUPERUSER_USERNAME=' .env 2>/dev/null || echo "DJANGO_SUPERUSER_USERNAME=admin" >> .env
-  grep -q '^DJANGO_SUPERUSER_PASSWORD=' .env 2>/dev/null || echo "DJANGO_SUPERUSER_PASSWORD=MeetRecAdmin2025!" >> .env
+  grep -q '^DJANGO_SUPERUSER_PASSWORD=' .env 2>/dev/null || { echo "ERROR: DJANGO_SUPERUSER_PASSWORD not set in .env" >&2; exit 1; }
   grep -q '^DJANGO_SUPERUSER_EMAIL=' .env 2>/dev/null || echo "DJANGO_SUPERUSER_EMAIL=admin@obed.pro" >> .env
   # Порт 18000 для прокси (не конфликтует с 8000)
   sed -i 's|127.0.0.1:8003:8000|18000:8000|' docker-compose.prod.yml 2>/dev/null || true

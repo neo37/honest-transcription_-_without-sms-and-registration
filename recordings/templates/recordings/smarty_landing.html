@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpaceCode — AI Platform</title>
+<meta name="description" content="SpaceCode — технологическая компания. Intelligent AI systems, 3D solutions, web applications.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #050a12;
+    --bg2: #080f1a;
+    --cyan: #06c8f0;
+    --blue: #3b82f6;
+    --violet: #8b5cf6;
+    --green: #10d98a;
+    --text: #e2eaf5;
+    --muted: #6b7a99;
+    --glass: rgba(255,255,255,0.04);
+    --glass-border: rgba(255,255,255,0.08);
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  /* ─── Canvas ─────────────────────────────── */
+  #three-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .page-content { position: relative; z-index: 1; }
+
+  /* ─── Nav ─────────────────────────────────── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 48px;
+    backdrop-filter: blur(20px);
+    background: rgba(5,10,18,0.7);
+    border-bottom: 1px solid rgba(6,200,240,0.08);
+  }
+
+  .nav-logo {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, var(--cyan), var(--violet));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .lang-switcher {
+    display: flex;
+    gap: 6px;
+  }
+  .lang-btn {
+    background: transparent;
+    border: 1px solid var(--glass-border);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+  .lang-btn:hover, .lang-btn.active {
+    border-color: var(--cyan);
+    color: var(--cyan);
+    background: rgba(6,200,240,0.08);
+  }
+
+  .nav-login-btn {
+    background: linear-gradient(135deg, var(--cyan), var(--blue));
+    color: #fff;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 30px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 0 20px rgba(6,200,240,0.3);
+  }
+  .nav-login-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 32px rgba(6,200,240,0.5);
+  }
+
+  /* ─── Hero ────────────────────────────────── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 120px 24px 80px;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(6,200,240,0.08);
+    border: 1px solid rgba(6,200,240,0.2);
+    border-radius: 30px;
+    padding: 8px 20px;
+    font-size: 13px;
+    color: var(--cyan);
+    margin-bottom: 32px;
+    letter-spacing: 0.5px;
+  }
+  .hero-badge::before {
+    content: '';
+    width: 7px; height: 7px;
+    background: var(--cyan);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--cyan);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100%{ opacity:1; transform:scale(1); }
+    50%{ opacity:0.5; transform:scale(1.5); }
+  }
+
+  .hero-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: clamp(40px, 6vw, 82px);
+    font-weight: 800;
+    line-height: 1.08;
+    letter-spacing: -2px;
+    margin-bottom: 24px;
+    background: linear-gradient(135deg, #ffffff 0%, var(--cyan) 50%, var(--violet) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-sub {
+    font-size: clamp(16px, 2vw, 20px);
+    color: var(--muted);
+    max-width: 680px;
+    line-height: 1.65;
+    margin-bottom: 48px;
+    font-weight: 400;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(135deg, var(--cyan), var(--blue));
+    color: #fff;
+    border: none;
+    padding: 16px 36px;
+    border-radius: 50px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 4px 30px rgba(6,200,240,0.4);
+    text-decoration: none;
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 40px rgba(6,200,240,0.6);
+  }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--glass-border);
+    padding: 16px 36px;
+    border-radius: 50px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-decoration: none;
+    backdrop-filter: blur(10px);
+  }
+  .btn-ghost:hover {
+    border-color: var(--violet);
+    color: var(--violet);
+    background: rgba(139,92,246,0.08);
+  }
+
+  .hero-stats {
+    display: flex;
+    gap: 48px;
+    margin-top: 72px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .stat-item { text-align: center; }
+  .stat-value {
+    font-size: 38px;
+    font-weight: 800;
+    font-family: 'Space Grotesk', sans-serif;
+    background: linear-gradient(135deg, var(--cyan), var(--blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+  }
+  .stat-label {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 6px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ─── Section ──────────────────────────────── */
+  section {
+    padding: 100px 24px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 16px;
+  }
+
+  .section-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: clamp(28px, 4vw, 50px);
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1.15;
+    margin-bottom: 16px;
+  }
+
+  .section-desc {
+    font-size: 18px;
+    color: var(--muted);
+    max-width: 600px;
+    line-height: 1.7;
+    margin-bottom: 64px;
+  }
+
+  /* ─── Services grid ───────────────────────── */
+  .services-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 24px;
+  }
+
+  .service-card {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 32px;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(16px);
+  }
+  .service-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at top left, var(--glow, rgba(6,200,240,0.06)) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .service-card:hover {
+    border-color: rgba(6,200,240,0.25);
+    transform: translateY(-4px);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 40px var(--glow, rgba(6,200,240,0.1));
+  }
+
+  .service-card[data-color="cyan"]   { --glow: rgba(6,200,240,0.12); }
+  .service-card[data-color="violet"] { --glow: rgba(139,92,246,0.12); }
+  .service-card[data-color="blue"]   { --glow: rgba(59,130,246,0.12); }
+  .service-card[data-color="green"]  { --glow: rgba(16,217,138,0.12); }
+
+  .service-icon {
+    width: 52px; height: 52px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin-bottom: 20px;
+  }
+  .icon-cyan   { background: rgba(6,200,240,0.15); box-shadow: 0 0 20px rgba(6,200,240,0.2); }
+  .icon-violet { background: rgba(139,92,246,0.15); box-shadow: 0 0 20px rgba(139,92,246,0.2); }
+  .icon-blue   { background: rgba(59,130,246,0.15); box-shadow: 0 0 20px rgba(59,130,246,0.2); }
+  .icon-green  { background: rgba(16,217,138,0.15); box-shadow: 0 0 20px rgba(16,217,138,0.2); }
+
+  .service-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    letter-spacing: -0.3px;
+  }
+  .service-desc {
+    font-size: 15px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  .service-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 20px;
+  }
+  .tag {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 30px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ─── Features row ─────────────────────────── */
+  .features-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 32px;
+    margin-top: 48px;
+  }
+  .feature-item {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .feature-num {
+    font-size: 48px;
+    font-weight: 900;
+    font-family: 'Space Grotesk', sans-serif;
+    line-height: 1;
+    background: linear-gradient(135deg, var(--cyan), transparent);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    opacity: 0.4;
+  }
+  .feature-title {
+    font-size: 18px;
+    font-weight: 700;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  .feature-desc {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.65;
+  }
+
+  /* ─── 3D showcase ──────────────────────────── */
+  .showcase-section {
+    background: rgba(6,200,240,0.03);
+    border-top: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--glass-border);
+    padding: 100px 24px;
+  }
+  .showcase-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+  }
+  @media(max-width: 768px) {
+    .showcase-inner { grid-template-columns: 1fr; gap: 40px; }
+    nav { padding: 16px 20px; }
+    .hero-stats { gap: 32px; }
+    .services-grid { grid-template-columns: 1fr; }
+  }
+  #three-showcase {
+    width: 100%;
+    height: 380px;
+    border-radius: 20px;
+    border: 1px solid var(--glass-border);
+    overflow: hidden;
+    background: rgba(6,200,240,0.02);
+  }
+
+  /* ─── Login section ────────────────────────── */
+  .login-section {
+    padding: 80px 24px 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .login-card {
+    background: rgba(8,15,26,0.8);
+    border: 1px solid rgba(6,200,240,0.15);
+    border-radius: 24px;
+    padding: 48px;
+    width: 100%;
+    max-width: 460px;
+    backdrop-filter: blur(30px);
+    box-shadow: 0 40px 80px rgba(0,0,0,0.5), 0 0 60px rgba(6,200,240,0.06);
+  }
+  .login-card h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+  .login-card p {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 36px;
+    line-height: 1.6;
+  }
+  .form-group { margin-bottom: 20px; }
+  .form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 8px;
+    letter-spacing: 0.3px;
+  }
+  .form-group input {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    color: var(--text);
+    font-size: 15px;
+    outline: none;
+    transition: all 0.2s;
+    font-family: 'Inter', sans-serif;
+  }
+  .form-group input:focus {
+    border-color: var(--cyan);
+    background: rgba(6,200,240,0.04);
+    box-shadow: 0 0 0 3px rgba(6,200,240,0.1);
+  }
+  .form-group input::placeholder { color: rgba(107,122,153,0.7); }
+
+  .btn-login {
+    width: 100%;
+    background: linear-gradient(135deg, var(--cyan), var(--blue));
+    color: #fff;
+    border: none;
+    padding: 16px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 4px 24px rgba(6,200,240,0.4);
+    margin-top: 8px;
+    font-family: 'Inter', sans-serif;
+  }
+  .btn-login:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 32px rgba(6,200,240,0.6);
+  }
+  .login-error {
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 14px;
+    color: #f87171;
+    margin-bottom: 20px;
+  }
+
+  /* ─── Footer ───────────────────────────────── */
+  footer {
+    border-top: 1px solid var(--glass-border);
+    padding: 48px 48px;
+    text-align: center;
+  }
+  footer .footer-brand {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--cyan), var(--violet));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 8px;
+  }
+  footer p { font-size: 14px; color: var(--muted); }
+
+  /* ─── Scroll animations ─────────────────────── */
+  .fade-in {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+  .fade-in.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ─── Glow divider ─────────────────────────── */
+  .glow-divider {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cyan), var(--violet), transparent);
+    opacity: 0.3;
+    margin: 0;
+  }
+
+  /* ─── Hidden translations ──────────────────── */
+  [data-lang] { display: none; }
+  [data-lang].lang-active { display: block; }
+  .inline-lang { display: none; }
+  .inline-lang.lang-active { display: inline; }
+</style>
+</head>
+<body>
+
+<canvas id="three-canvas"></canvas>
+
+<div class="page-content">
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">SpaceCode</div>
+  <div class="lang-switcher">
+    <button class="lang-btn active" onclick="setLang('ru')">RU</button>
+    <button class="lang-btn" onclick="setLang('en')">EN</button>
+    <button class="lang-btn" onclick="setLang('sr')">SR</button>
+  </div>
+  <button class="nav-login-btn" onclick="document.getElementById('login-section').scrollIntoView({behavior:'smooth'})">
+    <span data-lang="ru" class="lang-active inline-lang">Войти</span>
+    <span data-lang="en" class="inline-lang">Sign In</span>
+    <span data-lang="sr" class="inline-lang">Prijava</span>
+  </button>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-badge">
+    <span data-lang="ru" class="lang-active inline-lang">Технологии будущего — сегодня</span>
+    <span data-lang="en" class="inline-lang">Future technology — today</span>
+    <span data-lang="sr" class="inline-lang">Tehnologija budućnosti — danas</span>
+  </div>
+
+  <h1 class="hero-title">
+    <span data-lang="ru" class="lang-active">SpaceCode<br>AI Platform</span>
+    <span data-lang="en">SpaceCode<br>AI Platform</span>
+    <span data-lang="sr">SpaceCode<br>AI Platforma</span>
+  </h1>
+
+  <p class="hero-sub">
+    <span data-lang="ru" class="lang-active">SpaceCode — технологическая компания из Черногории. Мы строим интеллектуальные системы, 3D-решения и продукты для бизнеса будущего.</span>
+    <span data-lang="en">SpaceCode is a technology company from Montenegro. We build intelligent AI systems, 3D solutions, and products for the business of the future.</span>
+    <span data-lang="sr">SpaceCode je tehnološka kompanija iz Crne Gore. Gradimo inteligentne AI sisteme, 3D rješenja i proizvode za poslovanje budućnosti.</span>
+  </p>
+
+  <div class="hero-actions">
+    <button class="btn-primary" onclick="document.getElementById('login-section').scrollIntoView({behavior:'smooth'})">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+      <span data-lang="ru" class="lang-active inline-lang">Войти в платформу</span>
+      <span data-lang="en" class="inline-lang">Enter Platform</span>
+      <span data-lang="sr" class="inline-lang">Uđi na platformu</span>
+    </button>
+    <a class="btn-ghost" href="#services">
+      <span data-lang="ru" class="lang-active inline-lang">Наши услуги</span>
+      <span data-lang="en" class="inline-lang">Our Services</span>
+      <span data-lang="sr" class="inline-lang">Naše usluge</span>
+    </a>
+  </div>
+
+  <div class="hero-stats">
+    <div class="stat-item">
+      <div class="stat-value">6+</div>
+      <div class="stat-label">
+        <span data-lang="ru" class="lang-active inline-lang">Направлений</span>
+        <span data-lang="en" class="inline-lang">Directions</span>
+        <span data-lang="sr" class="inline-lang">Pravaca</span>
+      </div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">AI</div>
+      <div class="stat-label">
+        <span data-lang="ru" class="lang-active inline-lang">Первый приоритет</span>
+        <span data-lang="en" class="inline-lang">First priority</span>
+        <span data-lang="sr" class="inline-lang">Prvi prioritet</span>
+      </div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">3D</div>
+      <div class="stat-label">WebGL / Three.js</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">ME</div>
+      <div class="stat-label">
+        <span data-lang="ru" class="lang-active inline-lang">Черногория</span>
+        <span data-lang="en" class="inline-lang">Montenegro</span>
+        <span data-lang="sr" class="inline-lang">Crna Gora</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="glow-divider"></div>
+
+<!-- SERVICES -->
+<section id="services">
+  <div class="fade-in">
+    <span class="section-label">
+      <span data-lang="ru" class="lang-active inline-lang">Что мы делаем</span>
+      <span data-lang="en" class="inline-lang">What we do</span>
+      <span data-lang="sr" class="inline-lang">Šta radimo</span>
+    </span>
+    <h2 class="section-title">
+      <span data-lang="ru" class="lang-active">Полный стек<br>цифровых решений</span>
+      <span data-lang="en">Full stack of<br>digital solutions</span>
+      <span data-lang="sr">Puni stek<br>digitalnih rješenja</span>
+    </h2>
+    <p class="section-desc">
+      <span data-lang="ru" class="lang-active">От автономных AI-агентов до интерактивных 3D-миров — мы закрываем весь спектр технологий для современного бизнеса.</span>
+      <span data-lang="en">From autonomous AI agents to interactive 3D worlds — we cover the full spectrum of technology for modern business.</span>
+      <span data-lang="sr">Od autonomnih AI agenata do interaktivnih 3D svjetova — pokrivamo cijeli spektar tehnologija za moderno poslovanje.</span>
+    </p>
+  </div>
+
+  <div class="services-grid fade-in">
+    <!-- AI Agents -->
+    <div class="service-card" data-color="cyan">
+      <div class="service-icon icon-cyan">🤖</div>
+      <div class="service-title">
+        <span data-lang="ru" class="lang-active inline-lang">AI-агенты</span>
+        <span data-lang="en" class="inline-lang">AI Agents</span>
+        <span data-lang="sr" class="inline-lang">AI Agenti</span>
+      </div>
+      <div class="service-desc">
+        <span data-lang="ru" class="lang-active">Автономные системы, которые самостоятельно планируют, принимают решения и выполняют сложные задачи через цикл восприятие → LLM → действие.</span>
+        <span data-lang="en">Autonomous systems that independently plan, decide, and execute complex tasks through perception → LLM reasoning → action cycles.</span>
+        <span data-lang="sr">Autonomni sistemi koji samostalno planiraju, odlučuju i izvršavaju složene zadatke kroz ciklus percepcija → LLM → akcija.</span>
+      </div>
+      <div class="service-tags">
+        <span class="tag">LLM</span><span class="tag">ReAct</span><span class="tag">RAG</span><span class="tag">OpenAI</span>
+      </div>
+    </div>
+
+    <!-- 3D -->
+    <div class="service-card" data-color="violet">
+      <div class="service-icon icon-violet">🌐</div>
+      <div class="service-title">
+        <span data-lang="ru" class="lang-active inline-lang">3D-решения</span>
+        <span data-lang="en" class="inline-lang">3D Solutions</span>
+        <span data-lang="sr" class="inline-lang">3D Rješenja</span>
+      </div>
+      <div class="service-desc">
+        <span data-lang="ru" class="lang-active">Интерактивные 3D-приложения для web и mobile: конфигураторы продуктов, архитектурная визуализация, цифровые двойники, симуляторы.</span>
+        <span data-lang="en">Interactive 3D web and mobile apps: product configurators, architectural visualization, digital twins, and simulators using WebGL/Three.js.</span>
+        <span data-lang="sr">Interaktivne 3D web i mobilne aplikacije: konfigurator proizvoda, arhitektonska vizualizacija, digitalni blizanci i simulatori.</span>
+      </div>
+      <div class="service-tags">
+        <span class="tag">Three.js</span><span class="tag">WebGL</span><span class="tag">GLSL</span><span class="tag">WebXR</span>
+      </div>
+    </div>
+
+    <!-- AI/ML -->
+    <div class="service-card" data-color="blue">
+      <div class="service-icon icon-blue">📊</div>
+      <div class="service-title">
+        <span data-lang="ru" class="lang-active inline-lang">AI / ML сервисы</span>
+        <span data-lang="en" class="inline-lang">AI / ML Services</span>
+        <span data-lang="sr" class="inline-lang">AI / ML Usluge</span>
+      </div>
+      <div class="service-desc">
+        <span data-lang="ru" class="lang-active">Системы прогнозирования, динамическое ценообразование, компьютерное зрение, автоматизация через чат-боты, EEG-биометрия.</span>
+        <span data-lang="en">Forecasting systems, dynamic pricing, computer vision, chatbot automation, and EEG biometric analysis.</span>
+        <span data-lang="sr">Sistemi predviđanja, dinamično određivanje cijena, kompjuterski vid, automatizacija putem chatbota, EEG biometrika.</span>
+      </div>
+      <div class="service-tags">
+        <span class="tag">PyTorch</span><span class="tag">CV</span><span class="tag">NLP</span><span class="tag">TimeSeries</span>
+      </div>
+    </div>
+
+    <!-- Web Dev -->
+    <div class="service-card" data-color="green">
+      <div class="service-icon icon-green">💻</div>
+      <div class="service-title">
+        <span data-lang="ru" class="lang-active inline-lang">Веб-разработка</span>
+        <span data-lang="en" class="inline-lang">Web Development</span>
+        <span data-lang="sr" class="inline-lang">Web Razvoj</span>
+      </div>
+      <div class="service-desc">
+        <span data-lang="ru" class="lang-active">Корпоративные порталы, системы бронирования, CRM-платформы, высоконагруженные приложения с масштабируемой архитектурой.</span>
+        <span data-lang="en">Corporate portals, reservation systems, CRM platforms, and high-load applications with scalable architecture.</span>
+        <span data-lang="sr">Korporativni portali, sistemi rezervacija, CRM platforme i visokopterećene aplikacije s skalabilnom arhitekturom.</span>
+      </div>
+      <div class="service-tags">
+        <span class="tag">Django</span><span class="tag">React</span><span class="tag">PostgreSQL</span><span class="tag">Docker</span>
+      </div>
+    </div>
+
+    <!-- VR/AR -->
+    <div class="service-card" data-color="cyan">
+      <div class="service-icon icon-cyan">🥽</div>
+      <div class="service-title">
+        <span data-lang="ru" class="lang-active inline-lang">VR / AR решения</span>
+        <span data-lang="en" class="inline-lang">VR / AR Solutions</span>
+        <span data-lang="sr" class="inline-lang">VR / AR Rješenja</span>
+      </div>
+      <div class="service-desc">
+        <span data-lang="ru" class="lang-active">3D-визуализация, AR-приложения для смартфонов, удалённые VR-системы управления, виртуальные примерки, тренажёры.</span>
+        <span data-lang="en">3D visualization, AR mobile apps, remote VR management systems, virtual try-ons, and training simulators.</span>
+        <span data-lang="sr">3D vizualizacija, AR mobilne aplikacije, sistemi daljinskog VR upravljanja, virtualne probe i simulatori obuke.</span>
+      </div>
+      <div class="service-tags">
+        <span class="tag">Unity</span><span class="tag">ARKit</span><span class="tag">WebXR</span><span class="tag">Oculus</span>
+      </div>
+    </div>
+
+    <!-- Hardware -->
+    <div class="service-card" data-color="violet">
+      <div class="service-icon icon-violet">⚡</div>
+      <div class="service-title">
+        <span data-lang="ru" class="lang-active inline-lang">Аппаратные решения</span>
+        <span data-lang="en" class="inline-lang">Hardware & Engineering</span>
+        <span data-lang="sr" class="inline-lang">Hardverska rješenja</span>
+      </div>
+      <div class="service-desc">
+        <span data-lang="ru" class="lang-active">Разработка PCB, FPGA-программирование, создание роботов и прототипов любой сложности — от идеи до работающего устройства.</span>
+        <span data-lang="en">PCB design, FPGA programming, robot development, and prototype manufacturing — from idea to working device.</span>
+        <span data-lang="sr">Dizajn PCB-a, FPGA programiranje, razvoj robota i prototipova — od ideje do funkcionalnog uređaja.</span>
+      </div>
+      <div class="service-tags">
+        <span class="tag">PCB</span><span class="tag">FPGA</span><span class="tag">Robotics</span><span class="tag">IoT</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="glow-divider"></div>
+
+<!-- 3D SHOWCASE -->
+<div class="showcase-section">
+  <div class="showcase-inner">
+    <div class="fade-in">
+      <span class="section-label">Three.js / WebGL</span>
+      <h2 class="section-title">
+        <span data-lang="ru" class="lang-active">Интерактивный<br>3D в браузере</span>
+        <span data-lang="en">Interactive<br>3D in browser</span>
+        <span data-lang="sr">Interaktivni<br>3D u browseru</span>
+      </h2>
+      <p class="section-desc" style="margin-bottom:0">
+        <span data-lang="ru" class="lang-active">Мы специализируемся на создании высокопроизводительных 3D-сцен, доступных прямо в браузере — без плагинов, с нативной поддержкой WebXR для VR/AR.</span>
+        <span data-lang="en">We specialize in creating high-performance 3D scenes accessible directly in the browser — no plugins, with native WebXR support for VR/AR.</span>
+        <span data-lang="sr">Specijalizovani smo za kreiranje visokoučinkovitih 3D scena dostupnih direktno u pregledaču — bez dodataka, uz nativnu WebXR podršku za VR/AR.</span>
+      </p>
+    </div>
+    <div>
+      <canvas id="three-showcase"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="glow-divider"></div>
+
+<!-- WHY US -->
+<section>
+  <div class="fade-in">
+    <span class="section-label">
+      <span data-lang="ru" class="lang-active inline-lang">Почему мы</span>
+      <span data-lang="en" class="inline-lang">Why us</span>
+      <span data-lang="sr" class="inline-lang">Zašto mi</span>
+    </span>
+    <h2 class="section-title">
+      <span data-lang="ru" class="lang-active">Принципы работы</span>
+      <span data-lang="en">Our principles</span>
+      <span data-lang="sr">Naši principi</span>
+    </h2>
+  </div>
+  <div class="features-row fade-in">
+    <div class="feature-item">
+      <div class="feature-num">01</div>
+      <div class="feature-title">
+        <span data-lang="ru" class="lang-active inline-lang">AI в основе всего</span>
+        <span data-lang="en" class="inline-lang">AI at the core</span>
+        <span data-lang="sr" class="inline-lang">AI u osnovi svega</span>
+      </div>
+      <div class="feature-desc">
+        <span data-lang="ru" class="lang-active">Каждый продукт строится с учётом возможностей искусственного интеллекта — от прогнозирования до автономных агентов.</span>
+        <span data-lang="en">Every product is built with AI capabilities at the core — from forecasting to fully autonomous agents.</span>
+        <span data-lang="sr">Svaki proizvod je izgrađen s AI mogućnostima u osnovi — od predviđanja do autonomnih agenata.</span>
+      </div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-num">02</div>
+      <div class="feature-title">
+        <span data-lang="ru" class="lang-active inline-lang">Полный стек</span>
+        <span data-lang="en" class="inline-lang">Full stack</span>
+        <span data-lang="sr" class="inline-lang">Puni stek</span>
+      </div>
+      <div class="feature-desc">
+        <span data-lang="ru" class="lang-active">От аппаратного прототипа до облачного SaaS — мы закрываем весь жизненный цикл продукта внутри одной команды.</span>
+        <span data-lang="en">From hardware prototype to cloud SaaS — we cover the full product lifecycle within a single team.</span>
+        <span data-lang="sr">Od hardverskog prototipa do cloud SaaS-a — pokrivamo cijeli životni ciklus proizvoda unutar jednog tima.</span>
+      </div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-num">03</div>
+      <div class="feature-title">
+        <span data-lang="ru" class="lang-active inline-lang">Скорость и качество</span>
+        <span data-lang="en" class="inline-lang">Speed & quality</span>
+        <span data-lang="sr" class="inline-lang">Brzina i kvalitet</span>
+      </div>
+      <div class="feature-desc">
+        <span data-lang="ru" class="lang-active">Agile-подход с фокусом на быстрый MVP и итеративное развитие, без потери качества архитектурных решений.</span>
+        <span data-lang="en">Agile approach with focus on fast MVP and iterative development, without sacrificing architectural quality.</span>
+        <span data-lang="sr">Agile pristup s fokusom na brzi MVP i iterativni razvoj, bez žrtvovanja arhitekturnog kvaliteta.</span>
+      </div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-num">04</div>
+      <div class="feature-title">
+        <span data-lang="ru" class="lang-active inline-lang">Международная команда</span>
+        <span data-lang="en" class="inline-lang">International team</span>
+        <span data-lang="sr" class="inline-lang">Internacionalni tim</span>
+      </div>
+      <div class="feature-desc">
+        <span data-lang="ru" class="lang-active">Зарегистрированы в Черногории, работаем с клиентами по всей Европе, России и СНГ на трёх языках.</span>
+        <span data-lang="en">Registered in Montenegro, working with clients across Europe, Russia, and CIS in three languages.</span>
+        <span data-lang="sr">Registrovani u Crnoj Gori, radimo s klijentima širom Evrope, Rusije i ZND na tri jezika.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="glow-divider"></div>
+
+<!-- LOGIN -->
+<div class="login-section" id="login-section">
+  <div style="text-align:center; margin-bottom:40px;" class="fade-in">
+    <span class="section-label">
+      <span data-lang="ru" class="lang-active inline-lang">Доступ к платформе</span>
+      <span data-lang="en" class="inline-lang">Platform access</span>
+      <span data-lang="sr" class="inline-lang">Pristup platformi</span>
+    </span>
+    <h2 class="section-title" style="margin-bottom:0">
+      <span data-lang="ru" class="lang-active">Войти в SpaceCode</span>
+      <span data-lang="en">Sign in to SpaceCode</span>
+      <span data-lang="sr">Prijavite se na SpaceCode</span>
+    </h2>
+  </div>
+
+  <div class="login-card fade-in">
+    <h2>
+      <span data-lang="ru" class="lang-active inline-lang">Вход</span>
+      <span data-lang="en" class="inline-lang">Sign In</span>
+      <span data-lang="sr" class="inline-lang">Prijava</span>
+    </h2>
+    <p>
+      <span data-lang="ru" class="lang-active">Введите email и пароль для доступа к платформе SpaceCode.</span>
+      <span data-lang="en">Enter your email and password to access the SpaceCode platform.</span>
+      <span data-lang="sr">Unesite email i lozinku za pristup SpaceCode platformi.</span>
+    </p>
+
+    {% if error %}
+    <div class="login-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="{% url 'recordings:smarty_login' %}">
+      {% csrf_token %}
+      {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+      <div class="form-group">
+        <label>
+          <span data-lang="ru" class="lang-active inline-lang">Email</span>
+          <span data-lang="en" class="inline-lang">Email</span>
+          <span data-lang="sr" class="inline-lang">Email</span>
+        </label>
+        <input type="email" name="email" placeholder="you@example.com" required autofocus>
+      </div>
+      <div class="form-group">
+        <label>
+          <span data-lang="ru" class="lang-active inline-lang">Пароль</span>
+          <span data-lang="en" class="inline-lang">Password</span>
+          <span data-lang="sr" class="inline-lang">Lozinka</span>
+        </label>
+        <input type="password" name="password" placeholder="••••••••" required>
+      </div>
+      <button type="submit" class="btn-login">
+        <span data-lang="ru" class="lang-active inline-lang">Войти →</span>
+        <span data-lang="en" class="inline-lang">Sign In →</span>
+        <span data-lang="sr" class="inline-lang">Prijavite se →</span>
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-brand">SpaceCode</div>
+  <p>SpaceCode д.о.о. — Черногория / Montenegro / Crna Gora</p>
+  <p style="margin-top:8px; font-size:13px;">
+    <a href="https://ai.obed.pro" style="color:var(--cyan); text-decoration:none;">ai.obed.pro</a>
+  </p>
+</footer>
+
+</div><!-- /.page-content -->
+
+<!-- THREE.JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════
+// MAIN CANVAS — particle network
+// ═══════════════════════════════════════════════════════════
+(function() {
+  const canvas = document.getElementById('three-canvas');
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.z = 120;
+
+  // Particles
+  const N = 280;
+  const positions = new Float32Array(N * 3);
+  const colors = new Float32Array(N * 3);
+  const velocities = [];
+  const palette = [
+    new THREE.Color('#06c8f0'),
+    new THREE.Color('#3b82f6'),
+    new THREE.Color('#8b5cf6'),
+    new THREE.Color('#10d98a'),
+  ];
+
+  for (let i = 0; i < N; i++) {
+    const r = 90;
+    positions[i*3]   = (Math.random() - 0.5) * r * 2;
+    positions[i*3+1] = (Math.random() - 0.5) * r * 1.5;
+    positions[i*3+2] = (Math.random() - 0.5) * r;
+    velocities.push(new THREE.Vector3(
+      (Math.random() - 0.5) * 0.04,
+      (Math.random() - 0.5) * 0.04,
+      (Math.random() - 0.5) * 0.02
+    ));
+    const c = palette[Math.floor(Math.random() * palette.length)];
+    colors[i*3] = c.r; colors[i*3+1] = c.g; colors[i*3+2] = c.b;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+  const mat = new THREE.PointsMaterial({ size: 2.5, vertexColors: true, transparent: true, opacity: 0.7 });
+  const points = new THREE.Points(geo, mat);
+  scene.add(points);
+
+  // Lines between nearby particles
+  const lineMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.12 });
+  let lineGeo = null;
+  let lineObj = null;
+
+  function buildLines() {
+    const lpos = [], lcol = [];
+    const pos = geo.attributes.position.array;
+    for (let i = 0; i < N; i++) {
+      const ax = pos[i*3], ay = pos[i*3+1], az = pos[i*3+2];
+      for (let j = i+1; j < N; j++) {
+        const dx = ax - pos[j*3], dy = ay - pos[j*3+1], dz = az - pos[j*3+2];
+        const d = Math.sqrt(dx*dx + dy*dy + dz*dz);
+        if (d < 28) {
+          lpos.push(ax, ay, az, pos[j*3], pos[j*3+1], pos[j*3+2]);
+          const alpha = 1 - d / 28;
+          lcol.push(0.024, 0.5*alpha, 0.94, 0.024, 0.5*alpha, 0.94);
+        }
+      }
+    }
+    if (lineObj) scene.remove(lineObj);
+    if (lpos.length) {
+      lineGeo = new THREE.BufferGeometry();
+      lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(lpos), 3));
+      lineGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(lcol), 3));
+      lineObj = new THREE.LineSegments(lineGeo, lineMat);
+      scene.add(lineObj);
+    }
+  }
+
+  let mouseX = 0, mouseY = 0;
+  document.addEventListener('mousemove', e => {
+    mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
+    mouseY = -(e.clientY / window.innerHeight - 0.5) * 2;
+  });
+
+  let frame = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    frame++;
+    const pos = geo.attributes.position.array;
+    for (let i = 0; i < N; i++) {
+      pos[i*3]   += velocities[i].x;
+      pos[i*3+1] += velocities[i].y;
+      pos[i*3+2] += velocities[i].z;
+      if (Math.abs(pos[i*3])   > 100) velocities[i].x *= -1;
+      if (Math.abs(pos[i*3+1]) > 80)  velocities[i].y *= -1;
+      if (Math.abs(pos[i*3+2]) > 60)  velocities[i].z *= -1;
+    }
+    geo.attributes.position.needsUpdate = true;
+    if (frame % 3 === 0) buildLines();
+
+    scene.rotation.y = mouseX * 0.06 + Math.sin(frame * 0.003) * 0.05;
+    scene.rotation.x = mouseY * 0.04 + Math.cos(frame * 0.002) * 0.03;
+
+    renderer.render(scene, camera);
+  }
+  animate();
+  buildLines();
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+})();
+
+// ═══════════════════════════════════════════════════════════
+// SHOWCASE CANVAS — rotating torus knot
+// ═══════════════════════════════════════════════════════════
+(function() {
+  const canvas = document.getElementById('three-showcase');
+  if (!canvas) return;
+  const w = canvas.parentElement.offsetWidth || 480;
+  const h = 380;
+  canvas.width = w; canvas.height = h;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(w, h);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 500);
+  camera.position.set(0, 0, 5);
+
+  // Torus knot
+  const geo = new THREE.TorusKnotGeometry(1.3, 0.38, 180, 20, 3, 7);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x06c8f0,
+    metalness: 0.85,
+    roughness: 0.1,
+    wireframe: false,
+    emissive: new THREE.Color(0x0a2a40),
+  });
+  const knot = new THREE.Mesh(geo, mat);
+  scene.add(knot);
+
+  // Wireframe overlay
+  const wmat = new THREE.MeshBasicMaterial({ color: 0x8b5cf6, wireframe: true, opacity: 0.18, transparent: true });
+  const wknot = new THREE.Mesh(geo, wmat);
+  scene.add(wknot);
+
+  // Floating spheres
+  for (let i = 0; i < 6; i++) {
+    const sg = new THREE.SphereGeometry(0.06 + Math.random()*0.06, 12, 12);
+    const sm = new THREE.MeshStandardMaterial({
+      color: [0x06c8f0, 0x3b82f6, 0x8b5cf6, 0x10d98a][i % 4],
+      emissive: [0x06c8f0, 0x3b82f6, 0x8b5cf6, 0x10d98a][i % 4],
+      emissiveIntensity: 0.6,
+    });
+    const s = new THREE.Mesh(sg, sm);
+    const angle = (i / 6) * Math.PI * 2;
+    s.position.set(Math.cos(angle) * 2.4, Math.sin(angle) * 2.2, (Math.random()-0.5));
+    s.userData = { angle, speed: 0.004 + Math.random()*0.004, r: 2.2 + Math.random()*0.4 };
+    scene.add(s);
+  }
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0x111122, 2));
+  const pl1 = new THREE.PointLight(0x06c8f0, 6, 20);
+  pl1.position.set(3, 3, 3);
+  scene.add(pl1);
+  const pl2 = new THREE.PointLight(0x8b5cf6, 4, 20);
+  pl2.position.set(-3, -2, -2);
+  scene.add(pl2);
+
+  let f = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    f++;
+    knot.rotation.x += 0.005;
+    knot.rotation.y += 0.008;
+    wknot.rotation.x = knot.rotation.x;
+    wknot.rotation.y = knot.rotation.y;
+    pl1.position.x = Math.sin(f * 0.02) * 4;
+    pl1.position.y = Math.cos(f * 0.015) * 3;
+    scene.children.forEach(obj => {
+      if (obj.userData && obj.userData.angle !== undefined) {
+        obj.userData.angle += obj.userData.speed;
+        obj.position.x = Math.cos(obj.userData.angle) * obj.userData.r;
+        obj.position.y = Math.sin(obj.userData.angle) * (obj.userData.r * 0.9);
+      }
+    });
+    renderer.render(scene, camera);
+  }
+  animate();
+})();
+
+// ═══════════════════════════════════════════════════════════
+// LANG SWITCHER
+// ═══════════════════════════════════════════════════════════
+function setLang(lang) {
+  document.querySelectorAll('[data-lang]').forEach(el => {
+    if (el.classList.contains('inline-lang')) {
+      el.classList.toggle('lang-active', el.dataset.lang === lang);
+    } else {
+      el.style.display = el.dataset.lang === lang ? '' : 'none';
+      if (el.dataset.lang === lang) el.classList.add('lang-active');
+      else el.classList.remove('lang-active');
+    }
+  });
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.textContent.toLowerCase() === lang);
+  });
+  localStorage.setItem('sc_lang', lang);
+}
+// Init from storage
+(function() {
+  const saved = localStorage.getItem('sc_lang');
+  if (saved && ['ru','en','sr'].includes(saved)) {
+    setLang(saved);
+  } else {
+    setLang('ru');
+  }
+})();
+
+// ═══════════════════════════════════════════════════════════
+// SCROLL ANIMATIONS
+// ═══════════════════════════════════════════════════════════
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.1 });
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>

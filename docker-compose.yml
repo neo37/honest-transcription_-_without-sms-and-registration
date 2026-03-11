@@ -10,6 +10,9 @@ services:
       - OCR_SERVER=${OCR_SERVER:-}
       - OCR_MODEL=${OCR_MODEL:-allenai/olmOCR-2-7B-1025-FP8}
       - OCR_API_KEY=${OCR_API_KEY:-}
+      - DATA_ROOT=/app/data
+    volumes:
+      - app_data:/app/data
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
       interval: 15s
@@ -45,6 +48,7 @@ services:
       - DJANGO_SUPERUSER_EMAIL=${DJANGO_SUPERUSER_EMAIL:-admin@example.com}
     volumes:
       - app_data:/app/data
+      - ./livekit.yaml:/app/livekit.yaml:ro
     command: >
       sh -c "python manage.py migrate --noinput &&
              python manage.py collectstatic --noinput &&
@@ -72,12 +76,57 @@ services:
     volumes:
       - app_data:/app/data
     command: python manage.py run_poller
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     depends_on:
       db:
         condition: service_healthy
       web:
         condition: service_started
 
+  livekit:
+    image: livekit/livekit-server:latest
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "50000-50100:50000-50100/udp"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml
+    command: --config /etc/livekit.yaml
+    restart: unless-stopped
+
+  voice-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    env_file: .env
+    environment:
+      - LIVEKIT_URL=wss://livekit.business-pad.com
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - WHISPER_MODEL=small
+      - WHISPER_LANG=ru
+      - TTS_SPEAKER=xenia
+      - AGENT_SYSTEM_PROMPT=${AGENT_SYSTEM_PROMPT:-Ты голосовой ассистент BusinessPad. Отвечай коротко и по делу. Говори на русском языке.}
+      - LLM_URL=${LLM_URL:-https://r-ai.business-pad.com/api/ai_request/}
+      - LLM_AUTH=${LLM_AUTH}
+      - LLM_REFERER=${LLM_REFERER:-https://core.business-pad.com/}
+      - LLM_RESPONSE_KEY=${LLM_RESPONSE_KEY:-messages}
+      - DJANGO_URL=https://baza.business-pad.com
+      - MASTER_API_KEY=${MASTER_API_KEY}
+      - AGENT_AVATAR_URL=${AGENT_AVATAR_URL:-}
+    volumes:
+      - tts_cache:/root/.cache/torch
+    depends_on:
+      - livekit
+    restart: unless-stopped
+
 volumes:
   app_data:
   pgdata:
+  tts_cache:

@@ -72,7 +72,7 @@ body::after {
 .container {
     position: relative;
     z-index: 1;
-    max-width: 980px;
+    max-width: 1400px;
     margin: 0 auto;
     padding: 1.25rem 1.5rem;
 }
@@ -106,7 +106,8 @@ body::after {
 }
 
 /* Белый текст в SVG-логотипе невидим на светлом фоне — добавляем тёмный фон */
-[data-theme=""] .brand-wrap {
+[data-theme=""] .brand-wrap,
+:root:not([data-theme="dark"]) .brand-wrap {
     background: #1d3e84;
 }
 

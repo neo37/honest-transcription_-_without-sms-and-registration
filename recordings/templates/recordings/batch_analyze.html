@@ -1,0 +1,125 @@
+{% extends "recordings/base.html" %}
+{% block title %}Анализ записей через GPT{% endblock %}
+{% block extra_css %}
+<style>
+.rec-chip { display:inline-flex; align-items:center; gap:0.4rem; background:var(--bg-soft); border:1px solid var(--border); border-radius:20px; padding:0.25rem 0.7rem; font-size:0.82rem; margin:0.25rem; }
+.wiki-parent-item { display:flex; align-items:center; gap:0.5rem; padding:0.4rem 0.6rem; border-radius:6px; cursor:pointer; }
+.wiki-parent-item:hover, .wiki-parent-item.active { background:var(--bg-soft); }
+.wiki-parent-item input[type=radio] { accent-color:var(--accent); }
+.result-block { background:var(--bg-soft); border-radius:8px; padding:1rem 1.25rem; white-space:pre-wrap; font-size:0.9rem; line-height:1.6; max-height:400px; overflow-y:auto; border:1px solid var(--border); }
+.step { display:none; }
+.step.active { display:block; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>Анализ записей через GPT</h1>
+    <p class="breadcrumb"><a href="{% url 'recordings:index' %}">← Записи</a></p>
+</div>
+
+<!-- Выбранные записи -->
+<div class="card" style="margin-bottom:1rem;">
+    <p class="section-title" style="margin-bottom:0.5rem;">Выбранные записи ({{ recordings|length }})</p>
+    <div>
+    {% for rec in recordings %}
+        <span class="rec-chip">
+            {% if rec.ai_title %}{{ rec.ai_title }}{% else %}{{ rec.filename }}{% endif %}
+            {% if not rec.transcription %}<span style="color:var(--warning)"> ⚠ нет транскрипции</span>{% endif %}
+        </span>
+    {% endfor %}
+    </div>
+</div>
+
+<!-- Шаг 1: форма -->
+<div id="step1" class="step active card">
+    <p class="section-title">Что сделать с этими записями?</p>
+    <div style="margin-bottom:1rem;">
+        <label style="font-size:0.85rem;color:var(--muted);display:block;margin-bottom:0.3rem;">Задание для GPT</label>
+        <textarea id="gpt-prompt" rows="4" style="width:100%;padding:0.6rem;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:0.92rem;background:var(--bg-soft);color:var(--text);resize:vertical;" placeholder="Например: Сделай краткое резюме всех встреч. Выдели ключевые решения и задачи."></textarea>
+    </div>
+    <div style="margin-bottom:1rem;">
+        <label style="font-size:0.85rem;color:var(--muted);display:block;margin-bottom:0.3rem;">Название страницы в вики</label>
+        <input type="text" id="wiki-title" style="width:100%;padding:0.5rem 0.7rem;border:1px solid var(--border);border-radius:8px;font-size:0.92rem;background:var(--bg-soft);color:var(--text);" placeholder="Резюме встреч за март">
+    </div>
+    <button class="btn btn-accent" onclick="runAnalysis()" id="btn-run">Запустить анализ</button>
+</div>
+
+<!-- Шаг 2: ожидание с таймером -->
+<div id="step2" class="step card" style="text-align:center;padding:2rem 2rem 1.5rem;">
+    <p style="font-size:1.05rem;margin-bottom:0.25rem;">Я рассуждаю, но похоже ответ 42…</p>
+    <p id="timer-ms" style="font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:0.03em;color:var(--accent);margin:0.5rem 0 1rem;"></p>
+    <div style="width:100%;background:var(--border);border-radius:4px;height:6px;overflow:hidden;margin-bottom:1rem;">
+        <div id="timer-bar" style="height:100%;width:0%;background:var(--accent);border-radius:4px;transition:width 0.1s linear;"></div>
+    </div>
+    <p style="font-size:0.8rem;color:var(--muted);">Ждём ответа до 120 секунд</p>
+</div>
+
+<!-- Шаг 3: переход на страницу выбора места -->
+<div id="step3" class="step card" style="text-align:center;padding:2rem;">
+    <p style="font-size:1.1rem;">✅ Готово! Переходим к выбору места в вики…</p>
+</div>
+
+<!-- Скрытая форма для перехода на страницу выбора -->
+<form id="place-form" method="POST" action="{% url 'recordings:batch_analyze_place' %}" style="display:none;">
+    {% csrf_token %}
+    <input type="hidden" name="title" id="place-title">
+    <input type="hidden" name="content" id="place-content">
+    <input type="hidden" name="ids" id="place-ids">
+</form>
+
+<script>
+var REC_IDS = {{ rec_ids_json }};
+var _timerInterval = null;
+var _timerStart = 0;
+var TIMER_MAX_MS = 120000;
+
+function startTimer() {
+    _timerStart = Date.now();
+    var msEl = document.getElementById('timer-ms');
+    var barEl = document.getElementById('timer-bar');
+    _timerInterval = setInterval(function() {
+        var elapsed = Date.now() - _timerStart;
+        var s = Math.floor(elapsed / 1000);
+        var ms = elapsed % 1000;
+        msEl.textContent = s + '.' + String(ms).padStart(3, '0') + ' с';
+        barEl.style.width = Math.min(100, elapsed / TIMER_MAX_MS * 100) + '%';
+    }, 50);
+}
+
+function stopTimer() {
+    if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
+}
+
+function showStep(n) {
+    document.querySelectorAll('.step').forEach(function(s,i){ s.classList.toggle('active', i===n-1); });
+}
+
+function runAnalysis() {
+    var prompt = document.getElementById('gpt-prompt').value.trim();
+    if (!prompt) { alert('Введите задание для GPT'); return; }
+    var title = document.getElementById('wiki-title').value.trim();
+    if (!title) { alert('Введите название страницы'); return; }
+    showStep(2);
+    startTimer();
+    fetch('/batch-analyze/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/)||[])[1]||''
+        },
+        body: JSON.stringify({ ids: REC_IDS, prompt: prompt, wiki_title: title })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+        stopTimer();
+        if (d.error) { showStep(1); alert('Ошибка: ' + d.error); return; }
+        showStep(3);
+        document.getElementById('place-title').value = document.getElementById('wiki-title').value.trim();
+        document.getElementById('place-content').value = d.result;
+        document.getElementById('place-ids').value = REC_IDS.join(',');
+        document.getElementById('place-form').submit();
+    })
+    .catch(function(e){ stopTimer(); showStep(1); alert('Ошибка запроса'); });
+}
+</script>
+{% endblock %}

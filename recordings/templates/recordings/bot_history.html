@@ -1,0 +1,387 @@
+{% extends "recordings/base.html" %}
+{% block title %}История переписок{% endblock %}
+
+{% block content %}
+<div class="bh-wrap">
+
+  <!-- Сайдбар со списком разговоров -->
+  <aside class="bh-sidebar">
+    <div class="bh-sidebar-header">
+      <span>💬 Переписки</span>
+      <span class="bh-count">{{ conversations|length }}</span>
+    </div>
+    <div class="bh-sidebar-list">
+      {% for conv in conversations %}
+      <a href="?chat_id={{ conv.chat_id }}&bot_id={{ conv.bot_id_str }}"
+         class="bh-conv {% if conv.active %}bh-conv--active{% endif %}">
+        <div class="bh-conv-top">
+          <span class="bh-conv-user">{{ conv.email }}</span>
+          {% if conv.last_at %}
+          <span class="bh-conv-time">{{ conv.last_at|date:"d.m H:i" }}</span>
+          {% endif %}
+        </div>
+        <div class="bh-conv-bot">{{ conv.bot_name }}</div>
+      </a>
+      {% empty %}
+      <div style="padding:20px;color:#999;font-size:.85rem;text-align:center">
+        Переписок пока нет.<br>Пользователям нужно написать боту.
+      </div>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <!-- Область чата -->
+  <main class="bh-main">
+    {% if messages_list %}
+
+      <div class="bh-chat-header">
+        {% for conv in conversations %}
+          {% if conv.active %}
+            <strong>{{ conv.email }}</strong>
+            <span class="bh-chat-bot-name">{{ conv.bot_name }}</span>
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      <div class="bh-messages" id="messages">
+        {% for msg in messages_list %}
+
+          {% if msg.role == 'tool' %}
+            <!-- Вызов инструмента — компактный -->
+            <div class="bh-tool">
+              <span class="bh-tool-name">🔧 {{ msg.tool_name }}</span>
+              <span class="bh-tool-content">{{ msg.content|truncatechars:120 }}</span>
+            </div>
+
+          {% elif msg.role == 'audio' %}
+            <!-- Аудио-сообщение с кнопкой подстановки -->
+            <div class="bh-bubble bh-bubble--user bh-audio-msg" id="entry-{{ msg.pk }}">
+              <div class="bh-audio-icon">🎙</div>
+              <div class="bh-audio-body">
+                {% if msg.recording %}
+                  <div class="bh-audio-filename">{{ msg.recording.filename }}</div>
+                  <div class="bh-audio-status">
+                    {% if msg.recording.status == 'done' %}
+                      <span class="bh-badge bh-badge--done">✅ транскрибация готова</span>
+                      <button class="bh-insert-btn"
+                              data-id="{{ msg.pk }}"
+                              data-rec="{{ msg.recording.pk }}">
+                        📝 Подставить транскрибацию
+                      </button>
+                    {% elif msg.recording.status == 'transcribing' %}
+                      <span class="bh-badge bh-badge--progress">⏳ транскрибируется…</span>
+                    {% elif msg.recording.status == 'failed' %}
+                      <span class="bh-badge bh-badge--fail">❌ ошибка транскрибации</span>
+                    {% else %}
+                      <span class="bh-badge bh-badge--queue">🕐 в очереди</span>
+                    {% endif %}
+                  </div>
+                  <div class="bh-audio-content" id="content-{{ msg.pk }}">{{ msg.content }}</div>
+                {% else %}
+                  <div class="bh-audio-content">{{ msg.content }}</div>
+                {% endif %}
+              </div>
+              <span class="bh-time">{{ msg.created_at|date:"H:i" }}</span>
+            </div>
+
+          {% elif msg.role == 'user' %}
+            <div class="bh-bubble bh-bubble--user">
+              <div class="bh-bubble-text">{{ msg.content }}</div>
+              <span class="bh-time">{{ msg.created_at|date:"H:i" }}</span>
+            </div>
+
+          {% elif msg.role == 'assistant' %}
+            <div class="bh-bubble bh-bubble--bot">
+              <div class="bh-bubble-text">{{ msg.content }}</div>
+              <span class="bh-time">{{ msg.created_at|date:"H:i" }}</span>
+            </div>
+
+          {% endif %}
+        {% endfor %}
+      </div>
+
+    {% elif request.GET.chat_id %}
+      <div class="bh-empty">Сообщений в этой переписке нет.</div>
+    {% else %}
+      <div class="bh-empty">
+        <div style="font-size:2.5rem;margin-bottom:12px">💬</div>
+        Выберите переписку из списка слева.
+      </div>
+    {% endif %}
+  </main>
+
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.bh-wrap {
+  display: flex;
+  height: calc(100vh - 60px);
+  overflow: hidden;
+  font-size: .9rem;
+}
+
+/* ── Sidebar ── */
+.bh-sidebar {
+  width: 280px;
+  min-width: 220px;
+  border-right: 1px solid #e8e8e8;
+  display: flex;
+  flex-direction: column;
+  background: #fafafa;
+  overflow: hidden;
+}
+.bh-sidebar-header {
+  padding: 14px 16px 10px;
+  font-weight: 600;
+  font-size: .85rem;
+  color: #555;
+  border-bottom: 1px solid #e8e8e8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bh-count {
+  background: #e0e0e0;
+  color: #555;
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: .78rem;
+}
+.bh-sidebar-list {
+  flex: 1;
+  overflow-y: auto;
+}
+.bh-conv {
+  display: block;
+  padding: 10px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  text-decoration: none;
+  color: inherit;
+  transition: background .12s;
+}
+.bh-conv:hover { background: #f0f0f0; }
+.bh-conv--active { background: #e8f0fe !important; border-left: 3px solid #1a73e8; }
+.bh-conv-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+}
+.bh-conv-user {
+  font-weight: 500;
+  font-size: .85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
+.bh-conv-time { font-size: .75rem; color: #999; white-space: nowrap; }
+.bh-conv-bot { font-size: .78rem; color: #888; margin-top: 2px; }
+
+/* ── Main ── */
+.bh-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #fff;
+}
+.bh-chat-header {
+  padding: 12px 20px;
+  border-bottom: 1px solid #e8e8e8;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: .9rem;
+}
+.bh-chat-bot-name {
+  font-size: .8rem;
+  color: #888;
+  background: #f0f0f0;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.bh-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bh-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #aaa;
+  font-size: .9rem;
+  text-align: center;
+}
+
+/* ── Bubbles ── */
+.bh-bubble {
+  max-width: 72%;
+  padding: 8px 12px 4px;
+  border-radius: 12px;
+  position: relative;
+  word-break: break-word;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+.bh-bubble--user {
+  align-self: flex-end;
+  background: #e8f0fe;
+  border-bottom-right-radius: 3px;
+}
+.bh-bubble--bot {
+  align-self: flex-start;
+  background: #f1f3f4;
+  border-bottom-left-radius: 3px;
+}
+.bh-bubble-text { font-size: .88rem; }
+.bh-time {
+  display: block;
+  font-size: .72rem;
+  color: #aaa;
+  text-align: right;
+  margin-top: 2px;
+}
+
+/* ── Tool calls ── */
+.bh-tool {
+  align-self: center;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: .78rem;
+  color: #795548;
+  max-width: 90%;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.bh-tool-name { font-weight: 600; white-space: nowrap; }
+.bh-tool-content { color: #999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Audio messages ── */
+.bh-audio-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px 6px;
+  max-width: 80%;
+}
+.bh-audio-icon { font-size: 1.4rem; flex-shrink: 0; }
+.bh-audio-body { flex: 1; }
+.bh-audio-filename {
+  font-weight: 500;
+  font-size: .85rem;
+  color: #333;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+}
+.bh-audio-status { margin-bottom: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bh-audio-content {
+  font-size: .8rem;
+  color: #777;
+  white-space: pre-wrap;
+  max-height: 120px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.bh-audio-content.expanded { max-height: none; }
+
+.bh-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: .75rem;
+  font-weight: 500;
+}
+.bh-badge--done    { background: #e8f5e9; color: #2e7d32; }
+.bh-badge--progress{ background: #fff8e1; color: #f57f17; }
+.bh-badge--fail    { background: #ffebee; color: #c62828; }
+.bh-badge--queue   { background: #f3e5f5; color: #6a1b9a; }
+
+.bh-insert-btn {
+  background: #1a73e8;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: .78rem;
+  cursor: pointer;
+  transition: background .15s;
+}
+.bh-insert-btn:hover { background: #1557b0; }
+.bh-insert-btn:disabled { background: #aaa; cursor: default; }
+.bh-insert-btn.done { background: #388e3c; }
+
+@media (max-width: 700px) {
+  .bh-sidebar { width: 200px; min-width: 160px; }
+  .bh-bubble { max-width: 90%; }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Прокрутка в конец при загрузке
+const msgs = document.getElementById('messages');
+if (msgs) msgs.scrollTop = msgs.scrollHeight;
+
+// Кнопки «Подставить транскрибацию»
+document.querySelectorAll('.bh-insert-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id = btn.dataset.id;
+    btn.disabled = true;
+    btn.textContent = '⏳ Вставляю…';
+
+    try {
+      const resp = await fetch(`/bot-history/${id}/insert-transcription/`, {
+        method: 'POST',
+        headers: {'X-CSRFToken': getCookie('csrftoken')},
+      });
+      const data = await resp.json();
+
+      if (data.ok) {
+        // Обновляем контент на странице
+        const contentEl = document.getElementById(`content-${id}`);
+        if (contentEl) {
+          contentEl.textContent = data.content;
+          contentEl.classList.add('expanded');
+        }
+        btn.textContent = '✅ Вставлено';
+        btn.classList.add('done');
+
+        // Меняем бейдж
+        const statusEl = btn.closest('.bh-audio-status');
+        if (statusEl) {
+          const badge = statusEl.querySelector('.bh-badge');
+          if (badge) badge.textContent = '✅ транскрибация вставлена';
+        }
+      } else {
+        btn.textContent = '❌ ' + (data.error || 'Ошибка');
+        btn.disabled = false;
+      }
+    } catch(e) {
+      btn.textContent = '❌ Ошибка сети';
+      btn.disabled = false;
+    }
+  });
+});
+
+function getCookie(name) {
+  const v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+  return v ? v[2] : null;
+}
+</script>
+{% endblock %}

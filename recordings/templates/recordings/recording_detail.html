@@ -17,6 +17,31 @@
         border-bottom: 1px solid var(--border);
     }
 
+    /* ── Dialog view ── */
+    .dialog-view { display: flex; flex-direction: column; gap: 0.6rem; margin: 1.5rem 0; padding: 1rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .dialog-line { display: flex; gap: 0.75rem; align-items: flex-start; }
+    .dialog-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; color: #fff; flex-shrink: 0; margin-top: 2px; }
+    .dialog-bubble { background: var(--bg-soft); border-radius: 0 12px 12px 12px; padding: 0.5rem 0.9rem; max-width: 90%; }
+    .dialog-speaker { font-size: 0.72rem; font-weight: 600; color: var(--muted); margin-bottom: 0.2rem; letter-spacing: 0.03em; }
+    .dialog-text { font-size: 0.92rem; line-height: 1.55; color: var(--text-secondary); }
+
+    /* ── Speaker name editor ── */
+    .speaker-editor { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin: 1rem 0; }
+    .speaker-editor-title { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 0.75rem; }
+    .speaker-rows { display: flex; flex-direction: column; gap: 0.5rem; }
+    .speaker-row { display: flex; align-items: center; gap: 0.6rem; }
+    .speaker-row .dialog-avatar { width: 28px; height: 28px; font-size: 0.7rem; }
+    .profile-badge { font-size: 0.7rem; }
+    .speaker-row label { font-size: 0.82rem; color: var(--text-secondary); min-width: 90px; flex-shrink: 0; display: flex; align-items: center; gap: 0.3rem; }
+    .speaker-row input { flex: 1; padding: 0.35rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-soft); color: var(--text); font-family: inherit; font-size: 0.85rem; }
+    .speaker-row .me-radio { display: flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; color: var(--accent); white-space: nowrap; flex-shrink: 0; cursor: pointer; }
+    .speaker-row .me-radio input[type=radio] { accent-color: var(--accent); }
+    .speaker-save-btn { margin-top: 0.75rem; padding: 0.4rem 1rem; font-size: 0.82rem; background: var(--accent); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; transition: background var(--transition); }
+    .speaker-save-btn:hover { background: var(--accent-light); }
+    .tg-send-btn { margin-top: 0.6rem; margin-left: 0.5rem; padding: 0.4rem 1rem; font-size: 0.82rem; background: #229ED9; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; transition: opacity 0.2s; }
+    .tg-send-btn:hover { opacity: 0.85; }
+    .tg-link-hint { margin-top: 0.6rem; font-size: 0.78rem; color: var(--muted); }
+
     .detail-actions {
         display: flex;
         flex-wrap: wrap;
@@ -114,7 +139,31 @@
 </div>
 
 {% if recording.transcription %}
-<div class="detail-transcription" id="transcription-text">{{ recording.transcription }}</div>
+<div id="transcription-text" class="detail-transcription" style="display:none">{{ recording.transcription }}</div>
+<div id="dialog-view" class="dialog-view" style="display:none"></div>
+<div id="speaker-editor" class="speaker-editor" style="display:none">
+    <div class="speaker-editor-title">Участники {% if speaker_profiles %}<span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:0.72rem;color:var(--accent);"> · {{ speaker_profiles|length }} голос. профил. в базе</span>{% endif %}</div>
+    <div class="speaker-rows" id="speaker-rows"></div>
+    <datalist id="profile-list">
+        {% for name in speaker_profiles %}<option value="{{ name }}">{% endfor %}
+    </datalist>
+    <div style="margin-top:0.75rem;display:flex;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+        <button class="speaker-save-btn" onclick="saveSpeakerNames()">Сохранить имена</button>
+        <span id="speaker-save-status" style="font-size:0.78rem;color:var(--muted);"></span>
+    </div>
+    {% if current_user.tg_chat_id %}
+    <div style="margin-top:0.6rem;">
+        <button class="tg-send-btn" id="tg-send-btn" onclick="sendTgTranscript()">✈ Прислать транскрипт мне в Telegram</button>
+        <span id="tg-send-status" style="font-size:0.78rem;color:var(--muted);margin-left:0.5rem;"></span>
+    </div>
+    {% else %}
+    <div class="tg-link-hint" id="tg-link-block">
+        <span>Подключите Telegram чтобы получать транскрипты: </span>
+        <a href="#" id="tg-link-btn" onclick="requestTgLink(event)">Привязать Telegram</a>
+        <span id="tg-link-code" style="display:none;margin-left:0.5rem;"></span>
+    </div>
+    {% endif %}
+</div>
 
 <div class="detail-actions">
     {% if download_url %}
@@ -142,47 +191,113 @@
 {% endif %}
 
 <div class="card" style="margin-top: 2rem;">
-    <p class="section-title">Транскрибация</p>
-    <form method="post" action="{% url 'recordings:run_recording_transcription' recording.pk %}">
+    <p class="section-title">Обработка</p>
+    <form method="post" action="{% url 'recordings:run_recording_transcription' recording.pk %}" id="retry-form">
         {% csrf_token %}
-        <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
+
+        <!-- Этап -->
+        <div style="margin-bottom:1rem;">
+            <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:0.4rem;font-weight:600;">Этап</label>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;" id="stage-btns">
+                <label class="stage-btn active" data-stage="transcription">
+                    <input type="radio" name="stage" value="transcription" checked style="display:none;">
+                    🎙 Транскрипция
+                </label>
+                {% if recording.transcription %}
+                <label class="stage-btn" data-stage="ai_summary">
+                    <input type="radio" name="stage" value="ai_summary" style="display:none;">
+                    ✨ AI заголовок / резюме
+                </label>
+                <label class="stage-btn" data-stage="embedding">
+                    <input type="radio" name="stage" value="embedding" style="display:none;">
+                    🔍 Эмбеддинг (поиск)
+                </label>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Параметры транскрипции (скрываются если не transcription) -->
+        <div id="transcription-params" style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
             <div>
-                <label
-                    style="display:block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.25rem;">Качество</label>
-                <select name="quality"
-                    style="padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-soft); color: var(--text);">
-                    <option value="base" {% if recording.transcription_quality == 'base' %}selected{% endif %}>Базовое
-                        (быстро)</option>
-                    <option value="small" {% if recording.transcription_quality == 'small' %}selected{% endif %}>Среднее
-                    </option>
-                    <option value="medium" {% if recording.transcription_quality == 'medium' %}selected{% endif %}>Хорошее
-                    </option>
-                    <option value="large-v3" {% if recording.transcription_quality == 'large-v3' %}selected{% endif %}>
-                        Наилучшее (медленно)</option>
+                <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:0.25rem;">Качество</label>
+                <select name="quality" style="padding:0.5rem;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-soft);color:var(--text);">
+                    <option value="base" {% if recording.transcription_quality == 'base' %}selected{% endif %}>Базовое (быстро)</option>
+                    <option value="small" {% if recording.transcription_quality == 'small' %}selected{% endif %}>Среднее</option>
+                    <option value="medium" {% if recording.transcription_quality == 'medium' %}selected{% endif %}>Хорошее</option>
+                    <option value="large-v3" {% if recording.transcription_quality == 'large-v3' %}selected{% endif %}>Наилучшее (медленно)</option>
                 </select>
             </div>
             <div>
-                <label
-                    style="display:block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.25rem;">Язык</label>
-                <select name="language"
-                    style="padding: 0.5rem; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-soft); color: var(--text);">
-                    <option value="ru" {% if recording.transcription_language == 'ru' %}selected{% endif %}>Русский
-                    </option>
-                    <option value="en" {% if recording.transcription_language == 'en' %}selected{% endif %}>Английский
-                    </option>
-                    <option value="auto" {% if recording.transcription_language == 'auto' %}selected{% endif %}>
-                        Автоопределение</option>
+                <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:0.25rem;">Язык</label>
+                <select name="language" style="padding:0.5rem;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-soft);color:var(--text);">
+                    <option value="ru" {% if recording.transcription_language == 'ru' %}selected{% endif %}>Русский</option>
+                    <option value="en" {% if recording.transcription_language == 'en' %}selected{% endif %}>Английский</option>
+                    <option value="auto" {% if recording.transcription_language == 'auto' %}selected{% endif %}>Автоопределение</option>
+                </select>
+            </div>
+            <div>
+                <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:0.25rem;">Устройство</label>
+                <select name="device" style="padding:0.5rem;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-soft);color:var(--text);">
+                    <option value="auto">Авто (по настройкам)</option>
+                    <option value="cpu">CPU</option>
+                    <option value="gpu">GPU (CUDA)</option>
                 </select>
             </div>
         </div>
-        <button type="submit" class="btn">{% if recording.transcription %}Перетранскрибировать{% else %}Запустить
-            транскрибацию{% endif %}</button>
-        {% if recording.error_message %}
-        <a href="{% url 'recordings:support_request' recording.pk %}" class="btn btn-ghost" target="_blank"
-            rel="noopener">Поделиться ошибкой</a>
-        {% endif %}
+
+        <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+            <button type="submit" class="btn" id="retry-submit-btn">
+                {% if recording.transcription %}Перезапустить{% else %}Запустить транскрипцию{% endif %}
+            </button>
+            {% if recording.error_message %}
+            <a href="{% url 'recordings:support_request' recording.pk %}" class="btn btn-ghost" target="_blank" rel="noopener">Поделиться ошибкой</a>
+            {% endif %}
+        </div>
     </form>
 </div>
+
+<style>
+.stage-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 500;
+    background: var(--bg-soft);
+    color: var(--muted);
+    transition: all 0.12s;
+    user-select: none;
+}
+.stage-btn:hover { background: var(--bg); color: var(--text); }
+.stage-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+</style>
+<script>
+(function() {
+    const stageBtns = document.querySelectorAll('.stage-btn');
+    const txParams = document.getElementById('transcription-params');
+    const submitBtn = document.getElementById('retry-submit-btn');
+
+    const labels = {
+        transcription: '{% if recording.transcription %}Перетранскрибировать{% else %}Запустить транскрипцию{% endif %}',
+        ai_summary: 'Сгенерировать AI резюме',
+        embedding: 'Переиндексировать',
+    };
+
+    stageBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const stage = this.dataset.stage;
+            stageBtns.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            this.querySelector('input').checked = true;
+            txParams.style.display = stage === 'transcription' ? 'flex' : 'none';
+            submitBtn.textContent = labels[stage] || 'Запустить';
+        });
+    });
+})();
+</script>
 
 {% if recording.wiki_articles.all %}
 <div class="card" style="margin-top: 1.5rem; border-left: 4px solid var(--accent-light);">
@@ -199,6 +314,106 @@
     </div>
 </div>
 {% endif %}
+
+<!-- ── Феликс: диалоги и задачи ── -->
+<div class="card" style="margin-top:1.5rem;" id="felix-block">
+    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
+        <span style="font-size:1.4rem;">🤖</span>
+        <p class="section-title" style="margin:0;">Феликс — диалоги и задачи</p>
+    </div>
+    <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem;flex-wrap:wrap;">
+        <input type="text" id="felix-room-input" placeholder="Название комнаты LiveKit (напр. kjy4-yeuv)"
+               style="flex:1;min-width:180px;padding:0.4rem 0.7rem;border:1px solid var(--border);border-radius:6px;background:var(--bg-soft);color:var(--text);font-size:0.85rem;">
+        <button onclick="loadFelixData()" class="btn btn-ghost" style="font-size:0.82rem;">Загрузить</button>
+    </div>
+    <div id="felix-tasks" style="display:none;margin-bottom:1rem;">
+        <div style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);margin-bottom:0.5rem;">Задачи</div>
+        <div id="felix-tasks-list"></div>
+    </div>
+    <div id="felix-dialog" style="display:none;">
+        <div style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);margin-bottom:0.5rem;">Диалог</div>
+        <div id="felix-dialog-list" style="display:flex;flex-direction:column;gap:0.5rem;max-height:400px;overflow-y:auto;"></div>
+    </div>
+    <p id="felix-empty" class="muted" style="font-size:0.85rem;">Введите название комнаты и нажмите «Загрузить».</p>
+</div>
+<style>
+    .felix-msg { display:flex; gap:0.6rem; align-items:flex-start; }
+    .felix-avatar { width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:#fff;flex-shrink:0;margin-top:2px; }
+    .felix-bubble { background:var(--bg-soft);border-radius:0 10px 10px 10px;padding:0.4rem 0.75rem;max-width:90%; }
+    .felix-bubble.agent { background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:10px 0 10px 10px; }
+    .felix-meta { font-size:0.7rem;color:var(--muted);margin-bottom:0.1rem; }
+    .felix-text { font-size:0.88rem;line-height:1.5;color:var(--text-secondary); }
+    .felix-task-item { display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.6rem;background:var(--bg-soft);border-radius:6px;margin-bottom:0.3rem; }
+    .felix-task-item.done .felix-task-title { text-decoration:line-through;color:var(--muted); }
+    .felix-task-title { flex:1;font-size:0.88rem; }
+    .felix-task-meta { font-size:0.72rem;color:var(--muted); }
+</style>
+<script>
+function loadFelixData() {
+    var room = document.getElementById('felix-room-input').value.trim();
+    if (!room) return;
+    document.getElementById('felix-empty').textContent = 'Загрузка…';
+    fetch('/api/mascot-room/' + encodeURIComponent(room) + '/')
+        .then(function(r){ return r.json(); })
+        .then(function(data) {
+            renderFelixTasks(data.tasks);
+            renderFelixDialog(data.logs);
+            if (!data.logs.length && !data.tasks.length) {
+                document.getElementById('felix-empty').textContent = 'Нет данных для этой комнаты.';
+                document.getElementById('felix-empty').style.display = '';
+            } else {
+                document.getElementById('felix-empty').style.display = 'none';
+            }
+        })
+        .catch(function(){ document.getElementById('felix-empty').textContent = 'Ошибка загрузки.'; });
+}
+function renderFelixTasks(tasks) {
+    var wrap = document.getElementById('felix-tasks');
+    var list = document.getElementById('felix-tasks-list');
+    if (!tasks || !tasks.length) { wrap.style.display='none'; return; }
+    wrap.style.display = '';
+    list.innerHTML = '';
+    tasks.forEach(function(t) {
+        var el = document.createElement('div');
+        el.className = 'felix-task-item' + (t.done ? ' done' : '');
+        el.innerHTML = '<input type="checkbox"' + (t.done?' checked':'') + ' onchange="toggleTask(' + t.id + ', this)">' +
+            '<span class="felix-task-title">' + t.title.replace(/</g,'&lt;') + '</span>' +
+            '<span class="felix-task-meta">' + (t.speaker||'') + ' · ' + t.created_at + '</span>';
+        list.appendChild(el);
+    });
+}
+function renderFelixDialog(logs) {
+    var wrap = document.getElementById('felix-dialog');
+    var list = document.getElementById('felix-dialog-list');
+    if (!logs || !logs.length) { wrap.style.display='none'; return; }
+    wrap.style.display = '';
+    list.innerHTML = '';
+    logs.forEach(function(e) {
+        if (e.event !== 'said' && e.event !== 'wake' && e.event !== 'chat') return;
+        var isAgent = (e.event === 'said');
+        var color = isAgent ? '#8b5cf6' : '#3b82f6';
+        var name = isAgent ? 'Феликс' : (e.speaker || 'Участник');
+        var initials = name.slice(0,2).toUpperCase();
+        var div = document.createElement('div');
+        div.className = 'felix-msg';
+        div.style.flexDirection = isAgent ? 'row-reverse' : 'row';
+        div.innerHTML = '<div class="felix-avatar" style="background:' + color + '">' + initials + '</div>' +
+            '<div class="felix-bubble' + (isAgent?' agent':'') + '">' +
+            '<div class="felix-meta">' + name + ' · ' + e.created_at + '</div>' +
+            '<div class="felix-text">' + e.text.replace(/</g,'&lt;') + '</div></div>';
+        list.appendChild(div);
+    });
+}
+function toggleTask(id, cb) {
+    fetch('/api/mascot-task/' + id + '/done/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/)||[])[1]||''}
+    }).then(function(r){return r.json();}).then(function(d){
+        var item = cb.closest('.felix-task-item');
+        if (item) { item.className = 'felix-task-item' + (d.done?' done':''); }
+    });
+}
+</script>
 
 <section class="comments-section card">
     <h3>Комментарии ({{ comments|length }})</h3>
@@ -219,6 +434,127 @@
 </section>
 
 <script>
+    /* ── Сохранённые имена спикеров из БД + автоподбор ── */
+    var savedSpeakerNames = {{ recording.speaker_names|safe }};
+    var autoSuggestedNames = {{ auto_names_json|safe }};
+    /* Если имён нет — подставляем автоподобранные как стартовое состояние */
+    var effectiveNames = (Object.keys(savedSpeakerNames).length > 0) ? savedSpeakerNames : autoSuggestedNames;
+
+    /* ── Диалоговый рендер ── */
+    var AVATAR_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16'];
+
+    function isDialogFormat(text) {
+        return /^[\-—]\s*(Участник\s+\d+|[A-Z_]+):/m.test(text);
+    }
+
+    function parseDialog(text, names) {
+        var lines = text.split('\n');
+        var items = [];
+        var current = null;
+        lines.forEach(function(line) {
+            var m = line.match(/^[\-—]\s*(.+?):\s*(.*)/);
+            if (m) {
+                if (current) items.push(current);
+                var key = m[1].trim();
+                var displayName = names[key] || key;
+                current = { key: key, name: displayName, text: m[2].trim() };
+            } else if (current && line.trim()) {
+                current.text += ' ' + line.trim();
+            }
+        });
+        if (current) items.push(current);
+        return items;
+    }
+
+    function renderDialog(items) {
+        var container = document.getElementById('dialog-view');
+        if (!container) return;
+        var speakerIndex = {};
+        var colorIdx = 0;
+        container.innerHTML = '';
+        items.forEach(function(item) {
+            if (!(item.key in speakerIndex)) {
+                speakerIndex[item.key] = colorIdx % AVATAR_COLORS.length;
+                colorIdx++;
+            }
+            var color = AVATAR_COLORS[speakerIndex[item.key]];
+            var initials = item.name.split(' ').map(function(w){return w[0]||'';}).join('').slice(0,2).toUpperCase();
+            var div = document.createElement('div');
+            div.className = 'dialog-line';
+            div.innerHTML = '<div class="dialog-avatar" style="background:' + color + '">' + initials + '</div>' +
+                '<div class="dialog-bubble">' +
+                '<div class="dialog-speaker">' + item.name + '</div>' +
+                '<div class="dialog-text">' + item.text.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>' +
+                '</div>';
+            container.appendChild(div);
+        });
+    }
+
+    var mySpeakerKey = null;
+
+    function renderSpeakerEditor(items, names, autoMatched) {
+        var container = document.getElementById('speaker-rows');
+        if (!container) return;
+        var seen = {};
+        var speakerIdx = 0;
+        container.innerHTML = '';
+        items.forEach(function(item) {
+            if (seen[item.key]) return;
+            seen[item.key] = true;
+            var color = AVATAR_COLORS[speakerIdx % AVATAR_COLORS.length];
+            var displayName = names[item.key] || item.key;
+            var initials = displayName.split(' ').map(function(w){return w[0]||'';}).join('').slice(0,2).toUpperCase();
+            var isMatched = autoMatched && autoMatched[item.key];
+            var isMe = (mySpeakerKey === item.key);
+            var row = document.createElement('div');
+            row.className = 'speaker-row';
+            row.innerHTML = '<div class="dialog-avatar" style="background:' + color + '">' + initials + '</div>' +
+                '<label>' + item.key + (isMatched ? ' <span class="profile-badge">🎯</span>' : '') + '</label>' +
+                '<input type="text" data-key="' + item.key + '" value="' + displayName.replace(/"/g,'&quot;') + '" placeholder="Имя участника" list="profile-list">' +
+                '<label class="me-radio"><input type="radio" name="my_speaker" value="' + item.key + '"' + (isMe ? ' checked' : '') + ' onchange="mySpeakerKey=this.value"> это я</label>';
+            container.appendChild(row);
+            speakerIdx++;
+        });
+    }
+
+    function saveSpeakerNames() {
+        var inputs = document.querySelectorAll('#speaker-rows input[data-key]');
+        var names = {};
+        inputs.forEach(function(inp) { names[inp.dataset.key] = inp.value.trim() || inp.dataset.key; });
+        var status = document.getElementById('speaker-save-status');
+        fetch('{% url "recordings:save_speaker_names" recording.pk %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '' },
+            body: JSON.stringify(names),
+        }).then(function(r) { return r.json(); }).then(function(d) {
+            if (d.ok) {
+                savedSpeakerNames = names;
+                effectiveNames = names;
+                var rawText = document.getElementById('transcription-text');
+                var items = parseDialog(rawText ? rawText.innerText : '', names);
+                renderDialog(items);
+                renderSpeakerEditor(items, names, names);
+                status.textContent = 'Сохранено';
+                setTimeout(function(){status.textContent='';}, 2000);
+            }
+        }).catch(function() { if(status) status.textContent = 'Ошибка'; });
+    }
+
+    (function() {
+        var rawEl = document.getElementById('transcription-text');
+        if (!rawEl) return;
+        var text = rawEl.innerText || rawEl.textContent;
+        if (isDialogFormat(text)) {
+            var items = parseDialog(text, effectiveNames);
+            renderDialog(items);
+            renderSpeakerEditor(items, effectiveNames, savedSpeakerNames);
+            document.getElementById('dialog-view').style.display = '';
+            document.getElementById('speaker-editor').style.display = '';
+        } else {
+            rawEl.style.display = '';
+        }
+    })();
+
     function copyAndGoDeepSeek() {
         var el = document.getElementById('transcription-text');
         var text = el ? el.innerText : '';
@@ -258,6 +594,44 @@
                 shareBtn.textContent = 'Ошибка';
                 shareBtn.disabled = false;
             });
+        });
+    }
+
+    function sendTgTranscript() {
+        var btn = document.getElementById('tg-send-btn');
+        var status = document.getElementById('tg-send-status');
+        if (btn) { btn.disabled = true; btn.textContent = 'Отправка…'; }
+        fetch('{% url "recordings:send_tg_transcript" recording.pk %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '' },
+        }).then(function(r) { return r.json(); }).then(function(d) {
+            if (btn) { btn.disabled = false; btn.textContent = '✈ Прислать транскрипт мне в Telegram'; }
+            if (status) { status.textContent = d.ok ? 'Отправлено!' : 'Ошибка'; setTimeout(function(){ status.textContent=''; }, 3000); }
+        }).catch(function() {
+            if (btn) { btn.disabled = false; btn.textContent = '✈ Прислать транскрипт мне в Telegram'; }
+            if (status) { status.textContent = 'Ошибка'; setTimeout(function(){ status.textContent=''; }, 3000); }
+        });
+    }
+
+    function requestTgLink(e) {
+        e.preventDefault();
+        var codeSpan = document.getElementById('tg-link-code');
+        var btn = document.getElementById('tg-link-btn');
+        if (btn) { btn.style.display = 'none'; }
+        fetch('{% url "recordings:api_tg_link" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '' },
+        }).then(function(r) { return r.json(); }).then(function(d) {
+            if (d.ok && codeSpan) {
+                codeSpan.style.display = '';
+                if (d.bot_link) {
+                    codeSpan.innerHTML = 'Перейдите к боту: <a href="' + d.bot_link + '" target="_blank">@bp_labs_baza_bot</a> (код <b>' + d.code + '</b> вставится автоматически)';
+                } else {
+                    codeSpan.textContent = 'Отправьте боту: /start ' + d.code;
+                }
+            }
+        }).catch(function() {
+            if (codeSpan) { codeSpan.style.display = ''; codeSpan.textContent = 'Ошибка, попробуйте ещё раз'; }
         });
     }
 

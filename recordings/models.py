@@ -4,11 +4,42 @@ from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
 
 
+class SystemConfig(models.Model):
+    """Системные настройки платформы (key/value)."""
+    key = models.CharField('Ключ', max_length=100, unique=True)
+    value = models.CharField('Значение', max_length=500, blank=True, default='')
+    description = models.CharField('Описание', max_length=300, blank=True, default='')
+    updated_at = models.DateTimeField('Обновлено', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Системная настройка'
+        verbose_name_plural = 'Системные настройки'
+
+    def __str__(self):
+        return f'{self.key} = {self.value}'
+
+    @classmethod
+    def get(cls, key, default=''):
+        try:
+            return cls.objects.get(key=key).value
+        except cls.DoesNotExist:
+            return default
+
+    @classmethod
+    def set(cls, key, value, description=''):
+        obj, _ = cls.objects.get_or_create(key=key, defaults={'description': description})
+        obj.value = str(value)
+        obj.save(update_fields=['value', 'updated_at'])
+        return obj
+
+
 class Space(models.Model):
     """Пространство (организация) — группирует пользователей и записи."""
     name = models.CharField('Название', max_length=200)
     slug = models.SlugField('Slug', unique=True, max_length=80)
     api_key = models.UUIDField('API ключ', default=_uuid.uuid4, editable=False, unique=True)
+    wiki_username = models.CharField('Wiki API логин', max_length=100, blank=True, default='')
+    wiki_password = models.CharField('Wiki API пароль', max_length=100, blank=True, default='')
     created_at = models.DateTimeField('Создано', auto_now_add=True)
 
     class Meta:
@@ -37,6 +68,7 @@ class SiteUser(models.Model):
     tg_verify_code = models.CharField('Код TG верификации', max_length=16, null=True, blank=True)
     tg_verify_expires = models.DateTimeField('Срок действия кода TG', null=True, blank=True)
     tg_verified = models.BooleanField('TG верифицирован', default=False)
+    tg_chat_id = models.BigIntegerField('Telegram Chat ID', null=True, blank=True)
     created_at = models.DateTimeField('Создано', auto_now_add=True)
 
     class Meta:
@@ -98,6 +130,10 @@ class Recording(models.Model):
     transcription = models.TextField('Транскрипция', blank=True)
     transcription_quality = models.CharField('Качество транскрибации', max_length=20, choices=QUALITY_CHOICES, default='base')
     transcription_language = models.CharField('Язык транскрибации', max_length=10, choices=LANGUAGE_CHOICES, default='ru')
+    speaker_names = models.JSONField('Имена спикеров', default=dict, blank=True)
+    speaker_embeddings = models.JSONField('Эмбеддинги спикеров', default=dict, blank=True)
+    transcription_progress = models.PositiveSmallIntegerField('Прогресс транскрибации (%)', default=0)
+    transcription_stage = models.CharField('Этап транскрибации', max_length=100, blank=True)
     ai_title = models.CharField('AI Название', max_length=255, blank=True)
     ai_summary = models.TextField('AI Саммари', blank=True)
     transcribed_at = models.DateTimeField('Транскбировано', null=True, blank=True)
@@ -115,8 +151,36 @@ class Recording(models.Model):
         verbose_name = 'Запись'
         verbose_name_plural = 'Записи'
 
+    @property
+    def speaker_names_json(self):
+        import json
+        return json.dumps(self.speaker_names or {}, ensure_ascii=False)
+
     def __str__(self):
         return self.filename
+
+
+class SpeakerProfile(models.Model):
+    """Голосовой профиль спикера — хранит усреднённый эмбеддинг для автоопределения."""
+    space = models.ForeignKey(
+        Space, on_delete=models.CASCADE,
+        verbose_name='Пространство', related_name='speaker_profiles',
+    )
+    name = models.CharField('Имя', max_length=100)
+    embedding = models.JSONField('Эмбеддинг голоса', default=list, blank=True)
+    speech_patterns = models.JSONField('Речевые паттерны', default=dict, blank=True,
+        help_text='{"top_words": {"слово": freq, ...}, "phrases": {"фраза": freq, ...}, "sample_words": N}')
+    sample_count = models.PositiveIntegerField('Кол-во образцов', default=1)
+    created_at = models.DateTimeField('Создано', auto_now_add=True)
+    updated_at = models.DateTimeField('Обновлено', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Голосовой профиль'
+        verbose_name_plural = 'Голосовые профили'
+        unique_together = [('space', 'name')]
+
+    def __str__(self):
+        return f'{self.name} ({self.space})'
 
 
 class PollLog(models.Model):
@@ -401,6 +465,194 @@ class AIConfig(models.Model):
             return cls.objects.get(pk=1)
         except cls.DoesNotExist:
             return cls()  # экземпляр с дефолтами без сохранения в БД
+
+
+class MascotLog(models.Model):
+    """Лог действий голосового агента Маскот."""
+    EVENT_JOINED = 'joined'
+    EVENT_HEARD = 'heard'
+    EVENT_SAID = 'said'
+    EVENT_WAKE = 'wake'
+    EVENT_EMOJI = 'emoji'
+    EVENT_CHAT = 'chat'
+    EVENT_CHOICES = [
+        (EVENT_JOINED, 'Вошёл в комнату'),
+        (EVENT_HEARD,  'Услышал'),
+        (EVENT_SAID,   'Сказал'),
+        (EVENT_WAKE,   'Wake-word'),
+        (EVENT_EMOJI,  'Emoji реакция'),
+        (EVENT_CHAT,   'Сообщение в чате'),
+    ]
+    room = models.CharField('Комната', max_length=200)
+    event = models.CharField('Событие', max_length=20, choices=EVENT_CHOICES)
+    text = models.TextField('Текст', blank=True)
+    speaker = models.CharField('Участник', max_length=200, blank=True)
+    created_at = models.DateTimeField('Время', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Лог Маскота'
+        verbose_name_plural = 'Логи Маскота'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'[{self.room}] {self.get_event_display()}: {self.text[:60]}'
+
+
+class MascotTask(models.Model):
+    """Задача, созданная голосовым агентом Маскот."""
+    room = models.CharField('Комната', max_length=200)
+    title = models.CharField('Задача', max_length=500)
+    speaker = models.CharField('Автор', max_length=200, blank=True)
+    done = models.BooleanField('Выполнена', default=False)
+    created_at = models.DateTimeField('Время', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Задача Маскота'
+        verbose_name_plural = 'Задачи Маскота'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'[{self.room}] {self.title[:80]}'
+
+
+class MeetingRoom(models.Model):
+    """Встреча с LiveKit — опциональный голосовой маскот, приглашения через Telegram."""
+    room_name = models.CharField('ID комнаты', max_length=100, unique=True)
+    title = models.CharField('Название встречи', max_length=200)
+    with_mascot = models.BooleanField('С маскотом', default=False)
+    created_by = models.ForeignKey(
+        SiteUser, on_delete=models.SET_NULL, null=True, related_name='meetings'
+    )
+    space = models.ForeignKey(
+        Space, on_delete=models.SET_NULL, null=True, blank=True, related_name='meetings'
+    )
+    ended_at = models.DateTimeField('Завершена', null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Встреча'
+        verbose_name_plural = 'Встречи'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.title} ({self.room_name})'
+
+
+class CustomBot(models.Model):
+    """Пользовательский Telegram-бот, привязанный к разделу вики."""
+    owner = models.ForeignKey(
+        SiteUser, on_delete=models.CASCADE, related_name='custom_bots',
+        verbose_name='Владелец',
+    )
+    space = models.ForeignKey(
+        Space, on_delete=models.CASCADE, related_name='custom_bots',
+        verbose_name='Пространство',
+    )
+    token = models.CharField('Токен бота', max_length=200, unique=True)
+    name = models.CharField('Название бота', max_length=200, blank=True, default='')
+    username = models.CharField('Username бота', max_length=100, blank=True, default='')
+    # root_article — статья/раздел вики, по которому работает бот (null = весь wiki)
+    root_article = models.ForeignKey(
+        'wiki_kb.WikiArticle', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='custom_bots',
+        verbose_name='Раздел вики',
+    )
+    webhook_secret = models.CharField('Webhook secret', max_length=64, blank=True, default='')
+    is_active = models.BooleanField('Активен', default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Кастомный бот'
+        verbose_name_plural = 'Кастомные боты'
+
+    def __str__(self):
+        return self.username or self.name or f'Bot #{self.pk}'
+
+    def get_article_ids(self):
+        """IDs всех статей в поддереве root_article (или весь wiki space)."""
+        if not self.root_article:
+            return None  # весь wiki
+        from wiki_kb.models import WikiArticle
+        ids = [self.root_article.pk] + self.root_article.get_all_descendants_ids()
+        return ids
+
+
+class BotChatHistory(models.Model):
+    """История диалога пользователя с ботом (для памяти агента)."""
+    chat_id = models.BigIntegerField('Telegram chat_id')
+    bot_id = models.IntegerField('CustomBot pk (null=главный)', null=True, blank=True)
+    role = models.CharField('Роль', max_length=16)   # user / assistant / tool / audio
+    content = models.TextField('Содержимое')
+    tool_name = models.CharField('Инструмент', max_length=64, blank=True, default='')
+    recording = models.ForeignKey(
+        'Recording', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='bot_history_entries',
+        verbose_name='Запись (аудио/видео)',
+    )
+    ocr_job = models.ForeignKey(
+        'OcrJob', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='bot_history_entries',
+        verbose_name='OCR задача',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'История чата бота'
+        verbose_name_plural = 'История чатов ботов'
+        ordering = ['created_at']
+        indexes = [models.Index(fields=['chat_id', 'bot_id', 'created_at'], name='bot_chat_history_idx')]
+
+    @classmethod
+    def get_history(cls, chat_id, bot_id, last_n=20):
+        return list(
+            cls.objects.filter(chat_id=chat_id, bot_id=bot_id).order_by('-created_at')[:last_n]
+        )[::-1]
+
+    @classmethod
+    def add(cls, chat_id, bot_id, role, content, tool_name='', recording=None, ocr_job=None):
+        cls.objects.create(
+            chat_id=chat_id, bot_id=bot_id, role=role,
+            content=content, tool_name=tool_name, recording=recording, ocr_job=ocr_job,
+        )
+
+    @classmethod
+    def clear(cls, chat_id, bot_id):
+        cls.objects.filter(chat_id=chat_id, bot_id=bot_id).delete()
+
+
+class BotSetupState(models.Model):
+    """Временное состояние multi-step setup wizard в главном боте."""
+    STATE_IDLE = ''
+    STATE_AWAIT_TOKEN = 'await_token'
+    STATE_PICK_ARTICLE = 'pick_article'
+
+    chat_id = models.BigIntegerField('Telegram chat_id', unique=True)
+    state = models.CharField('Состояние', max_length=50, blank=True, default='')
+    # временный токен при настройке нового бота
+    pending_token = models.CharField('Pending token', max_length=200, blank=True, default='')
+    pending_bot_pk = models.IntegerField('Pending bot pk', null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Состояние setup-wizard'
+        verbose_name_plural = 'Состояния setup-wizard'
+
+    @classmethod
+    def get_state(cls, chat_id):
+        obj, _ = cls.objects.get_or_create(chat_id=chat_id)
+        return obj
+
+    def set(self, state, **kwargs):
+        self.state = state
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+        self.save()
+
+    def reset(self):
+        self.state = ''
+        self.pending_token = ''
+        self.pending_bot_pk = None
+        self.save()
 
 
 # Эмбеддинг для семантического поиска (PostgreSQL + pgvector)

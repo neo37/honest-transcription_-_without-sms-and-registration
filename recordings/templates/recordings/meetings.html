@@ -1,0 +1,691 @@
+{% extends "recordings/base.html" %}
+{% block title %}Встречи{% endblock %}
+{% block extra_css %}
+<style>
+/* ── Шапка ── */
+.meetings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.meetings-header h1 { margin: 0; font-size: 1.4rem; }
+
+/* ── Табы ── */
+.tab-nav {
+    display: flex;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 1.25rem;
+}
+.tab-btn {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    padding: 0.55rem 1.25rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--muted);
+    transition: color 0.15s;
+}
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-btn:hover:not(.active) { color: var(--text); }
+
+/* ── Кнопки ── */
+.refresh-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.3rem 0.8rem;
+    font-size: 0.82rem;
+    cursor: pointer;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.refresh-btn:hover { background: var(--bg-soft); }
+.refresh-btn.spinning svg { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Карточки встреч ── */
+.meeting-card { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 0.75rem; transition: border-color 0.15s; }
+.meeting-card.live { border-color: #16a34a55; }
+.meeting-card.live-unknown { border-color: #d9770655; }
+.card-top { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.card-top .meeting-title { font-weight: 700; font-size: 1.05rem; flex: 1; min-width: 120px; }
+.badge { border-radius: 20px; padding: 0.15rem 0.6rem; font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
+.badge-live { background: #dcfce7; color: #16a34a; border: 1px solid #16a34a44; }
+.badge-mascot { background: #eff6ff; color: #2563eb; border: 1px solid #2563eb44; }
+.badge-recording { background: #fef2f2; color: #dc2626; border: 1px solid #dc262644; }
+.badge-empty { background: var(--bg-soft); color: var(--muted); border: 1px solid var(--border); }
+.card-meta { display: flex; gap: 1.25rem; flex-wrap: wrap; margin-top: 0.6rem; font-size: 0.82rem; color: var(--muted); }
+.participants-row { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.6rem; }
+.participant-chip { background: var(--bg); border: 1px solid var(--border); border-radius: 20px; padding: 0.15rem 0.6rem; font-size: 0.78rem; display: flex; align-items: center; gap: 0.3rem; }
+.participant-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: #16a34a; flex-shrink: 0; }
+.participant-chip .dot.muted { background: #9ca3af; }
+.card-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border); align-items: center; }
+.btn-enter { background: var(--accent,#2563eb); color:#fff; border:none; border-radius:8px; padding:0.4rem 1rem; font-size:0.85rem; font-weight:600; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:0.3rem; }
+.btn-enter:hover { opacity:0.9; }
+.btn-sm-act { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:0.35rem 0.8rem; font-size:0.82rem; font-weight:500; cursor:pointer; display:inline-flex; align-items:center; gap:0.3rem; }
+.btn-sm-act:hover { background:var(--bg-soft); }
+.btn-sm-act.danger { color:#dc2626; border-color:#dc262644; }
+.btn-sm-act.danger:hover { background:#fef2f2; }
+.empty-msg { color:var(--muted); padding:2rem; text-align:center; }
+#lk-error { color:#dc2626; font-size:0.85rem; margin-bottom:0.75rem; display:none; }
+
+/* ── Модальное окно деталей события ── */
+.event-modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 2000;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+}
+.event-modal-backdrop.visible { display: flex; }
+@media (min-width: 600px) {
+    .event-modal-backdrop { align-items: center; }
+}
+.event-modal-box {
+    background: var(--bg);
+    border-radius: 16px 16px 0 0;
+    padding: 1.25rem 1.25rem 2rem;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 -8px 32px rgba(0,0,0,0.15);
+}
+@media (min-width: 600px) {
+    .event-modal-box {
+        border-radius: 16px;
+        max-width: 440px;
+        max-height: 80vh;
+        padding: 1.5rem;
+    }
+}
+.event-modal-drag { width: 40px; height: 4px; background: var(--border); border-radius: 4px; margin: 0 auto 1rem; }
+@media (min-width: 600px) { .event-modal-drag { display: none; } }
+.event-modal-header { display: flex; align-items: flex-start; gap: 0.5rem; margin-bottom: 0.25rem; }
+.event-modal-close { background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--muted); line-height: 1; padding: 0; margin-left: auto; flex-shrink: 0; }
+.event-modal-title { font-size: 1.1rem; font-weight: 700; margin: 0; flex: 1; }
+.event-modal-time { font-size: 0.82rem; color: var(--muted); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.4rem; }
+.event-modal-section { font-size: 0.75rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.4rem; }
+.rec-link {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 0.6rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    text-decoration: none;
+    color: var(--text);
+    margin-bottom: 0.35rem;
+    transition: background 0.1s;
+    font-size: 0.83rem;
+    overflow: hidden;
+}
+.rec-link:hover, .rec-link:active { background: var(--bg-soft); }
+.rec-link .rec-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dot-done { background: #16a34a; }
+.dot-pending, .dot-stable, .dot-transcribing { background: #d97706; }
+.dot-failed { background: #dc2626; }
+.rec-link .rec-time { color: var(--muted); font-size: 0.75rem; white-space: nowrap; flex-shrink: 0; }
+.rec-link .rec-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-nav-btn {
+    display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    width: 100%; margin-top: 0.75rem;
+    padding: 0.6rem 1rem;
+    background: var(--accent); color: #fff;
+    border-radius: 10px; text-decoration: none;
+    font-size: 0.88rem; font-weight: 600;
+    transition: opacity 0.1s;
+}
+.room-nav-btn:hover { opacity: 0.9; }
+.room-nav-btn.secondary {
+    background: var(--bg-soft); color: var(--accent);
+    border: 1px solid var(--accent);
+    margin-top: 0.5rem;
+}
+
+/* ── Модалка создания встречи ── */
+.modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; z-index:3000; display:none; }
+.modal-backdrop.visible { display:flex; }
+.modal-box { background:var(--bg); border-radius:14px; padding:1.5rem; width:360px; max-width:96vw; box-shadow:0 16px 48px rgba(0,0,0,0.18); }
+.modal-box h2 { margin:0 0 1rem; font-size:1.1rem; }
+.modal-field { margin-bottom:0.85rem; }
+.modal-field label { display:block; font-size:0.82rem; font-weight:600; margin-bottom:0.3rem; color:var(--muted); }
+.modal-field input[type=text] { width:100%; box-sizing:border-box; border:1px solid var(--border); border-radius:8px; padding:0.45rem 0.75rem; font-size:0.9rem; background:var(--bg-soft); color:var(--text); }
+.modal-field input[type=text]:focus { outline:2px solid var(--accent); border-color:transparent; }
+.toggle-row { display:flex; align-items:center; justify-content:space-between; padding:0.5rem 0; }
+.toggle-row label { font-size:0.88rem; font-weight:500; }
+.toggle { position:relative; width:40px; height:22px; flex-shrink:0; }
+.toggle input { opacity:0; width:0; height:0; }
+.toggle-slider { position:absolute; inset:0; background:var(--border); border-radius:22px; cursor:pointer; transition:background 0.2s; }
+.toggle-slider:before { content:''; position:absolute; height:16px; width:16px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:transform 0.2s; }
+.toggle input:checked + .toggle-slider { background:var(--accent); }
+.toggle input:checked + .toggle-slider:before { transform:translateX(18px); }
+.modal-actions { display:flex; gap:0.5rem; justify-content:flex-end; margin-top:1.25rem; }
+.modal-error { color:#dc2626; font-size:0.82rem; margin-top:0.5rem; display:none; }
+.invite-section { margin-top:0.75rem; padding-top:0.75rem; border-top:1px solid var(--border); display:none; }
+.invite-section label { font-size:0.82rem; font-weight:600; color:var(--muted); display:block; margin-bottom:0.4rem; }
+.invite-user-row { display:flex; align-items:center; gap:0.5rem; margin-bottom:0.35rem; font-size:0.85rem; }
+.invite-join-link { display:block; margin-top:0.75rem; word-break:break-all; font-size:0.82rem; color:var(--accent); }
+
+/* ── FullCalendar: базовые переменные (светлая тема) ── */
+#calendar {
+    --fc-page-bg-color: transparent;
+    --fc-border-color: var(--border);
+    --fc-today-bg-color: color-mix(in srgb, var(--accent) 8%, transparent);
+    --fc-neutral-bg-color: var(--bg-soft);
+    --fc-event-text-color: #fff;
+    --fc-list-event-hover-bg-color: var(--bg-soft);
+}
+
+/* ── FullCalendar: тёмная тема ── */
+[data-theme="dark"] #calendar {
+    --fc-page-bg-color: transparent;
+    --fc-border-color: var(--border);
+    --fc-today-bg-color: color-mix(in srgb, var(--accent) 15%, transparent);
+    --fc-neutral-bg-color: var(--bg-soft);
+    --fc-event-text-color: #fff;
+    --fc-list-event-hover-bg-color: var(--bg-soft);
+}
+
+/* ── Шрифт и размеры ── */
+.fc { font-family: inherit; -webkit-font-smoothing: antialiased; }
+.fc-toolbar-title { font-size: 1.05rem !important; font-weight: 700; color: var(--text) !important; }
+
+/* ── Кнопки навигации ── */
+.fc-button, .fc-button-primary {
+    background: var(--bg-soft) !important;
+    border-color: var(--border) !important;
+    color: var(--text) !important;
+    font-size: 0.78rem !important;
+    font-weight: 600 !important;
+    padding: 0.3rem 0.7rem !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+}
+.fc-button:hover, .fc-button-primary:hover {
+    background: var(--border) !important;
+}
+.fc-button-active, .fc-button-primary:not(:disabled).fc-button-active {
+    background: var(--accent) !important;
+    border-color: var(--accent) !important;
+    color: #fff !important;
+}
+.fc-button-group .fc-button { border-radius: 0 !important; }
+.fc-button-group .fc-button:first-child { border-radius: 8px 0 0 8px !important; }
+.fc-button-group .fc-button:last-child { border-radius: 0 8px 8px 0 !important; }
+
+/* ── Заголовки дней недели ── */
+.fc-col-header-cell-cushion {
+    color: var(--muted) !important;
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
+    text-decoration: none !important;
+}
+
+/* ── Числа дней ── */
+.fc-daygrid-day-number {
+    color: var(--text-secondary) !important;
+    font-size: 0.88rem !important;
+    font-weight: 500 !important;
+    text-decoration: none !important;
+    padding: 4px 6px !important;
+    border-radius: 50% !important;
+    min-width: 26px !important;
+    min-height: 26px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* Сегодня — красный кружок как у Apple */
+.fc-day-today .fc-daygrid-day-number {
+    background: #e03e3e !important;
+    color: #fff !important;
+    font-weight: 700 !important;
+}
+.fc-day-today { background: var(--today-bg, transparent) !important; }
+
+/* ── События ── */
+.fc-event {
+    cursor: pointer !important;
+    border-radius: 6px !important;
+    border: none !important;
+    padding: 1px 5px !important;
+}
+.fc-event:hover { filter: brightness(0.9); }
+.fc-event-title { font-size: 0.75rem !important; font-weight: 600 !important; }
+.fc-daygrid-event-dot { display: none !important; }
+
+/* ── List view ── */
+.fc-list-table { border: none !important; }
+.fc-list-day-cushion {
+    background: var(--bg-soft) !important;
+    color: var(--text) !important;
+    font-size: 0.82rem !important;
+    font-weight: 700 !important;
+    padding: 6px 12px !important;
+}
+.fc-list-day-text, .fc-list-day-side-text {
+    color: var(--text) !important;
+    text-decoration: none !important;
+}
+.fc-list-event-title a {
+    color: var(--text) !important;
+    text-decoration: none !important;
+}
+.fc-list-event:hover td { background: var(--bg-soft) !important; }
+.fc-list-event-dot { width: 9px !important; height: 9px !important; border-radius: 50% !important; border-width: 0 !important; }
+
+/* ── Прочее ── */
+.fc-scrollgrid { border-radius: 12px; overflow: hidden; }
+.fc-scrollgrid-sync-table td, .fc-scrollgrid-sync-table th { border-color: var(--border) !important; }
+.fc-theme-standard .fc-scrollgrid { border-color: var(--border) !important; }
+.fc-theme-standard td, .fc-theme-standard th { border-color: var(--border) !important; }
+.fc-col-header { background: var(--bg-soft); }
+.fc-timegrid-now-indicator-line { border-color: #e03e3e !important; }
+.fc-timegrid-now-indicator-arrow { border-color: #e03e3e !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="meetings-header">
+    <h1>Встречи</h1>
+    <div style="display:flex;gap:0.5rem;align-items:center;">
+        <button class="refresh-btn" id="refresh-btn" onclick="loadRooms()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M23 4v6h-6M1 20v-6h6"/>
+                <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+            </svg>
+            Обновить
+        </button>
+        <button class="btn btn-primary" onclick="openMeetingModal()">+ Новая встреча</button>
+    </div>
+</div>
+
+<div class="tab-nav">
+    <button class="tab-btn active" id="tab-btn-active" onclick="showTab('active')">Активные</button>
+    <button class="tab-btn" id="tab-btn-calendar" onclick="showTab('calendar')">Календарь</button>
+</div>
+
+<!-- Таб: активные встречи -->
+<div id="tab-active">
+    <div id="lk-error"></div>
+    <div id="rooms-list"><div class="empty-msg">Загрузка…</div></div>
+</div>
+
+<!-- Таб: календарь -->
+<div id="tab-calendar" style="display:none;">
+    <div id="calendar"></div>
+</div>
+
+<!-- Модальное окно деталей события (bottom sheet на мобиле) -->
+<div class="event-modal-backdrop" id="event-modal" onclick="closeEventModal(event)">
+    <div class="event-modal-box" id="event-modal-box">
+        <div class="event-modal-drag"></div>
+        <div class="event-modal-header">
+            <div class="event-modal-title" id="ev-title"></div>
+            <button class="event-modal-close" onclick="closeEventModal()">×</button>
+        </div>
+        <div class="event-modal-time" id="ev-time"></div>
+        <div id="ev-body"></div>
+    </div>
+</div>
+
+<!-- Модалка создания встречи -->
+<div class="modal-backdrop" id="meeting-modal">
+    <div class="modal-box">
+        <h2>Новая встреча</h2>
+        <div class="modal-field">
+            <label>Название встречи</label>
+            <input type="text" id="modal-title" placeholder="Название…" autocomplete="off">
+        </div>
+        <div class="toggle-row">
+            <label>🤖 Маскот (AI-ассистент)</label>
+            <label class="toggle">
+                <input type="checkbox" id="modal-mascot">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+        <div class="modal-error" id="modal-error"></div>
+        <div class="invite-section" id="invite-section">
+            <label>Ссылка на встречу</label>
+            <a class="invite-join-link" id="invite-join-link" href="#" target="_blank"></a>
+            <div id="invite-users-wrap" style="margin-top:0.75rem;display:none;">
+                <label>Пригласить через Telegram</label>
+                <div id="invite-users-list"></div>
+                <button class="btn btn-primary" style="margin-top:0.5rem;font-size:0.82rem;" onclick="sendInvites()">Отправить приглашения</button>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeMeetingModal()" id="modal-cancel-btn">Отмена</button>
+            <button class="btn btn-primary" id="modal-create-btn" onclick="createMeeting()">Создать</button>
+            <a class="btn btn-primary" id="modal-join-btn" href="#" target="_blank" style="display:none;">Войти →</a>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+<script>
+// ─── Утилиты ──────────────────────────────────────────────────────────────────
+function getCsrf() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+}
+function escHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDuration(sec) {
+    if (!sec || sec < 0) return '0 мин';
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+    return h > 0 ? `${h} ч ${m} мин` : `${m} мин`;
+}
+function fmtDateRange(start, end) {
+    if (!start) return '';
+    const opts = {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'};
+    const s = new Date(start).toLocaleString('ru-RU', opts);
+    if (!end) return s;
+    const endD = new Date(end);
+    const startD = new Date(start);
+    const sameDay = startD.toDateString() === endD.toDateString();
+    if (sameDay) {
+        return `${s} – ${endD.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'})}`;
+    }
+    return `${s} – ${endD.toLocaleString('ru-RU', opts)}`;
+}
+function statusDotClass(s) {
+    return {done:'dot-done', failed:'dot-failed'}[s] || 'dot-pending';
+}
+function isMobile() {
+    return window.innerWidth < 600;
+}
+
+// ─── Табы ─────────────────────────────────────────────────────────────────────
+let calendarInitialized = false;
+function showTab(name) {
+    document.getElementById('tab-active').style.display = name === 'active' ? '' : 'none';
+    document.getElementById('tab-calendar').style.display = name === 'calendar' ? '' : 'none';
+    document.getElementById('tab-btn-active').classList.toggle('active', name === 'active');
+    document.getElementById('tab-btn-calendar').classList.toggle('active', name === 'calendar');
+    if (name === 'calendar' && !calendarInitialized) initCalendar();
+}
+
+// ─── Список активных встреч ────────────────────────────────────────────────────
+function renderRooms(rooms) {
+    const el = document.getElementById('rooms-list');
+    if (!rooms.length) {
+        el.innerHTML = '<div class="empty-msg">Активных встреч нет. Нажмите «+ Новая встреча».</div>';
+        return;
+    }
+    el.innerHTML = rooms.map(r => {
+        const db = r.db || {};
+        const title = db.title || r.name;
+        const isLive = r.num_participants > 0;
+        const joinUrl = `https://meet.business-pad.com/rooms/${r.name}`;
+        let badges = isLive ? '<span class="badge badge-live">● Идёт</span>' : '<span class="badge badge-empty">Пусто</span>';
+        if (db.with_mascot) badges += '<span class="badge badge-mascot">🤖 Маскот</span>';
+        if (r.active_recording) badges += '<span class="badge badge-recording">⏺ Запись</span>';
+        const metaParts = [
+            r.duration_sec ? `Идёт ${fmtDuration(r.duration_sec)}` : '',
+            `${r.num_participants} участн.`,
+            db.created_by ? `Создал: ${db.created_by}` : '',
+        ].filter(Boolean);
+        const meta = metaParts.map(s => `<span>${s}</span>`).join('');
+        let chips = '';
+        if (r.participants && r.participants.length) {
+            chips = '<div class="participants-row">' + r.participants.map(p =>
+                `<div class="participant-chip"><div class="dot${p.is_publisher ? '' : ' muted'}"></div>${escHtml(p.name)}</div>`
+            ).join('') + '</div>';
+        }
+        const mascotBtn = !db.with_mascot
+            ? `<button class="btn-sm-act" id="mascot-btn-${r.name}" onclick="inviteMascot('${r.name}')">🤖 Позвать маскота</button>` : '';
+        const endBtn = db && db.id
+            ? `<button class="btn-sm-act danger" onclick="endMeeting('${r.name}', ${JSON.stringify(title)})">Завершить</button>` : '';
+        return `<div class="meeting-card ${isLive ? 'live' : 'live-unknown'}" id="card-${r.name}">
+    <div class="card-top"><div class="meeting-title">${escHtml(title)}</div>${badges}</div>
+    <div class="card-meta">${meta}</div>${chips}
+    <div class="card-actions">
+        <a href="${joinUrl}" target="_blank" class="btn-enter">Войти →</a>
+        ${mascotBtn}${endBtn}
+        <span style="font-size:0.75rem;color:var(--muted);margin-left:auto;">${r.name}</span>
+    </div>
+</div>`;
+    }).join('');
+}
+
+async function loadRooms() {
+    const btn = document.getElementById('refresh-btn');
+    btn.classList.add('spinning');
+    document.getElementById('lk-error').style.display = 'none';
+    try {
+        const resp = await fetch('/api/livekit-rooms/');
+        const data = await resp.json();
+        if (data.error) {
+            document.getElementById('lk-error').textContent = 'LiveKit: ' + data.error;
+            document.getElementById('lk-error').style.display = '';
+        }
+        renderRooms(data.rooms || []);
+    } catch(e) {
+        document.getElementById('lk-error').textContent = 'Ошибка загрузки: ' + e.message;
+        document.getElementById('lk-error').style.display = '';
+    } finally {
+        btn.classList.remove('spinning');
+    }
+}
+
+async function endMeeting(roomName, title) {
+    if (!confirm(`Завершить встречу «${title}»?`)) return;
+    const resp = await fetch(`/meetings/${roomName}/end/`, {method:'POST', headers:{'X-CSRFToken':getCsrf()}});
+    if (resp.ok) loadRooms(); else alert('Ошибка при завершении');
+}
+
+async function inviteMascot(roomName) {
+    const btn = document.getElementById('mascot-btn-' + roomName);
+    if (btn) btn.disabled = true;
+    const resp = await fetch(`/meetings/${roomName}/invite-mascot/`, {method:'POST', headers:{'X-CSRFToken':getCsrf()}});
+    if (resp.ok) loadRooms(); else { if (btn) btn.disabled = false; alert('Ошибка'); }
+}
+
+// ─── Модалка деталей события ───────────────────────────────────────────────────
+function openEventModal(title, timeStr, recordings, roomUrl, isActive) {
+    document.getElementById('ev-title').textContent = title;
+    document.getElementById('ev-time').textContent = timeStr;
+
+    let body = '';
+
+    // Кнопка комнаты
+    if (roomUrl) {
+        if (isActive) {
+            body += `<a href="${escHtml(roomUrl)}" class="room-nav-btn">▶ Войти в комнату</a>`;
+        } else {
+            body += `<a href="${escHtml(roomUrl)}" class="room-nav-btn secondary">🚪 Страница комнаты</a>`;
+        }
+    }
+
+    // Записи
+    if (recordings && recordings.length) {
+        body += `<div class="event-modal-section" style="margin-top:1rem;">Записи (${recordings.length})</div>`;
+        body += recordings.map(r => {
+            const timeStr2 = r.ts ? new Date(r.ts).toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'}) : '';
+            const nameRaw = r.title || r.filename || '';
+            const name = nameRaw.length > 50 ? nameRaw.slice(0, 50) + '…' : nameRaw;
+            return `<a class="rec-link" href="${escHtml(r.url)}">
+                <span class="rec-dot ${statusDotClass(r.status)}"></span>
+                <span class="rec-time">${timeStr2}</span>
+                <span class="rec-name">${escHtml(name)}</span>
+            </a>`;
+        }).join('');
+    } else {
+        body += '<p style="font-size:0.82rem;color:var(--muted);margin-top:0.5rem;">Записей нет</p>';
+    }
+
+    document.getElementById('ev-body').innerHTML = body;
+    document.getElementById('event-modal').classList.add('visible');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeEventModal(e) {
+    if (e && e.target !== document.getElementById('event-modal')) return;
+    document.getElementById('event-modal').classList.remove('visible');
+    document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { document.getElementById('event-modal').classList.remove('visible'); document.body.style.overflow = ''; } });
+
+// ─── Календарь ────────────────────────────────────────────────────────────────
+let calendar = null;
+
+function initCalendar() {
+    calendarInitialized = true;
+    const el = document.getElementById('calendar');
+    const mobile = isMobile();
+
+    calendar = new FullCalendar.Calendar(el, {
+        initialView: mobile ? 'listMonth' : 'dayGridMonth',
+        locale: 'ru',
+        height: 'auto',
+        headerToolbar: mobile ? {
+            left: 'prev,next',
+            center: 'title',
+            right: 'today',
+        } : {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,listMonth',
+        },
+        buttonText: {
+            today: 'Сегодня',
+            month: 'Месяц',
+            week: 'Неделя',
+            list: 'Список',
+        },
+        windowResize: function(view) {
+            if (isMobile() && calendar.view.type !== 'listMonth') {
+                calendar.changeView('listMonth');
+            } else if (!isMobile() && calendar.view.type === 'listMonth') {
+                calendar.changeView('dayGridMonth');
+            }
+        },
+        noEventsContent: 'Встреч нет',
+        eventClick: function(info) {
+            info.jsEvent.preventDefault();
+            const ev = info.event;
+            const props = ev.extendedProps || {};
+            const timeStr = fmtDateRange(
+                ev.start ? ev.start.toISOString() : null,
+                ev.end ? ev.end.toISOString() : null,
+            );
+            openEventModal(ev.title, timeStr, props.recordings, props.room_url, props.is_active);
+        },
+        events: function(fetchInfo, successCallback, failureCallback) {
+            fetch('/api/calendar-events/')
+                .then(r => r.json())
+                .then(data => successCallback(data.events || []))
+                .catch(failureCallback);
+        },
+        eventContent: function(info) {
+            const recs = info.event.extendedProps.recordings || [];
+            const badge = recs.length ? `<span style="font-size:0.7rem;opacity:0.85;margin-left:3px;">[${recs.length}]</span>` : '';
+            return {
+                html: `<div style="padding:1px 4px;overflow:hidden;">
+                    <span style="font-weight:600;font-size:0.77rem;">${escHtml(info.event.title)}</span>${badge}
+                </div>`,
+            };
+        },
+    });
+    calendar.render();
+}
+
+// ─── Модалка создания встречи ──────────────────────────────────────────────────
+let _createdRoomName = null;
+let _tgUsers = [];
+
+function openMeetingModal() {
+    _createdRoomName = null;
+    _tgUsers = [];
+    document.getElementById('modal-title').value = '';
+    document.getElementById('modal-mascot').checked = false;
+    document.getElementById('modal-error').style.display = 'none';
+    document.getElementById('invite-section').style.display = 'none';
+    document.getElementById('invite-users-wrap').style.display = 'none';
+    document.getElementById('modal-create-btn').style.display = '';
+    document.getElementById('modal-join-btn').style.display = 'none';
+    document.getElementById('modal-cancel-btn').textContent = 'Отмена';
+    document.getElementById('meeting-modal').classList.add('visible');
+    setTimeout(() => document.getElementById('modal-title').focus(), 50);
+}
+function closeMeetingModal() {
+    document.getElementById('meeting-modal').classList.remove('visible');
+    if (_createdRoomName) {
+        loadRooms();
+        if (calendarInitialized && calendar) calendar.refetchEvents();
+    }
+}
+document.getElementById('meeting-modal').addEventListener('click', function(e) { if (e.target === this) closeMeetingModal(); });
+document.getElementById('modal-title').addEventListener('keydown', function(e) { if (e.key === 'Enter') createMeeting(); });
+
+async function createMeeting() {
+    const title = document.getElementById('modal-title').value.trim();
+    if (!title) { showModalError('Введите название встречи'); return; }
+    const withMascot = document.getElementById('modal-mascot').checked;
+    const btn = document.getElementById('modal-create-btn');
+    btn.disabled = true; btn.textContent = 'Создаём…';
+    document.getElementById('modal-error').style.display = 'none';
+    try {
+        const resp = await fetch('/meetings/create/', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json', 'X-CSRFToken':getCsrf()},
+            body: JSON.stringify({title, with_mascot: withMascot}),
+        });
+        const data = await resp.json();
+        if (data.error) { showModalError(data.error); btn.disabled = false; btn.textContent = 'Создать'; return; }
+        _createdRoomName = data.room_name;
+        _tgUsers = data.tg_users || [];
+        const joinUrl = data.join_url || `https://meet.business-pad.com/rooms/${data.room_name}`;
+        document.getElementById('invite-join-link').href = joinUrl;
+        document.getElementById('invite-join-link').textContent = joinUrl;
+        document.getElementById('invite-section').style.display = '';
+        if (_tgUsers.length) {
+            document.getElementById('invite-users-list').innerHTML = _tgUsers.map(u =>
+                `<div class="invite-user-row"><input type="checkbox" id="inv-${u.id}" value="${u.id}" checked><label for="inv-${u.id}">${escHtml(u.email)}</label></div>`
+            ).join('');
+            document.getElementById('invite-users-wrap').style.display = '';
+        }
+        btn.style.display = 'none';
+        document.getElementById('modal-join-btn').href = joinUrl;
+        document.getElementById('modal-join-btn').style.display = '';
+        document.getElementById('modal-cancel-btn').textContent = 'Закрыть';
+    } catch(e) {
+        showModalError('Ошибка: ' + e.message);
+        btn.disabled = false; btn.textContent = 'Создать';
+    }
+}
+function showModalError(msg) {
+    const el = document.getElementById('modal-error');
+    el.textContent = msg; el.style.display = '';
+}
+async function sendInvites() {
+    if (!_createdRoomName) return;
+    const ids = Array.from(document.querySelectorAll('#invite-users-list input:checked')).map(c => parseInt(c.value));
+    if (!ids.length) { alert('Выберите участников'); return; }
+    const resp = await fetch(`/meetings/${_createdRoomName}/invite/`, {
+        method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+        body: JSON.stringify({user_ids: ids}),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+        document.getElementById('invite-users-wrap').innerHTML = `<p style="color:#16a34a;font-size:0.85rem;">✓ Отправлено (${data.sent})</p>`;
+    }
+}
+
+// ─── Старт ───────────────────────────────────────────────────────────────────
+loadRooms();
+setInterval(loadRooms, 15000);
+</script>
+{% endblock %}

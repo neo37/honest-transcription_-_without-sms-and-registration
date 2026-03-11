@@ -1,0 +1,29 @@
+{% load tz %}
+{% if logs %}
+<div style="font-size:.8rem;color:#999;padding:4px 4px 8px;border-bottom:2px solid #eee;display:grid;grid-template-columns:140px 90px 130px 1fr;gap:0">
+  <span>Время</span><span>Событие</span><span>Комната / Участник</span><span>Текст</span>
+</div>
+{% for log in logs %}
+<div class="log-row">
+  <div class="log-time">{{ log.created_at|localtime|date:"d.m H:i:s" }}</div>
+  <div>
+    <span class="badge badge-{{ log.event }}">
+      {% if log.event == 'joined' %}🟢 вошёл
+      {% elif log.event == 'heard' %}👂 слышал
+      {% elif log.event == 'said' %}🔊 сказал
+      {% elif log.event == 'wake' %}⚡ wake
+      {% elif log.event == 'emoji' %}😊 emoji
+      {% elif log.event == 'chat' %}💬 чат
+      {% else %}{{ log.event }}{% endif %}
+    </span>
+  </div>
+  <div>
+    <div class="log-room">{{ log.room }}</div>
+    {% if log.speaker %}<div class="log-speaker">{{ log.speaker }}</div>{% endif %}
+  </div>
+  <div class="log-text">{{ log.text }}</div>
+</div>
+{% endfor %}
+{% else %}
+<div style="text-align:center;padding:60px;color:#bbb">Логов пока нет</div>
+{% endif %}
