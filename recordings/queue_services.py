@@ -61,7 +61,16 @@ def index_embedding_for_recording(recording: Recording) -> bool:
         from sentence_transformers import SentenceTransformer
         from django.conf import settings
         model_name = getattr(settings, 'EMBEDDING_MODEL', 'paraphrase-multilingual-MiniLM-L12-v2')
-        model = SentenceTransformer(model_name)
+        import torch as _torch
+        _emb_device = 'cuda' if _torch.cuda.is_available() else 'cpu'
+        try:
+            model = SentenceTransformer(model_name, device=_emb_device)
+        except (RuntimeError, Exception) as _cuda_err:
+            if _emb_device == 'cuda':
+                logger.warning("GPU недоступен для эмбеддингов (%s), падаем на CPU", _cuda_err)
+                model = SentenceTransformer(model_name, device='cpu')
+            else:
+                raise
         emb = model.encode(text, convert_to_numpy=True)
         if emb is None or len(emb) != 384:
             return False

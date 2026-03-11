@@ -1,0 +1,297 @@
+{% extends "recordings/base.html" %}
+{% block title %}Системные настройки{% endblock %}
+{% block extra_css %}
+<style>
+.sysconfig-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    align-items: start;
+}
+@media (max-width: 720px) { .sysconfig-grid { grid-template-columns: 1fr; } }
+
+.config-card {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+}
+.config-card h2 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0 0 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Таблица параметров */
+.param-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.param-table tr { border-bottom: 1px solid var(--border); }
+.param-table tr:last-child { border-bottom: none; }
+.param-table td { padding: 0.45rem 0.3rem; vertical-align: top; }
+.param-table td:first-child {
+    color: var(--muted);
+    white-space: nowrap;
+    padding-right: 0.75rem;
+    width: 1%;
+    font-size: 0.8rem;
+}
+.param-table td:last-child {
+    font-family: monospace;
+    word-break: break-all;
+}
+.val-ok { color: #16a34a; }
+.val-warn { color: #d97706; }
+.val-na { color: var(--muted); font-style: italic; }
+.secret-val {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.secret-val span { font-family: monospace; letter-spacing: 0.05em; }
+.secret-toggle {
+    background: none; border: none; cursor: pointer;
+    font-size: 0.75rem; color: var(--muted); padding: 0;
+}
+.secret-toggle:hover { color: var(--text); }
+
+/* Список URL вебхуков */
+.webhook-url {
+    font-family: monospace;
+    font-size: 0.78rem;
+    word-break: break-all;
+    padding: 0.2rem 0.5rem;
+    background: var(--bg);
+    border-radius: 5px;
+    margin-top: 0.2rem;
+    display: block;
+}
+.port-range {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head" style="margin-bottom:1.5rem;">
+    <h1>Системные настройки</h1>
+    <p class="breadcrumb"><a href="{% url 'recordings:index' %}">← Записи</a></p>
+</div>
+
+<div class="sysconfig-grid">
+
+<!-- ── GPU / Транскрипция ── -->
+<div class="config-card">
+    <h2>🖥️ GPU-распределение</h2>
+    <p style="font-size:0.82rem;color:var(--muted);margin-bottom:1rem;line-height:1.5;">
+        WhisperX (транскрипция) и OCR делят один GPU L4-2Q.
+    </p>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:0.75rem;">
+        <div>
+            <div style="font-weight:600;font-size:0.9rem;">GPU → OCR</div>
+            <div style="font-size:0.8rem;color:var(--muted);margin-top:0.15rem;">
+                {% if ocr_gpu_mode %}
+                    <span style="color:#16a34a;">● Включён</span> — OCR на GPU, WhisperX на CPU
+                {% else %}
+                    <span style="color:var(--muted);">● Выключен</span> — WhisperX на GPU, OCR на CPU
+                {% endif %}
+            </div>
+        </div>
+        <form method="POST" style="flex-shrink:0;">
+            {% csrf_token %}
+            <input type="hidden" name="key" value="ocr_gpu_mode">
+            <input type="hidden" name="value" value="{% if ocr_gpu_mode %}0{% else %}1{% endif %}">
+            <button type="submit" class="btn {% if ocr_gpu_mode %}btn-accent{% endif %}" style="min-width:90px;">
+                {% if ocr_gpu_mode %}Выключить{% else %}Включить{% endif %}
+            </button>
+        </form>
+    </div>
+
+    <table class="param-table">
+        <tr>
+            <td>WhisperX</td>
+            <td class="{% if ocr_gpu_mode %}val-warn{% else %}val-ok{% endif %}">
+                {% if ocr_gpu_mode %}CPU{% else %}GPU{% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td>OCR</td>
+            <td class="{% if ocr_gpu_mode %}val-ok{% else %}val-warn{% endif %}">
+                {% if ocr_gpu_mode %}GPU (EasyOCR){% else %}CPU (Tesseract){% endif %}
+            </td>
+        </tr>
+    </table>
+</div>
+
+<!-- ── LiveKit ── -->
+<div class="config-card">
+    <h2>📡 LiveKit</h2>
+    {% if lk_yaml_error %}
+        <p style="color:#dc2626;font-size:0.85rem;">{{ lk_yaml_error }}</p>
+    {% elif lk_config %}
+    <table class="param-table">
+        <tr>
+            <td>URL (env)</td>
+            <td>{% if lk_url %}<span class="val-ok">{{ lk_url }}</span>{% else %}<span class="val-na">не задан</span>{% endif %}</td>
+        </tr>
+        <tr>
+            <td>API Key (env)</td>
+            <td>{% if lk_api_key %}<span class="val-ok">{{ lk_api_key }}</span>{% else %}<span class="val-na">не задан</span>{% endif %}</td>
+        </tr>
+        <tr><td colspan="2" style="padding-top:0.75rem;font-size:0.75rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;">livekit.yaml</td></tr>
+        <tr>
+            <td>Порт</td>
+            <td>{{ lk_config.port|default:"7880" }}</td>
+        </tr>
+        {% if lk_config.rtc %}
+        <tr>
+            <td>RTC порт</td>
+            <td>{{ lk_config.rtc.tcp_port|default:"—" }}</td>
+        </tr>
+        <tr>
+            <td>UDP диапазон</td>
+            <td class="port-range">
+                {{ lk_config.rtc.port_range_start|default:"—" }}
+                <span style="color:var(--muted);">–</span>
+                {{ lk_config.rtc.port_range_end|default:"—" }}
+            </td>
+        </tr>
+        <tr>
+            <td>External IP</td>
+            <td>{% if lk_config.rtc.use_external_ip %}<span class="val-ok">да</span>{% else %}нет{% endif %}</td>
+        </tr>
+        {% endif %}
+        {% if lk_config.room %}
+        <tr>
+            <td>Auto-create</td>
+            <td>{% if lk_config.room.auto_create %}<span class="val-ok">да</span>{% else %}нет{% endif %}</td>
+        </tr>
+        <tr>
+            <td>Max участников</td>
+            <td>{{ lk_config.room.max_participants|default:"∞" }}</td>
+        </tr>
+        {% endif %}
+        {% if lk_config.keys %}
+        <tr>
+            <td>API Key (yaml)</td>
+            <td>
+                {% for k, v in lk_config.keys.items %}
+                <div>
+                    <span style="font-family:monospace;">{{ k }}</span>
+                    <div style="margin-top:0.2rem;font-family:monospace;color:var(--muted);font-size:0.82rem;">{{ v }}</div>
+                </div>
+                {% endfor %}
+            </td>
+        </tr>
+        {% endif %}
+        {% if lk_config.webhook %}
+        <tr>
+            <td>Вебхук</td>
+            <td>
+                {% for url in lk_config.webhook.urls %}
+                    <code class="webhook-url">{{ url }}</code>
+                {% empty %}
+                    <span class="val-na">не задан</span>
+                {% endfor %}
+            </td>
+        </tr>
+        {% endif %}
+        {% if lk_config.logging %}
+        <tr>
+            <td>Логи</td>
+            <td>{{ lk_config.logging.level|default:"info" }}{% if lk_config.logging.json %}, JSON{% endif %}</td>
+        </tr>
+        {% endif %}
+    </table>
+    {% else %}
+        <p class="val-na">Конфиг не загружен</p>
+    {% endif %}
+</div>
+
+</div><!-- /grid -->
+
+<!-- ── Фоновые задачи ── -->
+<div class="config-card" style="margin-top:1.25rem;">
+    <h2 style="justify-content:space-between;">
+        <span>⚙️ Фоновые задачи</span>
+        {% if transcribing_now %}
+        <form method="POST" style="margin:0;">
+            {% csrf_token %}
+            <input type="hidden" name="key" value="reset_stuck">
+            <button type="submit" class="btn" style="font-size:0.8rem;padding:0.3rem 0.75rem;" onclick="return confirm('Сбросить все зависшие в PENDING?')">Сбросить зависшие</button>
+        </form>
+        {% endif %}
+    </h2>
+
+    {% if transcribing_now %}
+    <p style="font-size:0.82rem;font-weight:600;color:#d97706;margin:0 0 0.5rem;">Сейчас транскрибируется ({{ transcribing_now|length }})</p>
+    <table class="param-table" style="margin-bottom:1rem;">
+        {% for rec in transcribing_now %}
+        <tr>
+            <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                <a href="{% url 'recordings:recording_detail' rec.pk %}" style="color:inherit;">{{ rec.filename }}</a>
+            </td>
+            <td>
+                <span style="color:#d97706;">{{ rec.transcription_progress|default:"0" }}%</span>
+                {% if rec.transcription_stage %}<span style="color:var(--muted);font-size:0.78rem;"> — {{ rec.transcription_stage }}</span>{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% endif %}
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <div>
+            <p style="font-size:0.82rem;font-weight:600;color:var(--muted);margin:0 0 0.4rem;">Очередь транскрибации ({{ transcribe_queue|length }})</p>
+            {% if transcribe_queue %}
+            <table class="param-table">
+                {% for item in transcribe_queue %}
+                <tr>
+                    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ item.recording.filename }}</td>
+                    <td>{% if item.priority %}⬆ приоритет{% else %}обычный{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </table>
+            {% else %}
+            <p style="font-size:0.82rem;color:var(--muted);font-style:italic;">Пусто</p>
+            {% endif %}
+        </div>
+        <div>
+            <p style="font-size:0.82rem;font-weight:600;color:var(--muted);margin:0 0 0.4rem;">Очередь эмбеддингов ({{ embedding_queue|length }})</p>
+            {% if embedding_queue %}
+            <table class="param-table">
+                {% for item in embedding_queue %}
+                <tr>
+                    <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ item.recording.filename }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+            {% else %}
+            <p style="font-size:0.82rem;color:var(--muted);font-style:italic;">Пусто</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if not transcribing_now and not transcribe_queue and not embedding_queue %}
+    <p style="color:#16a34a;font-size:0.85rem;">✓ Все задачи выполнены, очереди пусты</p>
+    {% endif %}
+</div>
+
+<script>
+function toggleSecret(id) {
+    var el = document.getElementById(id);
+    var btn = el.nextElementSibling;
+    if (btn.textContent === 'показать') {
+        el.textContent = el.dataset.secret;
+        btn.textContent = 'скрыть';
+    } else {
+        el.textContent = el.dataset.secret.slice(0, 8) + '••••••••••••';
+        btn.textContent = 'показать';
+    }
+}
+</script>
+{% endblock %}

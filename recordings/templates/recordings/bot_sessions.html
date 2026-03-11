@@ -1,0 +1,586 @@
+{% extends "recordings/base.html" %}
+{% block title %}Сессии переписок{% endblock %}
+
+{% block content %}
+<div class="bs-layout">
+
+  <!-- ── Левая колонка: список сессий ── -->
+  <aside class="bs-sidebar">
+
+    <div class="bs-sidebar-top">
+      <h2 class="bs-title">💬 Переписки с ботом</h2>
+      <div class="bs-tabs">
+        <a href="?{% if show_active %}{% else %}show_active=0{% endif %}"
+           class="bs-tab {% if not show_active %}bs-tab--active{% endif %}">
+          Завершённые <span class="bs-pill">{{ total_completed }}</span>
+        </a>
+        <a href="?show_active=1{% if selected %}&&s={{ selected.session_id }}{% endif %}"
+           class="bs-tab {% if show_active %}bs-tab--active{% endif %}">
+          Активные <span class="bs-pill bs-pill--live">{{ total_active }}</span>
+        </a>
+      </div>
+    </div>
+
+    <div class="bs-list">
+      {% for s in sessions %}
+      <a href="?{% if show_active %}show_active=1&{% endif %}s={{ s.session_id }}"
+         class="bs-item {% if selected and s.session_id == selected.session_id %}bs-item--active{% endif %} {% if not s.completed %}bs-item--live{% endif %}">
+
+        <div class="bs-item-row1">
+          <span class="bs-user">{{ s.email }}</span>
+          <span class="bs-date">{{ s.end_at|date:"d.m H:i" }}</span>
+        </div>
+        <div class="bs-item-row2">
+          <span class="bs-bot">{{ s.bot_name }}</span>
+          <span class="bs-meta">
+            {{ s.user_msg_count }} сообщ.
+            {% if s.has_audio %}<span class="bs-audio-badge">🎙</span>{% endif %}
+            {% if not s.completed %}<span class="bs-live-dot"></span>{% endif %}
+          </span>
+        </div>
+        {% if s.preview %}
+        <div class="bs-preview">{{ s.preview|truncatechars:70 }}</div>
+        {% endif %}
+
+      </a>
+      {% empty %}
+      <div class="bs-empty-list">
+        {% if show_active %}
+          Нет активных переписок.
+        {% else %}
+          Нет завершённых переписок.<br>
+          <a href="?show_active=1" style="color:#1a73e8">Показать активные</a>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+  </aside>
+
+  <!-- ── Правая колонка: сессия ── -->
+  <main class="bs-main">
+    {% if selected %}
+
+      <!-- Шапка сессии -->
+      <header class="bs-chat-header">
+        <div class="bs-chat-meta">
+          <div class="bs-chat-user">{{ selected.email }}</div>
+          <div class="bs-chat-sub">
+            {{ selected.bot_name }} &nbsp;·&nbsp;
+            {{ selected.start_at|date:"d.m.Y H:i" }} — {{ selected.end_at|date:"H:i" }}
+            &nbsp;·&nbsp; {{ selected.total_count }} сообщений
+          </div>
+        </div>
+        {% if not selected.completed %}
+        <span class="bs-badge-live">● Активна</span>
+        {% endif %}
+      </header>
+
+      <!-- Сообщения -->
+      <div class="bs-messages" id="bs-messages">
+        {% for msg in selected.messages %}
+
+          {% if msg.role == 'tool' %}
+          <!-- Инструмент — свёрнутый аккордеон -->
+          <details class="bs-tool">
+            <summary>
+              🔧 <strong>{{ msg.tool_name }}</strong>
+              <span class="bs-tool-preview">{{ msg.content|truncatechars:80 }}</span>
+              <span class="bs-time-small">{{ msg.created_at|date:"H:i:s" }}</span>
+            </summary>
+            <pre class="bs-tool-body">{{ msg.content }}</pre>
+          </details>
+
+          {% elif msg.role == 'audio' %}
+          <!-- Аудио-сообщение -->
+          <div class="bs-bubble bs-bubble--user bs-bubble--media" id="entry-{{ msg.pk }}">
+            <div class="bs-media-wrap">
+              <div class="bs-media-icon">🎙</div>
+              <div class="bs-media-info">
+                {% if msg.recording %}
+                  <div class="bs-media-name">{{ msg.recording.filename }}</div>
+                  <div class="bs-media-size">{{ msg.recording.size_bytes|filesizeformat }}</div>
+                  <div class="bs-media-status-row">
+                    {% with st=msg.recording.status %}
+                    {% if st == 'done' %}
+                      <span class="bs-status bs-status--done">✅ Готово</span>
+                      <button class="bs-insert-btn" data-id="{{ msg.pk }}" data-type="audio">📝 Подставить</button>
+                      <a class="bs-ext-link" href="/r/{{ msg.recording.pk }}/" target="_blank">↗ Открыть</a>
+                    {% elif st == 'transcribing' %}
+                      <span class="bs-status bs-status--progress">⏳ Транскрибируется…</span>
+                      <a class="bs-ext-link" href="/r/{{ msg.recording.pk }}/" target="_blank">↗ Открыть</a>
+                    {% elif st == 'failed' %}
+                      <span class="bs-status bs-status--fail">❌ Ошибка</span>
+                      <a class="bs-ext-link" href="/r/{{ msg.recording.pk }}/" target="_blank">↗ Открыть</a>
+                    {% else %}
+                      <span class="bs-status bs-status--queue">🕐 В очереди</span>
+                    {% endif %}
+                    {% endwith %}
+                  </div>
+                  {% if msg.recording.status == 'done' and msg.recording.transcription %}
+                  <details class="bs-expand-wrap">
+                    <summary>Показать транскрибацию</summary>
+                    <div class="bs-expand-text" id="content-{{ msg.pk }}">{{ msg.content }}</div>
+                  </details>
+                  {% endif %}
+                {% else %}
+                  <div class="bs-media-name">{{ msg.content }}</div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="bs-bubble-footer">
+              <span class="bs-time">{{ msg.created_at|date:"H:i" }}</span>
+              <button class="bs-del-btn" data-id="{{ msg.pk }}" title="Удалить">🗑</button>
+            </div>
+          </div>
+
+          {% elif msg.role == 'ocr' %}
+          <!-- OCR-сообщение -->
+          <div class="bs-bubble bs-bubble--user bs-bubble--media" id="entry-{{ msg.pk }}">
+            <div class="bs-media-wrap">
+              <div class="bs-media-icon">📷</div>
+              <div class="bs-media-info">
+                {% if msg.ocr_job %}
+                  <div class="bs-media-name">{{ msg.ocr_job.original_filename }}</div>
+                  <div class="bs-media-status-row">
+                    {% with st=msg.ocr_job.status %}
+                    {% if st == 'done' %}
+                      <span class="bs-status bs-status--done">✅ Распознано</span>
+                      <button class="bs-insert-btn" data-id="{{ msg.pk }}" data-type="ocr">📝 Подставить</button>
+                      <a class="bs-ext-link" href="/ocr/{{ msg.ocr_job.pk }}/" target="_blank">↗ Открыть</a>
+                    {% elif st == 'processing' %}
+                      <span class="bs-status bs-status--progress">⏳ Обрабатывается…</span>
+                    {% elif st == 'failed' %}
+                      <span class="bs-status bs-status--fail">❌ Ошибка OCR</span>
+                    {% else %}
+                      <span class="bs-status bs-status--queue">🕐 В очереди</span>
+                    {% endif %}
+                    {% endwith %}
+                  </div>
+                  {% if msg.ocr_job.status == 'done' and msg.ocr_job.result_markdown %}
+                  <details class="bs-expand-wrap">
+                    <summary>Показать результат OCR</summary>
+                    <div class="bs-expand-text" id="content-{{ msg.pk }}">{{ msg.content }}</div>
+                  </details>
+                  {% endif %}
+                {% else %}
+                  <div class="bs-media-name">{{ msg.content }}</div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="bs-bubble-footer">
+              <span class="bs-time">{{ msg.created_at|date:"H:i" }}</span>
+              <button class="bs-del-btn" data-id="{{ msg.pk }}" title="Удалить">🗑</button>
+            </div>
+          </div>
+
+          {% elif msg.role == 'user' %}
+          <div class="bs-bubble bs-bubble--user" id="entry-{{ msg.pk }}">
+            <div class="bs-bubble-text">{{ msg.content }}</div>
+            <div class="bs-bubble-footer">
+              <span class="bs-time">{{ msg.created_at|date:"H:i" }}</span>
+              <button class="bs-del-btn" data-id="{{ msg.pk }}" title="Удалить">🗑</button>
+            </div>
+          </div>
+
+          {% elif msg.role == 'assistant' %}
+          <div class="bs-bubble bs-bubble--bot" id="entry-{{ msg.pk }}">
+            <div class="bs-bubble-text">{{ msg.content }}</div>
+            <div class="bs-bubble-footer">
+              <span class="bs-time">{{ msg.created_at|date:"H:i" }}</span>
+              <button class="bs-del-btn" data-id="{{ msg.pk }}" title="Удалить">🗑</button>
+            </div>
+          </div>
+
+          {% endif %}
+        {% endfor %}
+      </div>
+
+    {% else %}
+      <div class="bs-no-selection">
+        <div class="bs-no-selection-icon">💬</div>
+        <div>Выберите переписку слева</div>
+        <div class="bs-no-selection-sub">Показаны завершённые сессии — промежуток ≥ 1 часа</div>
+      </div>
+    {% endif %}
+  </main>
+
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Layout ── */
+.bs-layout {
+  display: flex;
+  height: calc(100vh - 58px);
+  overflow: hidden;
+  background: #f5f5f5;
+}
+
+/* ── Sidebar ── */
+.bs-sidebar {
+  width: 300px;
+  min-width: 240px;
+  background: #fff;
+  border-right: 1px solid #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.bs-sidebar-top {
+  padding: 14px 16px 0;
+  border-bottom: 1px solid #e8e8e8;
+  flex-shrink: 0;
+}
+.bs-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: #333;
+}
+.bs-tabs {
+  display: flex;
+  gap: 4px;
+}
+.bs-tab {
+  flex: 1;
+  text-align: center;
+  padding: 6px 4px;
+  font-size: .8rem;
+  color: #666;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.bs-tab--active {
+  color: #1a73e8;
+  border-bottom-color: #1a73e8;
+  font-weight: 600;
+}
+.bs-pill {
+  background: #e8e8e8;
+  color: #555;
+  border-radius: 10px;
+  padding: 1px 6px;
+  font-size: .72rem;
+}
+.bs-pill--live { background: #e8f5e9; color: #2e7d32; }
+
+.bs-list {
+  flex: 1;
+  overflow-y: auto;
+}
+.bs-item {
+  display: block;
+  padding: 11px 14px;
+  border-bottom: 1px solid #f2f2f2;
+  text-decoration: none;
+  color: inherit;
+  transition: background .1s;
+  cursor: pointer;
+}
+.bs-item:hover { background: #f7f7f7; }
+.bs-item--active { background: #e8f0fe !important; border-left: 3px solid #1a73e8; padding-left: 11px; }
+.bs-item--live { border-left: 3px solid #34a853; padding-left: 11px; }
+.bs-item-row1 { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; margin-bottom: 2px; }
+.bs-user { font-weight: 600; font-size: .83rem; color: #222; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px; }
+.bs-date { font-size: .72rem; color: #aaa; white-space: nowrap; }
+.bs-item-row2 { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+.bs-bot { font-size: .75rem; color: #888; }
+.bs-meta { font-size: .72rem; color: #aaa; display: flex; align-items: center; gap: 4px; }
+.bs-audio-badge { font-size: .8rem; }
+.bs-live-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #34a853;
+  display: inline-block;
+}
+.bs-preview { font-size: .78rem; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bs-empty-list { padding: 24px 16px; color: #aaa; font-size: .85rem; text-align: center; line-height: 1.6; }
+
+/* ── Main ── */
+.bs-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.bs-chat-header {
+  padding: 12px 20px;
+  background: #fff;
+  border-bottom: 1px solid #e8e8e8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.bs-chat-user { font-weight: 700; font-size: .95rem; color: #222; }
+.bs-chat-sub { font-size: .78rem; color: #888; margin-top: 2px; }
+.bs-badge-live {
+  background: #e8f5e9;
+  color: #2e7d32;
+  font-size: .75rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.bs-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #f5f5f5;
+}
+
+/* ── Bubbles ── */
+.bs-bubble {
+  max-width: 68%;
+  padding: 9px 13px 5px;
+  border-radius: 14px;
+  position: relative;
+  line-height: 1.5;
+  word-break: break-word;
+}
+.bs-bubble--user {
+  align-self: flex-end;
+  background: #d2e3fc;
+  border-bottom-right-radius: 4px;
+}
+.bs-bubble--bot {
+  align-self: flex-start;
+  background: #fff;
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.06);
+}
+.bs-bubble-text {
+  font-size: .88rem;
+  white-space: pre-wrap;
+  color: #222;
+}
+.bs-time {
+  display: block;
+  font-size: .7rem;
+  color: #aaa;
+  text-align: right;
+  margin-top: 3px;
+}
+
+/* ── Tool ── */
+.bs-tool {
+  align-self: center;
+  background: #fffde7;
+  border: 1px solid #ffe082;
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: .78rem;
+  color: #5d4037;
+  max-width: 90%;
+  cursor: pointer;
+}
+.bs-tool summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  list-style: none;
+  flex-wrap: wrap;
+}
+.bs-tool summary::-webkit-details-marker { display: none; }
+.bs-tool-preview { color: #9e9e9e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; flex: 1; }
+.bs-time-small { font-size: .7rem; color: #bbb; margin-left: auto; white-space: nowrap; }
+.bs-tool-body {
+  margin: 8px 0 4px;
+  padding: 8px;
+  background: #fff8e1;
+  border-radius: 6px;
+  font-size: .75rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 300px;
+  overflow-y: auto;
+  color: #333;
+}
+
+/* ── Media (audio / ocr) ── */
+.bs-bubble--media {
+  max-width: 78%;
+  background: #e8eaf6;
+  border-bottom-right-radius: 4px;
+  padding-bottom: 2px;
+}
+.bs-media-wrap { display: flex; gap: 10px; align-items: flex-start; }
+.bs-media-icon { font-size: 1.5rem; flex-shrink: 0; }
+.bs-media-info { flex: 1; min-width: 0; }
+.bs-media-name { font-weight: 600; font-size: .85rem; color: #333; margin-bottom: 2px; word-break: break-all; }
+.bs-media-size { font-size: .75rem; color: #999; margin-bottom: 4px; }
+.bs-media-status-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+
+.bs-status {
+  font-size: .73rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+.bs-status--done     { background: #e8f5e9; color: #2e7d32; }
+.bs-status--progress { background: #fff8e1; color: #f57f17; }
+.bs-status--fail     { background: #ffebee; color: #c62828; }
+.bs-status--queue    { background: #ede7f6; color: #4527a0; }
+
+.bs-ext-link { font-size: .73rem; color: #1a73e8; text-decoration: none; }
+.bs-ext-link:hover { text-decoration: underline; }
+
+.bs-insert-btn {
+  background: #1a73e8;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: .73rem;
+  cursor: pointer;
+  transition: background .15s;
+}
+.bs-insert-btn:hover { background: #1557b0; }
+.bs-insert-btn:disabled { background: #bbb; cursor: default; }
+.bs-insert-btn.done { background: #388e3c; }
+
+.bs-expand-wrap { margin-top: 5px; font-size: .78rem; }
+.bs-expand-wrap summary { color: #1a73e8; cursor: pointer; font-size: .73rem; }
+.bs-expand-text {
+  margin-top: 5px;
+  padding: 7px;
+  background: #fff;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  color: #444;
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: .78rem;
+}
+
+/* Footer строка: время + кнопка удаления */
+.bs-bubble-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+.bs-del-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: .8rem;
+  opacity: 0;
+  padding: 0 2px;
+  transition: opacity .15s;
+  color: #888;
+}
+.bs-bubble:hover .bs-del-btn { opacity: 1; }
+.bs-bubble--media:hover .bs-del-btn { opacity: 1; }
+
+/* ── No selection ── */
+.bs-no-selection {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #bbb;
+  font-size: .9rem;
+}
+.bs-no-selection-icon { font-size: 3rem; }
+.bs-no-selection-sub { font-size: .78rem; color: #ccc; margin-top: 4px; }
+
+/* ── Mobile ── */
+@media (max-width: 680px) {
+  .bs-layout { flex-direction: column; height: auto; overflow: auto; }
+  .bs-sidebar { width: 100%; min-width: 0; height: auto; border-right: none; border-bottom: 1px solid #e0e0e0; }
+  .bs-list { max-height: 45vh; }
+  .bs-main { min-height: 60vh; }
+  .bs-messages { padding: 12px; }
+  .bs-bubble { max-width: 90%; }
+  .bs-bubble--audio { max-width: 96%; }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Прокрутка к выбранному элементу в сайдбаре
+const activeItem = document.querySelector('.bs-item--active');
+if (activeItem) activeItem.scrollIntoView({ block: 'nearest' });
+
+// Прокрутка чата вниз
+const msgs = document.getElementById('bs-messages');
+if (msgs) msgs.scrollTop = msgs.scrollHeight;
+
+// Кнопки «Подставить»
+document.querySelectorAll('.bs-insert-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id = btn.dataset.id;
+    const type = btn.dataset.type; // 'audio' | 'ocr'
+    const url = type === 'ocr'
+      ? `/bot-history/${id}/insert-ocr/`
+      : `/bot-history/${id}/insert-transcription/`;
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Вставляю…';
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        btn.textContent = '✅ Вставлено';
+        btn.classList.add('done');
+        const expandText = document.getElementById(`content-${id}`);
+        if (expandText) expandText.textContent = data.content;
+        const badge = btn.closest('.bs-media-status-row')?.querySelector('.bs-status');
+        if (badge) badge.textContent = '✅ В контексте';
+      } else {
+        btn.textContent = '❌ ' + (data.error || 'Ошибка');
+        btn.disabled = false;
+      }
+    } catch {
+      btn.textContent = '❌ Ошибка сети';
+      btn.disabled = false;
+    }
+  });
+});
+
+// Кнопки удаления сообщений
+document.querySelectorAll('.bs-del-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (!confirm('Удалить это сообщение из истории?')) return;
+    const id = btn.dataset.id;
+    try {
+      const resp = await fetch(`/bot-history/${id}/delete/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        const el = document.getElementById(`entry-${id}`);
+        if (el) el.remove();
+      }
+    } catch { /* ignore */ }
+  });
+});
+
+function getCookie(name) {
+  const m = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+  return m ? m[2] : null;
+}
+</script>
+{% endblock %}

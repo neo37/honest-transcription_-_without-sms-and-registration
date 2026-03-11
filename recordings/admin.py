@@ -5,7 +5,12 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib import messages
 from django.utils.html import format_html
 
-from .models import Recording, PollLog, Comment, TranscribeQueue, EmbeddingQueue, TagDefinition, AccessLog, ShareToken, Space, SiteUser, AIConfig
+from .models import (
+    Recording, PollLog, Comment, TranscribeQueue, EmbeddingQueue,
+    TagDefinition, AccessLog, ShareToken, Space, SiteUser, AIConfig,
+    SystemConfig, SpeakerProfile, OcrJob, MagicLoginToken, OrgRegistration,
+    MascotLog, MascotTask, MeetingRoom, CustomBot, BotChatHistory, BotSetupState,
+)
 from .queue_services import enqueue_transcribe, enqueue_embedding
 from .s3_client import delete_mp3_from_s3
 from . import services
@@ -38,15 +43,16 @@ class RecordingAdmin(admin.ModelAdmin):
 
     @admin.action(description='Массовая транскрибация (в очередь)')
     def admin_action_enqueue_transcribe(self, request, queryset):
-        for rec in queryset:
-            if rec.status not in (Recording.Status.DONE, Recording.Status.TRANSCRIBING):
-                enqueue_transcribe(rec, priority=1)
-        count = queryset.exclude(
+        recs = list(queryset.exclude(
             status__in=(Recording.Status.DONE, Recording.Status.TRANSCRIBING),
-        ).count()
+        ).order_by('created_at'))
+        n = len(recs)
+        # Первая запись получает наивысший приоритет n, последняя — 1
+        for i, rec in enumerate(recs):
+            enqueue_transcribe(rec, priority=n - i)
         self.message_user(
             request,
-            f'В очередь транскрибации добавлено записей: {count}. Воркер обработает их по очереди.',
+            f'В очередь транскрибации добавлено записей: {n}. Приоритеты: {n}…1.',
             messages.SUCCESS,
         )
 
@@ -98,11 +104,27 @@ class CommentAdmin(admin.ModelAdmin):
 
 @admin.register(TranscribeQueue)
 class TranscribeQueueAdmin(admin.ModelAdmin):
-    list_display = ('recording', 'priority', 'created_at')
+    list_display = ('recording', 'recording_status', 'priority', 'created_at')
     list_filter = ('priority',)
     search_fields = ('recording__filename',)
     ordering = ('-priority', 'created_at')
     raw_id_fields = ('recording',)
+    actions = ['cancel_selected', 'move_to_top']
+
+    def recording_status(self, obj):
+        return obj.recording.get_status_display()
+    recording_status.short_description = 'Статус записи'
+
+    @admin.action(description='Отменить (удалить из очереди)')
+    def cancel_selected(self, request, queryset):
+        count = queryset.count()
+        queryset.delete()
+        self.message_user(request, f'Удалено из очереди: {count}')
+
+    @admin.action(description='Переместить в начало очереди (приоритет 999)')
+    def move_to_top(self, request, queryset):
+        count = queryset.update(priority=999)
+        self.message_user(request, f'Приоритет повышен для {count} записей')
 
 
 @admin.register(EmbeddingQueue)
@@ -110,6 +132,13 @@ class EmbeddingQueueAdmin(admin.ModelAdmin):
     list_display = ('recording', 'created_at')
     search_fields = ('recording__filename',)
     raw_id_fields = ('recording',)
+    actions = ['cancel_selected']
+
+    @admin.action(description='Отменить (удалить из очереди)')
+    def cancel_selected(self, request, queryset):
+        count = queryset.count()
+        queryset.delete()
+        self.message_user(request, f'Удалено из очереди: {count}')
 
 
 @admin.register(TagDefinition)
@@ -161,11 +190,24 @@ class SpaceAdmin(admin.ModelAdmin):
 
 @admin.register(SiteUser)
 class SiteUserAdmin(admin.ModelAdmin):
-    list_display = ('email', 'space', 'free_left', 'first_login_at', 'created_at')
+    list_display = ('email', 'space', 'tg_linked', 'free_left', 'first_login_at', 'created_at')
     list_filter = ('space',)
     search_fields = ('email',)
     readonly_fields = ('created_at', 'first_login_at')
     raw_id_fields = ('space',)
+    actions = ['send_telegram_message']
+
+    def tg_linked(self, obj):
+        return bool(obj.tg_chat_id)
+    tg_linked.boolean = True
+    tg_linked.short_description = 'TG'
+
+    @admin.action(description='📨 Отправить Telegram-сообщение выбранным')
+    def send_telegram_message(self, request, queryset):
+        # Сохраняем pk выбранных пользователей в сессии и редиректим на форму
+        ids = list(queryset.filter(tg_chat_id__isnull=False).values_list('pk', flat=True))
+        request.session['tg_broadcast_ids'] = ids
+        return redirect('../tg-broadcast/')
 
 
 @admin.register(ShareToken)
@@ -258,6 +300,52 @@ class AIConfigAdmin(admin.ModelAdmin):
 
 
 @staff_member_required
+def admin_tg_broadcast(request):
+    """Форма рассылки Telegram-сообщений авторизованным пользователям."""
+    import threading
+
+    all_users_with_tg = SiteUser.objects.filter(tg_chat_id__isnull=False).select_related('space')
+
+    # Если пришли из action — берём выбранных; иначе можно выбрать вручную
+    selected_ids = request.session.pop('tg_broadcast_ids', None)
+
+    if request.method == 'POST':
+        text = request.POST.get('text', '').strip()
+        mode = request.POST.get('mode', 'selected')  # all / selected
+        if not text:
+            messages.error(request, 'Введите текст сообщения.')
+            return redirect('.')
+
+        if mode == 'all':
+            recipients = list(all_users_with_tg)
+        else:
+            ids = [int(x) for x in request.POST.getlist('user_ids')]
+            recipients = list(SiteUser.objects.filter(pk__in=ids, tg_chat_id__isnull=False))
+
+        def _send():
+            from .telegram_service import send_message
+            ok = fail = 0
+            for u in recipients:
+                try:
+                    send_message(u.tg_chat_id, text)
+                    ok += 1
+                except Exception:
+                    fail += 1
+            import logging as _log
+            _log.getLogger(__name__).info('TG broadcast: ok=%d fail=%d', ok, fail)
+
+        threading.Thread(target=_send, daemon=True).start()
+        messages.success(request, f'Рассылка запущена для {len(recipients)} пользователей.')
+        return redirect('../../siteuser/')
+
+    return render(request, 'admin/recordings/tg_broadcast.html', {
+        'all_users': all_users_with_tg,
+        'selected_ids': selected_ids or [],
+        'title': 'Telegram-рассылка',
+    })
+
+
+@staff_member_required
 def admin_worker_status(request):
     """Состояние воркеров: последний опрос, размеры очередей."""
     last_log = PollLog.objects.order_by('-started_at').first()
@@ -269,6 +357,134 @@ def admin_worker_status(request):
         'embedding_count': embedding_count,
         'title': 'Состояние воркеров',
     })
+
+
+@admin.register(SystemConfig)
+class SystemConfigAdmin(admin.ModelAdmin):
+    list_display = ('key', 'value_preview', 'description', 'updated_at')
+    search_fields = ('key', 'description')
+    list_editable = ()
+    readonly_fields = ('updated_at',)
+
+    def value_preview(self, obj):
+        v = obj.value or ''
+        if obj.key and 'key' in obj.key.lower() and len(v) > 8:
+            return v[:8] + '…' + v[-4:]
+        return (v[:60] + '…') if len(v) > 60 else v
+    value_preview.short_description = 'Значение'
+
+
+@admin.register(SpeakerProfile)
+class SpeakerProfileAdmin(admin.ModelAdmin):
+    list_display = ('name', 'space', 'created_at')
+    list_filter = ('space',)
+    search_fields = ('name',)
+    raw_id_fields = ('space',)
+
+
+@admin.register(OcrJob)
+class OcrJobAdmin(admin.ModelAdmin):
+    list_display = ('pk', 'original_filename', 'status', 'created_at')
+    list_filter = ('status',)
+    search_fields = ('original_filename',)
+    readonly_fields = ('created_at',)
+
+
+@admin.register(MagicLoginToken)
+class MagicLoginTokenAdmin(admin.ModelAdmin):
+    list_display = ('user', 'token', 'expires_at', 'used_at')
+    list_filter = ('used_at',)
+    search_fields = ('user__email',)
+    raw_id_fields = ('user',)
+    readonly_fields = ('token', 'expires_at', 'used_at')
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(OrgRegistration)
+class OrgRegistrationAdmin(admin.ModelAdmin):
+    list_display = ('org_name', 'email', 'status', 'tg_chat_id', 'space', 'created_at')
+    list_filter = ('status',)
+    search_fields = ('org_name', 'email')
+    raw_id_fields = ('space',)
+    readonly_fields = ('verify_code', 'created_at')
+
+
+@admin.register(MascotLog)
+class MascotLogAdmin(admin.ModelAdmin):
+    list_display = ('pk', 'room', 'event', 'speaker', 'text_preview', 'created_at')
+    list_filter = ('event',)
+    search_fields = ('room', 'text', 'speaker')
+    readonly_fields = ('created_at',)
+
+    def text_preview(self, obj):
+        return (obj.text[:80] + '…') if len(obj.text) > 80 else obj.text
+    text_preview.short_description = 'Текст'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(MascotTask)
+class MascotTaskAdmin(admin.ModelAdmin):
+    list_display = ('pk', 'room', 'title_preview', 'speaker', 'done', 'created_at')
+    list_filter = ('done',)
+    list_editable = ('done',)
+    search_fields = ('room', 'title')
+    readonly_fields = ('created_at',)
+
+    def title_preview(self, obj):
+        return (obj.title[:80] + '…') if len(obj.title) > 80 else obj.title
+    title_preview.short_description = 'Задача'
+
+
+@admin.register(MeetingRoom)
+class MeetingRoomAdmin(admin.ModelAdmin):
+    list_display = ('room_name', 'title', 'space', 'with_mascot', 'created_by', 'created_at', 'ended_at')
+    list_filter = ('space', 'with_mascot')
+    search_fields = ('room_name', 'title')
+    raw_id_fields = ('space', 'created_by')
+    readonly_fields = ('created_at',)
+
+
+@admin.register(CustomBot)
+class CustomBotAdmin(admin.ModelAdmin):
+    list_display = ('name', 'username', 'owner', 'space', 'root_article', 'is_active', 'created_at')
+    list_filter = ('is_active', 'space')
+    search_fields = ('name', 'username', 'owner__email')
+    raw_id_fields = ('owner', 'space', 'root_article')
+    readonly_fields = ('webhook_secret', 'created_at')
+    list_editable = ('is_active',)
+
+
+@admin.register(BotChatHistory)
+class BotChatHistoryAdmin(admin.ModelAdmin):
+    list_display = ('chat_id', 'bot_id', 'role', 'content_preview', 'tool_name', 'created_at')
+    list_filter = ('role', 'bot_id')
+    search_fields = ('chat_id', 'content', 'tool_name')
+    readonly_fields = ('created_at',)
+    actions = ['clear_selected_history']
+
+    def content_preview(self, obj):
+        return (obj.content[:80] + '…') if len(obj.content) > 80 else obj.content
+    content_preview.short_description = 'Содержимое'
+
+    @admin.action(description='Очистить выбранные записи истории')
+    def clear_selected_history(self, request, queryset):
+        count = queryset.count()
+        queryset.delete()
+        self.message_user(request, f'Удалено {count} записей истории.')
+
+
+@admin.register(BotSetupState)
+class BotSetupStateAdmin(admin.ModelAdmin):
+    list_display = ('chat_id', 'state', 'pending_bot_pk', 'updated_at')
+    search_fields = ('chat_id',)
+    readonly_fields = ('updated_at',)
 
 
 # Регистрация кастомного URL в админке

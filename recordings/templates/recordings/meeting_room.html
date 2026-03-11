@@ -1,0 +1,272 @@
+{% extends "recordings/base.html" %}
+{% block title %}{{ meeting.title }}{% endblock %}
+{% block extra_css %}
+<style>
+.room-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+}
+.room-header h1 { margin: 0; font-size: 1.3rem; flex: 1; }
+.badge-mascot {
+    background: #1a3a8a22;
+    color: var(--primary, #2563eb);
+    border: 1px solid #2563eb44;
+    border-radius: 20px;
+    padding: 0.2rem 0.8rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+.badge-no-mascot {
+    background: var(--bg-soft);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 0.2rem 0.8rem;
+    font-size: 0.8rem;
+}
+#lk-room {
+    background: #111;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    min-height: 480px;
+    display: flex;
+    flex-direction: column;
+}
+#video-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px;
+    flex: 1;
+    align-items: flex-start;
+}
+.participant-tile {
+    position: relative;
+    background: #1a1a2e;
+    border-radius: 8px;
+    overflow: hidden;
+    flex: 1 1 280px;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.participant-tile video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.participant-name {
+    position: absolute;
+    bottom: 8px; left: 8px;
+    background: #0008;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+}
+.participant-avatar {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    background: var(--primary, #2563eb);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2rem; color: #fff;
+}
+#room-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: #1a1a1a;
+    border-top: 1px solid #333;
+    flex-wrap: wrap;
+}
+.ctrl-btn {
+    display: flex; align-items: center; gap: 0.4rem;
+    padding: 0.5rem 1rem;
+    border: none; border-radius: 8px;
+    font-size: 0.9rem; font-weight: 600;
+    cursor: pointer; transition: opacity 0.15s;
+}
+.ctrl-btn:hover { opacity: 0.85; }
+.ctrl-btn.active { background: #374151; color: #e5e7eb; }
+.ctrl-btn.muted  { background: #7f1d1d; color: #fca5a5; }
+.ctrl-btn.leave  { background: #dc2626; color: #fff; margin-left: auto; }
+#status-msg {
+    padding: 2rem;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.95rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="room-header">
+    <h1>{{ meeting.title }}</h1>
+    {% if meeting.with_mascot %}
+    <span class="badge-mascot">🤖 Маскот подключён</span>
+    {% else %}
+    <span class="badge-no-mascot">Без маскота</span>
+    {% endif %}
+    <a href="{% url 'recordings:meetings_page' %}" class="btn btn-ghost btn-sm">← Встречи</a>
+</div>
+
+<div id="lk-room">
+    <div id="video-grid"></div>
+    <div id="status-msg">Подключение…</div>
+    <div id="room-controls" style="display:none;">
+        <button class="ctrl-btn active" id="btn-mic">🎤 Микрофон</button>
+        <button class="ctrl-btn active" id="btn-cam">📷 Камера</button>
+        <button class="ctrl-btn leave" id="btn-leave">Покинуть</button>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
+<script>
+const LK_TOKEN = '{{ token }}';
+const ROOM_NAME = '{{ meeting.room_name }}';
+const wsUrl = '{{ lk_url }}';
+
+let room = null;
+let micEnabled = true;
+let camEnabled = true;
+
+async function initRoom() {
+    setStatus('Подключение к встрече…');
+    room = new LivekitClient.Room({
+        adaptiveStream: true,
+        dynacast: true,
+    });
+
+    room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, pub, participant) => {
+        if (track.kind === LivekitClient.Track.Kind.Video || track.kind === LivekitClient.Track.Kind.Audio) {
+            attachTrack(track, participant);
+        }
+    });
+
+    room.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track, pub, participant) => {
+        const el = document.getElementById('track-' + pub.trackSid);
+        if (el) el.remove();
+        cleanEmptyTiles();
+    });
+
+    room.on(LivekitClient.RoomEvent.ParticipantConnected, (participant) => {
+        ensureTile(participant);
+    });
+
+    room.on(LivekitClient.RoomEvent.ParticipantDisconnected, (participant) => {
+        const tile = document.getElementById('tile-' + participant.identity);
+        if (tile) tile.remove();
+    });
+
+    room.on(LivekitClient.RoomEvent.LocalTrackPublished, (pub) => {
+        if (pub.track && pub.track.kind === LivekitClient.Track.Kind.Video) {
+            attachLocalVideo(pub.track);
+        }
+    });
+
+    try {
+        await room.connect(wsUrl, LK_TOKEN);
+        setStatus('');
+        document.getElementById('room-controls').style.display = 'flex';
+        document.getElementById('status-msg').style.display = 'none';
+
+        // Публикуем аудио + видео
+        await room.localParticipant.enableCameraAndMicrophone();
+        ensureTile(room.localParticipant, true);
+
+    } catch (err) {
+        setStatus('Ошибка подключения: ' + err.message);
+        console.error(err);
+    }
+}
+
+function setStatus(msg) {
+    const el = document.getElementById('status-msg');
+    el.textContent = msg;
+    el.style.display = msg ? 'block' : 'none';
+}
+
+function getTileId(identity) { return 'tile-' + identity; }
+
+function ensureTile(participant, isLocal) {
+    const id = getTileId(participant.identity);
+    if (document.getElementById(id)) return;
+    const tile = document.createElement('div');
+    tile.className = 'participant-tile';
+    tile.id = id;
+    tile.dataset.identity = participant.identity;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'participant-avatar';
+    avatar.textContent = (participant.name || participant.identity || '?')[0].toUpperCase();
+    tile.appendChild(avatar);
+
+    const nameTag = document.createElement('div');
+    nameTag.className = 'participant-name';
+    nameTag.textContent = participant.name || participant.identity;
+    if (isLocal) nameTag.textContent += ' (вы)';
+    tile.appendChild(nameTag);
+
+    document.getElementById('video-grid').appendChild(tile);
+}
+
+function attachTrack(track, participant) {
+    ensureTile(participant);
+    const tile = document.getElementById(getTileId(participant.identity));
+    if (!tile) return;
+    const el = track.attach();
+    el.id = 'track-' + track.sid;
+    if (track.kind === LivekitClient.Track.Kind.Video) {
+        el.style.cssText = 'width:100%;height:100%;object-fit:cover;position:absolute;inset:0;';
+        tile.prepend(el);
+    } else {
+        el.style.display = 'none';
+        tile.appendChild(el);
+    }
+}
+
+function attachLocalVideo(track) {
+    const participant = room.localParticipant;
+    ensureTile(participant, true);
+    const tile = document.getElementById(getTileId(participant.identity));
+    if (!tile) return;
+    const el = track.attach();
+    el.style.cssText = 'width:100%;height:100%;object-fit:cover;position:absolute;inset:0;';
+    el.muted = true;
+    tile.prepend(el);
+}
+
+function cleanEmptyTiles() { /* tiles cleaned by ParticipantDisconnected */ }
+
+document.getElementById('btn-mic').addEventListener('click', async () => {
+    if (!room) return;
+    micEnabled = !micEnabled;
+    await room.localParticipant.setMicrophoneEnabled(micEnabled);
+    const btn = document.getElementById('btn-mic');
+    btn.textContent = micEnabled ? '🎤 Микрофон' : '🔇 Микрофон';
+    btn.className = 'ctrl-btn ' + (micEnabled ? 'active' : 'muted');
+});
+
+document.getElementById('btn-cam').addEventListener('click', async () => {
+    if (!room) return;
+    camEnabled = !camEnabled;
+    await room.localParticipant.setCameraEnabled(camEnabled);
+    const btn = document.getElementById('btn-cam');
+    btn.textContent = camEnabled ? '📷 Камера' : '🚫 Камера';
+    btn.className = 'ctrl-btn ' + (camEnabled ? 'active' : 'muted');
+});
+
+document.getElementById('btn-leave').addEventListener('click', async () => {
+    if (room) { await room.disconnect(); }
+    window.location.href = '{% url "recordings:meetings_page" %}';
+});
+
+initRoom();
+</script>
+{% endblock %}

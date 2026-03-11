@@ -1,0 +1,34 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# System deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libsndfile1 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install PyTorch CPU + fix numpy<2 before other deps
+RUN pip install --no-cache-dir \
+    "numpy<2" \
+    torch==2.2.2 \
+    torchaudio==2.2.2 \
+    --index-url https://download.pytorch.org/whl/cpu
+
+COPY voice_agent/requirements.txt /tmp/agent-requirements.txt
+RUN pip install --no-cache-dir -r /tmp/agent-requirements.txt
+
+# Pre-download Silero TTS model
+RUN python -c "\
+import torch; \
+torch.hub.load('snakers4/silero-models', 'silero_tts', language='ru', speaker='v3_1_ru', trust_repo=True)"
+
+# Pre-download Silero VAD model
+RUN python -c "\
+from livekit.plugins import silero; \
+silero.VAD.load()"
+
+COPY voice_agent/ /app/
+
+CMD ["sh", "-c", "python monitor.py & python agent.py start"]

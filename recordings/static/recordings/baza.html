@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Baza — это база для вашего бизнеса</title>
+<meta name="description" content="Записи встреч, документы, решения — в единой базе знаний. AI-агенты работают с вашими данными с первого дня.">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink: #07080f;
+  --sub: #5a607a;
+  --muted: #9199b5;
+  --bg: #06070f;
+  --bg2: #0d0e1a;
+  --card: #11121f;
+  --card2: #161828;
+  --border: rgba(255,255,255,.07);
+  --border2: rgba(255,255,255,.12);
+  --violet: #7c6bff;
+  --violet2: #a78bfa;
+  --cyan: #22d3ee;
+  --green: #4ade80;
+  --radius: 18px;
+  --radius-sm: 10px;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: #e2e4f0;
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  opacity: .025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px;
+}
+
+/* ─── NAV ─── */
+.nav {
+  position: sticky; top: 0; z-index: 200;
+  background: rgba(6,7,15,.85);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem;
+}
+.nav-inner {
+  max-width: 1100px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 60px; gap: 2rem;
+}
+.nav-logo {
+  font-size: 1.25rem; font-weight: 900; letter-spacing: -.06em;
+  text-decoration: none; color: #fff;
+  display: flex; align-items: center; gap: .45rem;
+}
+.nav-logo span { color: var(--violet); }
+.nav-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--violet);
+  box-shadow: 0 0 10px var(--violet);
+}
+.nav-cta {
+  display: inline-flex; align-items: center;
+  padding: .45rem 1.1rem;
+  background: var(--violet); color: #fff;
+  border-radius: 8px; font-size: .85rem; font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 0 20px rgba(124,107,255,.35);
+  transition: box-shadow .2s, transform .15s;
+  white-space: nowrap;
+}
+.nav-cta:hover { box-shadow: 0 0 32px rgba(124,107,255,.6); transform: translateY(-1px); }
+@media (max-width: 600px) { .nav { padding: 0 1rem; } }
+
+/* ─── SECTIONS ─── */
+section { position: relative; z-index: 1; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 0 2rem; }
+@media (max-width: 600px) { .wrap { padding: 0 1rem; } }
+
+/* ─── HERO ─── */
+.hero {
+  padding: 7rem 0 5rem;
+  text-align: center;
+}
+.hero-badge {
+  display: inline-flex; align-items: center; gap: .5rem;
+  background: rgba(124,107,255,.12); border: 1px solid rgba(124,107,255,.25);
+  border-radius: 100px; padding: .3rem .9rem;
+  font-size: .78rem; font-weight: 600; color: var(--violet2);
+  margin-bottom: 1.75rem;
+  letter-spacing: .03em; text-transform: uppercase;
+}
+.hero-badge-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--violet); animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%,100% { opacity:1; transform:scale(1); }
+  50% { opacity:.5; transform:scale(1.4); }
+}
+.hero h1 {
+  font-size: clamp(2.2rem, 5vw, 3.8rem);
+  font-weight: 900;
+  letter-spacing: -.04em;
+  line-height: 1.1;
+  margin-bottom: 1.25rem;
+  background: linear-gradient(135deg, #fff 30%, var(--violet2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero-sub {
+  max-width: 620px; margin: 0 auto 2.5rem;
+  font-size: 1.1rem; color: var(--muted); line-height: 1.7;
+}
+.hero-actions {
+  display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;
+}
+.btn-primary {
+  display: inline-flex; align-items: center; gap: .5rem;
+  padding: .8rem 2rem;
+  background: var(--violet); color: #fff;
+  border-radius: 10px; font-size: 1rem; font-weight: 700;
+  text-decoration: none; border: none; cursor: pointer;
+  box-shadow: 0 0 30px rgba(124,107,255,.4);
+  transition: box-shadow .2s, transform .15s;
+}
+.btn-primary:hover { box-shadow: 0 0 50px rgba(124,107,255,.65); transform: translateY(-2px); }
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: .5rem;
+  padding: .8rem 1.75rem;
+  background: transparent; color: #e2e4f0;
+  border: 1px solid var(--border2);
+  border-radius: 10px; font-size: 1rem; font-weight: 600;
+  text-decoration: none; cursor: pointer;
+  transition: border-color .2s, color .2s;
+}
+.btn-ghost:hover { border-color: var(--violet2); color: #fff; }
+
+/* ─── FEATURES ─── */
+.features { padding: 5rem 0; }
+.section-label {
+  text-align: center;
+  font-size: .78rem; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--violet2);
+  margin-bottom: .75rem;
+}
+.section-title {
+  text-align: center;
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  font-weight: 800; letter-spacing: -.03em;
+  margin-bottom: .6rem; color: #fff;
+}
+.section-sub {
+  text-align: center;
+  font-size: .95rem; color: var(--muted);
+  max-width: 520px; margin: 0 auto 3.5rem;
+}
+.feat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+}
+@media (max-width: 800px) { .feat-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 520px) { .feat-grid { grid-template-columns: 1fr; } }
+.feat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.75rem 1.5rem;
+  transition: border-color .2s, transform .2s;
+}
+.feat-card:hover { border-color: rgba(124,107,255,.3); transform: translateY(-3px); }
+.feat-icon {
+  width: 44px; height: 44px;
+  background: rgba(124,107,255,.13);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem;
+  margin-bottom: 1rem;
+}
+.feat-title {
+  font-size: 1rem; font-weight: 700; color: #fff;
+  margin-bottom: .4rem;
+}
+.feat-desc { font-size: .88rem; color: var(--muted); line-height: 1.6; }
+
+/* ─── HOW IT WORKS ─── */
+.how { padding: 5rem 0; background: var(--bg2); }
+.steps {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 1rem; margin-top: 3.5rem;
+}
+@media (max-width: 800px) { .steps { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 480px) { .steps { grid-template-columns: 1fr; } }
+.step {
+  text-align: center;
+  padding: 1.5rem 1rem;
+}
+.step-num {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(124,107,255,.15);
+  border: 1.5px solid rgba(124,107,255,.3);
+  color: var(--violet2);
+  font-size: .9rem; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 1rem;
+}
+.step-title { font-size: .95rem; font-weight: 700; color: #fff; margin-bottom: .4rem; }
+.step-desc { font-size: .82rem; color: var(--muted); line-height: 1.6; }
+
+/* ─── REGISTER ─── */
+.register { padding: 6rem 0; }
+.reg-card {
+  max-width: 480px; margin: 0 auto;
+  background: var(--card);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  box-shadow: 0 0 60px rgba(124,107,255,.08);
+  padding: 2.5rem 2rem;
+}
+.reg-head { text-align: center; margin-bottom: 2rem; }
+.reg-head h2 {
+  font-size: 1.35rem; font-weight: 800; color: #fff; margin-bottom: .4rem;
+}
+.reg-head p { font-size: .88rem; color: var(--muted); }
+.reg-field { margin-bottom: 1rem; }
+.reg-label {
+  display: block; font-size: .8rem; font-weight: 600;
+  color: #9199b5; margin-bottom: .35rem;
+}
+.reg-input {
+  width: 100%; padding: .65rem .9rem;
+  border: 1px solid var(--border2);
+  border-radius: 9px;
+  background: var(--bg2);
+  color: #e2e4f0; font-size: .92rem; font-family: inherit;
+  transition: border-color .15s;
+  outline: none;
+}
+.reg-input:focus { border-color: var(--violet); }
+.reg-btn {
+  width: 100%; padding: .75rem 1rem;
+  background: var(--violet); color: #fff;
+  border: none; border-radius: 10px;
+  font-size: .95rem; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+  box-shadow: 0 0 25px rgba(124,107,255,.35);
+  transition: box-shadow .2s, transform .15s;
+  margin-top: .5rem;
+}
+.reg-btn:hover { box-shadow: 0 0 40px rgba(124,107,255,.6); transform: translateY(-1px); }
+.reg-btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+.reg-error {
+  background: rgba(239,68,68,.1);
+  border: 1px solid rgba(239,68,68,.35);
+  border-radius: 8px;
+  padding: .7rem 1rem;
+  margin-bottom: 1rem;
+  font-size: .85rem;
+  color: #fca5a5;
+}
+.reg-success {
+  text-align: center;
+}
+.reg-success-icon {
+  font-size: 2.5rem; margin-bottom: .75rem;
+}
+.reg-success h3 { font-size: 1.1rem; font-weight: 800; color: var(--green); margin-bottom: .5rem; }
+.reg-success p { font-size: .88rem; color: var(--muted); margin-bottom: 1rem; line-height: 1.6; }
+.reg-code {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 1.5rem; font-weight: 800;
+  letter-spacing: .15em; color: #fff;
+  background: var(--bg2);
+  border: 1.5px solid rgba(124,107,255,.3);
+  border-radius: 10px;
+  padding: .6rem 1.2rem;
+  display: inline-block;
+  cursor: pointer;
+  user-select: all;
+  margin: .25rem 0 1.25rem;
+  transition: border-color .15s;
+}
+.reg-code:hover { border-color: var(--violet2); }
+.reg-bot-btn {
+  display: inline-flex; align-items: center; gap: .45rem;
+  padding: .6rem 1.5rem;
+  background: rgba(34,211,238,.12);
+  border: 1px solid rgba(34,211,238,.25);
+  border-radius: 9px; color: var(--cyan);
+  font-weight: 600; font-size: .9rem;
+  text-decoration: none;
+  transition: background .15s;
+}
+.reg-bot-btn:hover { background: rgba(34,211,238,.2); }
+.reg-divider {
+  border: none; border-top: 1px solid var(--border);
+  margin: 1.5rem 0;
+}
+.reg-footer { text-align: center; font-size: .8rem; color: var(--muted); }
+.reg-footer a { color: var(--violet2); text-decoration: none; }
+.reg-footer a:hover { text-decoration: underline; }
+
+/* ─── FOOTER ─── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 2rem;
+  text-align: center;
+  font-size: .8rem; color: var(--sub);
+  position: relative; z-index: 1;
+}
+footer strong { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      <div class="nav-dot"></div>
+      Baza
+    </a>
+    <a href="#register" class="nav-cta">Начать бесплатно</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-badge">
+      <div class="hero-badge-dot"></div>
+      AI-ready база знаний
+    </div>
+    <h1>Это база<br>для вашего бизнеса</h1>
+    <p class="hero-sub">
+      Записи встреч, документы, решения — в единой базе знаний.
+      AI-агенты работают с вашими данными с первого дня, а не с пустотой.
+    </p>
+    <div class="hero-actions">
+      <a href="#register" class="btn-primary">
+        Завести организацию
+      </a>
+      <a href="#how" class="btn-ghost">
+        Как это работает
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features">
+  <div class="wrap">
+    <div class="section-label">Возможности</div>
+    <h2 class="section-title">Всё, что нужно бизнесу</h2>
+    <p class="section-sub">Одна платформа вместо разрозненных инструментов</p>
+    <div class="feat-grid">
+      <div class="feat-card">
+        <div class="feat-icon">&#127908;</div>
+        <div class="feat-title">Транскрипция встреч</div>
+        <div class="feat-desc">Загружайте записи совещаний — получайте текст автоматически. Ничего не теряется, всё в одном месте.</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">&#128218;</div>
+        <div class="feat-title">База знаний</div>
+        <div class="feat-desc">Структурированные статьи на основе встреч и документов. Иерархия, поиск, публичные ссылки.</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">&#129302;</div>
+        <div class="feat-title">API для AI-агентов</div>
+        <div class="feat-desc">REST API для загрузки документов, OCR, поиска по базе. Агенты работают с реальными данными компании.</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">&#128272;</div>
+        <div class="feat-title">Командный доступ</div>
+        <div class="feat-desc">Пространства для команд. Каждый сотрудник видит только то, что нужно. Разграничение по ролям.</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">&#128269;</div>
+        <div class="feat-title">OCR документов</div>
+        <div class="feat-desc">Загружайте PDF, фото документов — получайте структурированный Markdown для базы знаний.</div>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">&#128279;</div>
+        <div class="feat-title">Публичные ссылки</div>
+        <div class="feat-desc">Поделитесь нужной статьёй или записью по защищённой ссылке без входа в систему.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how" id="how">
+  <div class="wrap">
+    <div class="section-label">Как это работает</div>
+    <h2 class="section-title">Четыре шага до результата</h2>
+    <p class="section-sub">От регистрации до работающих AI-агентов — без лишних настроек</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-title">Заведите организацию</div>
+        <div class="step-desc">Заполните форму, подтвердите через Telegram — получите доступ.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-title">Загружайте встречи</div>
+        <div class="step-desc">Аудио и видеозаписи совещаний автоматически транскрибируются.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-title">Стройте базу знаний</div>
+        <div class="step-desc">Статьи, решения, регламенты — всё связано с источниками.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-title">Подключайте агентов</div>
+        <div class="step-desc">API-ключ + документация — агенты мгновенно в контексте вашего бизнеса.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- REGISTER -->
+<section class="register" id="register">
+  <div class="wrap">
+    <div class="section-label">Начать</div>
+    <h2 class="section-title">Зарегистрировать организацию</h2>
+    <p class="section-sub" style="margin-bottom:2.5rem;">Бесплатно. Подтверждение через Telegram — займёт меньше минуты.</p>
+
+    <div class="reg-card">
+      <div id="reg-form-wrap">
+        <div class="reg-head">
+          <h2>Создать организацию</h2>
+          <p>Для активации потребуется подтверждение через Telegram-бот</p>
+        </div>
+        <div id="reg-error" class="reg-error" style="display:none;"></div>
+        <div class="reg-field">
+          <label class="reg-label" for="org_name">Название организации</label>
+          <input class="reg-input" type="text" id="org_name" placeholder="ООО Ромашка" required autocomplete="organization">
+        </div>
+        <div class="reg-field">
+          <label class="reg-label" for="email">Email администратора</label>
+          <input class="reg-input" type="email" id="email" placeholder="admin@company.ru" required autocomplete="email">
+        </div>
+        <button class="reg-btn" id="reg-submit" onclick="submitReg()">
+          Зарегистрировать организацию
+        </button>
+        <hr class="reg-divider">
+        <div class="reg-footer">
+          Уже есть аккаунт? <a href="/pilot-login/">Войти</a>
+        </div>
+      </div>
+
+      <div id="reg-success-wrap" style="display:none;" class="reg-success">
+        <div class="reg-success-icon">&#10003;</div>
+        <h3>Заявка принята!</h3>
+        <p>Чтобы завершить регистрацию, откройте Telegram-бот и отправьте команду:</p>
+        <div id="reg-code" class="reg-code" title="Нажмите, чтобы скопировать" onclick="copyCode(this)"></div>
+        <p id="reg-bot-hint" style="margin-bottom:.75rem;"></p>
+        <a id="reg-bot-link" href="#" target="_blank" class="reg-bot-btn" style="display:none;">
+          Открыть Telegram-бот
+        </a>
+        <hr class="reg-divider">
+        <div class="reg-footer">
+          После подтверждения бот пришлёт пароль.<br>
+          Войти можно по ссылке: <a href="/pilot-login/">pilot-login</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <strong>Baza</strong> &mdash; это база для вашего бизнеса
+</footer>
+
+<script>
+// Укажите URL вашего сервера если файл размещён на другом домене
+var API_URL = '/api/org-register/';
+
+function submitReg() {
+  var btn = document.getElementById('reg-submit');
+  var errBox = document.getElementById('reg-error');
+  var orgName = document.getElementById('org_name').value.trim();
+  var email = document.getElementById('email').value.trim();
+
+  errBox.style.display = 'none';
+
+  if (!orgName || !email) {
+    errBox.textContent = 'Заполните все поля.';
+    errBox.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Отправляем...';
+
+  fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ org_name: orgName, email: email })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (!data.ok) {
+      errBox.textContent = data.error || 'Ошибка. Попробуйте ещё раз.';
+      errBox.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Зарегистрировать организацию';
+      return;
+    }
+    // Показываем успех
+    var codeEl = document.getElementById('reg-code');
+    codeEl.textContent = '/verify ' + data.code;
+    document.getElementById('reg-form-wrap').style.display = 'none';
+    document.getElementById('reg-success-wrap').style.display = 'block';
+
+    if (data.bot_username) {
+      var link = document.getElementById('reg-bot-link');
+      link.href = 'https://t.me/' + data.bot_username + '?start=' + data.code;
+      link.style.display = 'inline-flex';
+      document.getElementById('reg-bot-hint').textContent = 'Бот: @' + data.bot_username;
+    }
+  })
+  .catch(function() {
+    errBox.textContent = 'Ошибка сети. Проверьте подключение и попробуйте снова.';
+    errBox.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Зарегистрировать организацию';
+  });
+}
+
+function copyCode(el) {
+  var text = el.textContent.trim();
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function() {
+      var orig = el.textContent;
+      el.textContent = 'Скопировано!';
+      setTimeout(function() { el.textContent = orig; }, 1500);
+    });
+  }
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && document.getElementById('reg-form-wrap').style.display !== 'none') {
+    var active = document.activeElement;
+    if (active && (active.id === 'org_name' || active.id === 'email')) {
+      submitReg();
+    }
+  }
+});
+</script>
+</body>
+</html>

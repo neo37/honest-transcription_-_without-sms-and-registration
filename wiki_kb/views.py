@@ -3,6 +3,7 @@ import markdown as md_lib
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
 from django.utils.text import slugify
+from django.db.models import Q
 
 from recordings.auth_backend import site_login_required, get_current_user
 from recordings.models import Recording
@@ -14,16 +15,21 @@ def _render_md(text):
     return md.convert(text)
 
 
+def _space_filter(space):
+    """Фильтр по space: показывать статьи своего space + глобальные (space=None)."""
+    return Q(space=space) | Q(space__isnull=True)
+
+
 def _get_tree(space):
-    """Корневые статьи для боковой панели — только из пространства пользователя."""
+    """Корневые статьи для боковой панели."""
     return WikiArticle.objects.filter(
-        is_deleted=False, parent__isnull=True, space=space
+        _space_filter(space), is_deleted=False, parent__isnull=True
     ).order_by('order', 'title')
 
 
 def _wiki_qs(space):
-    """Базовый queryset статей пространства пользователя."""
-    return WikiArticle.objects.filter(is_deleted=False, space=space)
+    """Базовый queryset статей пространства пользователя + глобальных."""
+    return WikiArticle.objects.filter(_space_filter(space), is_deleted=False)
 
 
 def _unique_slug(title):
@@ -120,12 +126,24 @@ def article_detail(request, slug):
     roots = _get_tree(space)
     ancestors = article.get_ancestors()
     linked_recordings = article.recordings.all().order_by('-created_at')
+    from wiki_kb.models import WikiArticleChunk
+    chunks = list(WikiArticleChunk.objects.filter(article=article).order_by('chunk_index'))
+    chunk_stats = {
+        'count': len(chunks),
+        'dims': len(chunks[0].embedding) if chunks else 0,
+        'total_chars': sum(len(c.chunk_text) for c in chunks),
+        'last_indexed': chunks[0].updated_at if chunks else None,
+        'model': 'paraphrase-multilingual-MiniLM-L12-v2',
+        'chunk_size': 800,
+        'overlap': 200,
+    } if chunks else None
     return render(request, 'wiki_kb/article_detail.html', {
         'roots': roots,
         'article': article,
         'content_html': content_html,
         'ancestors': ancestors,
         'linked_recordings': linked_recordings,
+        'chunk_stats': chunk_stats,
     })
 
 

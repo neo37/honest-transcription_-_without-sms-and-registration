@@ -10,7 +10,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods
 from django.contrib import messages
 from django.db.models import Count
-from .models import Recording, PollLog, Comment, OcrJob, AccessLog, ShareToken, TagDefinition, Space, SiteUser, OrgRegistration, MagicLoginToken
+from .models import Recording, PollLog, Comment, OcrJob, AccessLog, ShareToken, TagDefinition, Space, SiteUser, OrgRegistration, MagicLoginToken, MascotLog, SystemConfig, MeetingRoom, BotChatHistory, CustomBot
 from .auth_backend import site_login_required, get_current_user
 from . import services
 from .s3_client import get_presigned_download_url, upload_file_to_s3
@@ -62,6 +62,25 @@ def _log_access(request, event, recording=None):
         pass
 
 
+@site_login_required
+def api_speaker_profiles(request):
+    """Список голосовых профилей спикеров в пространстве."""
+    user = get_current_user(request)
+    if not user or not user.space:
+        return JsonResponse({'profiles': []})
+    profiles = list(user.space.speaker_profiles.values('name', 'sample_count').order_by('name'))
+    return JsonResponse({'profiles': profiles})
+
+
+@site_login_required
+def api_transcribing_progress(request):
+    """Список активных транскрибаций с прогрессом."""
+    recs = Recording.objects.filter(status=Recording.Status.TRANSCRIBING).values(
+        'id', 'filename', 'ai_title', 'transcription_progress', 'transcription_stage'
+    )
+    return JsonResponse({'items': list(recs)})
+
+
 @csrf_exempt
 @require_http_methods(['POST'])
 def log_screen(request):
@@ -82,6 +101,9 @@ def log_screen(request):
 @require_http_methods(['GET', 'POST'])
 def login_view(request):
     if request.session.get('user_id'):
+        next_url = request.GET.get('next', '')
+        if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+            return redirect(next_url)
         return redirect(reverse('recordings:index'))
     error = None
     registered = request.GET.get('registered') == '1'
@@ -115,6 +137,9 @@ def login_view(request):
                     request.session.set_expiry(60 * 60 * 24 * 7)
                     request.session.modified = True
                     _log_access(request, AccessLog.EVENT_LOGIN)
+                    next_url = request.POST.get('next') or request.GET.get('next') or ''
+                    if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+                        return redirect(next_url)
                     return redirect(reverse('recordings:index'))
             elif not password:
                 error = 'Введите пароль.'
@@ -125,12 +150,17 @@ def login_view(request):
                 request.session.set_expiry(60 * 60 * 24 * 7)
                 request.session.modified = True
                 _log_access(request, AccessLog.EVENT_LOGIN)
+                next_url = request.POST.get('next') or request.GET.get('next') or ''
+                if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+                    return redirect(next_url)
                 return redirect(reverse('recordings:index'))
     bp_emails = sorted(settings.BP_EMAILS)
+    next_url = request.GET.get('next', '')
     return render(request, 'recordings/login.html', {
         'error': error,
         'registered': registered,
         'bp_emails': bp_emails,
+        'next_url': next_url,
     })
 
 
@@ -335,6 +365,9 @@ def api_check_email(request):
 def pilot_login(request):
     """Вход для участников пространств (не BP-пользователи)."""
     if request.session.get('user_id'):
+        next_url = request.GET.get('next', '')
+        if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+            return redirect(next_url)
         return redirect(reverse('recordings:index'))
     error = None
     if request.method == 'POST':
@@ -360,6 +393,92 @@ def pilot_login(request):
                 error = 'Пользователь не найден. Обратитесь к администратору.'
     next_url = request.GET.get('next', '')
     return render(request, 'recordings/pilot_login.html', {'error': error, 'next_url': next_url})
+
+
+# ─── smarty.rest login (landing page) ──────────────────────────────────────
+
+SMARTY_SPACE_SLUG = 'spacecode-smarty'
+
+def smarty_register(request):
+    """Регистрация для smarty.rest — создаёт OrgRegistration в пространстве spacecode-smarty."""
+    import random, string
+    from .telegram_service import get_bot_info
+
+    bot_username = getattr(settings, 'TELEGRAM_BOT_USERNAME', '') or ''
+    if not bot_username:
+        info = get_bot_info()
+        bot_username = info.get('username', '')
+
+    error = None
+    success_code = None
+
+    if request.method == 'POST':
+        name = (request.POST.get('name') or '').strip()
+        email = (request.POST.get('email') or '').strip().lower()
+        if not name or not email:
+            error = 'Заполните все поля.'
+        elif SiteUser.objects.filter(email__iexact=email).exists():
+            error = 'Пользователь с таким email уже зарегистрирован.'
+        elif OrgRegistration.objects.filter(email__iexact=email, status='pending').exists():
+            reg = OrgRegistration.objects.filter(email__iexact=email, status='pending').first()
+            success_code = reg.verify_code
+        else:
+            try:
+                target_space = Space.objects.get(slug=SMARTY_SPACE_SLUG)
+            except Space.DoesNotExist:
+                target_space = Space.objects.create(name='SpaceCode Smarty', slug=SMARTY_SPACE_SLUG)
+            chars = string.ascii_uppercase + string.digits
+            code = ''.join(random.choices(chars, k=8))
+            while OrgRegistration.objects.filter(verify_code=code).exists():
+                code = ''.join(random.choices(chars, k=8))
+            OrgRegistration.objects.create(
+                org_name=name, email=email, verify_code=code,
+                target_space=target_space,
+            )
+            success_code = code
+
+    return JsonResponse({
+        'ok': success_code is not None,
+        'code': success_code,
+        'bot_username': bot_username,
+        'error': error,
+    })
+
+
+def smarty_login(request):
+    """Landing + login для домена smarty.rest."""
+    if request.session.get('user_id'):
+        next_url = request.GET.get('next', '')
+        if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+            return redirect(next_url)
+        return redirect(reverse('recordings:index'))
+    error = None
+    if request.method == 'POST':
+        email = (request.POST.get('email') or '').strip().lower()
+        password = (request.POST.get('password') or '').strip()
+        if not email or not password:
+            error = 'Введите email и пароль. / Please enter email and password.'
+        else:
+            try:
+                user = SiteUser.objects.select_related('space').get(
+                    email__iexact=email,
+                    space__slug=SMARTY_SPACE_SLUG,
+                )
+                if user.check_password(password):
+                    request.session['user_id'] = user.pk
+                    request.session.set_expiry(60 * 60 * 24 * 7)
+                    request.session.modified = True
+                    _log_access(request, AccessLog.EVENT_LOGIN)
+                    next_url = request.POST.get('next') or request.GET.get('next') or ''
+                    if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+                        return redirect(next_url)
+                    return redirect(reverse('recordings:index'))
+                else:
+                    error = 'Неверный пароль. / Invalid password.'
+            except SiteUser.DoesNotExist:
+                error = 'Пользователь не найден. / User not found.'
+    next_url = request.GET.get('next', '')
+    return render(request, 'recordings/smarty_landing.html', {'error': error, 'next_url': next_url})
 
 
 @require_http_methods(['GET', 'POST'])
@@ -499,6 +618,22 @@ def logout_view(request):
     return redirect(reverse('recordings:login'))
 
 
+def _collect_speaker_names(current_user, base_qs):
+    """Собрать уникальные имена спикеров из recording.speaker_names + SpeakerProfile."""
+    names = set()
+    # Из профилей пространства
+    if current_user and current_user.space:
+        for n in current_user.space.speaker_profiles.values_list('name', flat=True):
+            names.add(n)
+    # Из speaker_names всех записей пространства (значения JSON-dict)
+    for rec in base_qs.exclude(speaker_names={}).values_list('speaker_names', flat=True):
+        if isinstance(rec, dict):
+            for v in rec.values():
+                if v and isinstance(v, str) and v.strip():
+                    names.add(v.strip())
+    return sorted(names)
+
+
 def _semantic_available():
     from django.db import connection
     if connection.vendor != 'postgresql':
@@ -544,8 +679,11 @@ def index(request):
         except (ValueError, TypeError):
             pass
 
-    fn_filters = [x for x in request.GET.getlist('fn') if x in ('cpq', 'dev', 'daily', 'bp', 'analytics', 'demo')]
-    date_str = request.GET.get('date') or timezone.now().strftime('%Y-%m-%d')
+    fn_filters = []
+    speaker_filter = (request.GET.get('speaker') or '').strip()
+    # Фильтр «скрывать почти пустые» — включён по умолчанию, ?hide_empty=0 отключает
+    hide_empty = request.GET.get('hide_empty', '1') != '0'
+    date_str = request.GET.get('date') or timezone.localtime(timezone.now()).strftime('%Y-%m-%d')
     date_to_str = request.GET.get('date_to', '').strip()
     time_from = request.GET.get('time_from', '')
     time_to = request.GET.get('time_to', '')
@@ -610,11 +748,33 @@ def index(request):
                 except (ValueError, AttributeError):
                     pass
 
+            if hide_empty:
+                from django.db.models import Q as _Q
+                # Скрываем done-записи без текста; pending/stable/transcribing/failed всегда показываем
+                qs = qs.filter(
+                    _Q(status__in=[
+                        Recording.Status.PENDING, Recording.Status.STABLE,
+                        Recording.Status.TRANSCRIBING, Recording.Status.FAILED,
+                    ]) |
+                    (
+                        _Q(transcription__isnull=False) &
+                        ~_Q(transcription='') &
+                        _Q(transcription__regex=r'.{100,}')
+                    )
+                )
+
             if fn_filters:
                 q = Q()
                 for s in fn_filters:
                     q |= Q(filename__icontains=s)
                 qs = qs.filter(q)
+
+            if speaker_filter:
+                from django.db.models.functions import Cast
+                from django.db.models import TextField
+                qs = qs.annotate(
+                    _snames=Cast('speaker_names', TextField())
+                ).filter(_snames__icontains=speaker_filter)
 
             recordings = list(qs.order_by('-created_at'))
         except OperationalError:
@@ -649,8 +809,11 @@ def index(request):
         'date_to': date_to_str,
         'time_from': time_from,
         'time_to': time_to,
+        'speaker_filter': speaker_filter,
+        'space_speaker_profiles': _collect_speaker_names(current_user, base_qs),
         'tag_choices': tag_choices,
         'fn_filters': fn_filters,
+        'hide_empty': hide_empty,
         'fn_options': [('cpq', 'CPQ'), ('daily', 'Daily'), ('bp', 'BP'), ('analytics', 'Analytics'), ('demo', 'Demo')],
         'user_space_slug': user_space_slug,
         'current_user': current_user,
@@ -746,6 +909,8 @@ def support_request(request, recording_id):
 @site_login_required
 def recording_detail(request, recording_id):
     """Страница записи: транскрипция, скачать, поделиться ссылкой, комментарии."""
+    import re as _re
+    import json as _json
     rec = get_object_or_404(Recording, pk=recording_id)
     _log_access(request, AccessLog.EVENT_VIEW, recording=rec)
     comments = list(rec.comments.all())
@@ -755,10 +920,33 @@ def recording_detail(request, recording_id):
             download_url = get_presigned_download_url(rec.s3_key, rec.filename, expires_in=300)
         except Exception:
             pass
+
+    speaker_profiles = list(rec.space.speaker_profiles.values_list('name', flat=True)) if rec.space else []
+
+    # Автоподбор имён по речевым паттернам если имена ещё не сохранены
+    auto_names = {}
+    if rec.space and not rec.speaker_names and rec.transcription:
+        speaker_ids = list(set(_re.findall(r'^[\-—]\s*(.+?):', rec.transcription, _re.MULTILINE)))
+        if speaker_ids:
+            try:
+                auto_names = services.match_by_speech_patterns(rec.space, rec.transcription, speaker_ids)
+            except Exception:
+                pass
+
+    # Собрать все уникальные имена из записей пространства для подсказок
+    all_names = set(speaker_profiles)
+    for names_dict in rec.space.recordings.exclude(speaker_names={}).values_list('speaker_names', flat=True) if rec.space else []:
+        if isinstance(names_dict, dict):
+            all_names.update(v for v in names_dict.values() if v and isinstance(v, str))
+
+    current_user = get_current_user(request)
     return render(request, 'recordings/recording_detail.html', {
         'recording': rec,
         'comments': comments,
         'download_url': download_url,
+        'speaker_profiles': sorted(all_names),
+        'auto_names_json': _json.dumps(auto_names, ensure_ascii=False),
+        'current_user': current_user,
     })
 
 
@@ -795,13 +983,46 @@ def shared_recording(request, token):
 @site_login_required
 @require_http_methods(['POST'])
 def run_recording_transcription(request, recording_id):
-    """Поставить транскрибацию в очередь с приоритетом; воркер подхватит. Позволяет выбрать качество и язык."""
-    from .queue_services import enqueue_transcribe
+    """Поставить задачу в очередь. Параметры: stage, quality, language, device."""
+    from .queue_services import enqueue_transcribe, enqueue_embedding
     rec = get_object_or_404(Recording, pk=recording_id)
-    
+
+    stage = request.POST.get('stage', 'transcription')  # transcription | ai_summary | embedding
+    device = request.POST.get('device', 'auto')          # auto | cpu | gpu
+
+    next_url = request.POST.get('next') or request.GET.get('next') or reverse('recordings:recording_detail', args=[rec.pk])
+
+    if stage == 'ai_summary':
+        if not rec.transcription:
+            messages.error(request, 'Нет транскрипции для генерации резюме.')
+            return redirect(next_url)
+        def _run_summary():
+            try:
+                services.generate_ai_summary(rec)
+            except Exception:
+                pass
+        threading.Thread(target=_run_summary, daemon=True).start()
+        messages.success(request, 'Генерация AI-заголовка и резюме запущена.')
+        return redirect(next_url)
+
+    if stage == 'embedding':
+        if not rec.transcription:
+            messages.error(request, 'Нет транскрипции для индексации.')
+            return redirect(next_url)
+        enqueue_embedding(rec)
+        def _run_emb():
+            try:
+                from .queue_services import index_embedding_for_recording
+                index_embedding_for_recording(rec)
+            except Exception:
+                pass
+        threading.Thread(target=_run_emb, daemon=True).start()
+        messages.success(request, 'Индексация эмбеддинга поставлена в очередь.')
+        return redirect(next_url)
+
+    # stage == 'transcription' (default)
     quality = request.POST.get('quality')
     lang = request.POST.get('language')
-    
     update_fields = []
     if quality in dict(Recording.QUALITY_CHOICES):
         rec.transcription_quality = quality
@@ -809,24 +1030,25 @@ def run_recording_transcription(request, recording_id):
     if lang in dict(Recording.LANGUAGE_CHOICES):
         rec.transcription_language = lang
         update_fields.append('transcription_language')
-    
-    # Сбрасываем старую транскрипцию если она была
+
+    # Сохраняем device override в SystemConfig (временно, до окончания транскрипции)
+    if device in ('cpu', 'gpu'):
+        SystemConfig.set(f'device_override_{rec.pk}', device)
+
     rec.transcription = ''
     rec.status = Recording.Status.STABLE
     update_fields.extend(['transcription', 'status'])
     rec.save(update_fields=update_fields)
-    
+
     enqueue_transcribe(rec, priority=1)
-    
+
     def _run_one():
         try:
             services.process_one_transcribe()
         except Exception:
             pass
-    thread = threading.Thread(target=_run_one, daemon=True)
-    thread.start()
-    messages.success(request, f'Транскрибация для «{rec.filename}» поставлена в очередь. Обновите страницу через минуту.')
-    next_url = request.POST.get('next') or request.GET.get('next') or reverse('recordings:recording_detail', args=[rec.pk])
+    threading.Thread(target=_run_one, daemon=True).start()
+    messages.success(request, f'Транскрибация для «{rec.filename}» поставлена в очередь.')
     return redirect(next_url)
 
 
@@ -1460,6 +1682,60 @@ def org_register(request):
 
 
 @csrf_exempt
+@require_http_methods(['POST', 'OPTIONS'])
+def api_org_register_public(request):
+    """JSON API для регистрации организации (используется standalone-лендингом Baza)."""
+    cors_headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+    }
+
+    if request.method == 'OPTIONS':
+        resp = JsonResponse({})
+        for k, v in cors_headers.items():
+            resp[k] = v
+        return resp
+
+    import json as _json, random, string
+    from .telegram_service import get_bot_info
+
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        data = {}
+
+    org_name = (data.get('org_name') or request.POST.get('org_name', '')).strip()
+    email = (data.get('email') or request.POST.get('email', '')).strip().lower()
+
+    def _resp(payload, status=200):
+        r = JsonResponse(payload, status=status)
+        for k, v in cors_headers.items():
+            r[k] = v
+        return r
+
+    if not org_name or not email:
+        return _resp({'ok': False, 'error': 'Заполните все поля.'}, 400)
+    if SiteUser.objects.filter(email__iexact=email).exists():
+        return _resp({'ok': False, 'error': 'Пользователь с таким email уже зарегистрирован.'}, 400)
+
+    bot_username = getattr(settings, 'TELEGRAM_BOT_USERNAME', '') or ''
+    if not bot_username:
+        bot_username = get_bot_info().get('username', '')
+
+    if OrgRegistration.objects.filter(email__iexact=email, status='pending').exists():
+        reg = OrgRegistration.objects.filter(email__iexact=email, status='pending').first()
+        return _resp({'ok': True, 'code': reg.verify_code, 'bot_username': bot_username})
+
+    chars = string.ascii_uppercase + string.digits
+    code = ''.join(random.choices(chars, k=8))
+    while OrgRegistration.objects.filter(verify_code=code).exists():
+        code = ''.join(random.choices(chars, k=8))
+    OrgRegistration.objects.create(org_name=org_name, email=email, verify_code=code)
+    return _resp({'ok': True, 'code': code, 'bot_username': bot_username})
+
+
+@csrf_exempt
 def tg_webhook(request, secret):
     """Telegram Bot webhook endpoint."""
     if request.method != 'POST':
@@ -1481,6 +1757,34 @@ def tg_webhook(request, secret):
     except Exception as e:
         import logging
         logging.getLogger(__name__).error('tg_webhook handle error: %s', e, exc_info=True)
+
+    return JsonResponse({'ok': True})
+
+
+@csrf_exempt
+def tg_custom_webhook(request, bot_pk, secret):
+    """Webhook для кастомных пользовательских ботов."""
+    if request.method != 'POST':
+        return JsonResponse({'ok': False}, status=405)
+
+    from .models import CustomBot
+    try:
+        bot = CustomBot.objects.get(pk=bot_pk, webhook_secret=secret, is_active=True)
+    except CustomBot.DoesNotExist:
+        return JsonResponse({'ok': False}, status=403)
+
+    import json
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'ok': False}, status=400)
+
+    try:
+        from .telegram_service import handle_custom_bot_update
+        handle_custom_bot_update(data, bot)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error('tg_custom_webhook error bot=%s: %s', bot_pk, e, exc_info=True)
 
     return JsonResponse({'ok': True})
 
@@ -1602,3 +1906,1127 @@ def landing(request):
         'bot_username': bot_username,
         'intent': intent,
     })
+
+
+@site_login_required
+@require_http_methods(['POST'])
+def save_speaker_names(request, recording_id):
+    import json as _json
+    rec = get_object_or_404(Recording, pk=recording_id)
+    data = _json.loads(request.body)
+    names = {k: v for k, v in data.items() if isinstance(k, str) and isinstance(v, str)}
+    rec.speaker_names = names
+    rec.save(update_fields=['speaker_names'])
+    # Save speaker voice profiles + речевые паттерны
+    if rec.space:
+        services.save_speaker_profiles(
+            rec.space, names, rec.speaker_embeddings or {},
+            transcription_text=rec.transcription or '',
+        )
+    return JsonResponse({'ok': True})
+
+
+@site_login_required
+@require_http_methods(['POST'])
+def api_tg_link(request):
+    """Генерировать код привязки Telegram для любого авторизованного пользователя."""
+    import secrets
+    import datetime
+    user = get_current_user(request)
+    code = 'TG' + secrets.token_hex(4).upper()
+    user.tg_verify_code = code
+    user.tg_verify_expires = timezone.now() + datetime.timedelta(minutes=15)
+    user.tg_verified = False
+    user.tg_chat_id = None
+    user.save(update_fields=['tg_verify_code', 'tg_verify_expires', 'tg_verified', 'tg_chat_id'])
+    bot_username = getattr(settings, 'TELEGRAM_BOT_USERNAME', '')
+    bot_link = f'https://t.me/{bot_username}?start={code}' if bot_username else ''
+    return JsonResponse({'ok': True, 'code': code, 'bot_link': bot_link})
+
+
+@site_login_required
+@require_http_methods(['POST'])
+def send_tg_transcript(request, recording_id):
+    """Отправить транскрипцию записи пользователю в Telegram."""
+    user = get_current_user(request)
+    if not user.tg_chat_id:
+        return JsonResponse({'ok': False, 'reason': 'no_tg'}, status=400)
+    rec = get_object_or_404(Recording, pk=recording_id)
+    if not rec.transcription:
+        return JsonResponse({'ok': False, 'reason': 'no_transcription'}, status=400)
+
+    from .telegram_service import send_message as tg_send
+    title = rec.ai_title or rec.filename
+    # Telegram limit ~4096 chars, split if needed
+    header = f'*{title}*\n\n'
+    text = rec.transcription
+    chunks = []
+    limit = 4000
+    first = True
+    while text:
+        prefix = header if first else ''
+        chunk = prefix + text[:limit - len(prefix)]
+        chunks.append(chunk)
+        text = text[limit - len(prefix):]
+        first = False
+
+    for chunk in chunks:
+        tg_send(user.tg_chat_id, chunk)
+
+    return JsonResponse({'ok': True})
+
+
+# ─── Маскот: API приёма логов + страница логов ────────────────────────────────
+
+import json as _json_module
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_mascot_log(request):
+    """Агент присылает события сюда. Auth: X-Agent-Key = MASTER_API_KEY."""
+    key = request.headers.get('X-Agent-Key', '')
+    if key != getattr(settings, 'MASTER_API_KEY', ''):
+        return JsonResponse({'error': 'forbidden'}, status=403)
+    try:
+        data = _json_module.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'bad json'}, status=400)
+    MascotLog.objects.create(
+        room=data.get('room', ''),
+        event=data.get('event', 'heard'),
+        text=data.get('text', ''),
+        speaker=data.get('speaker', ''),
+    )
+    return JsonResponse({'ok': True})
+
+
+@site_login_required
+def mascot_logs(request):
+    room = request.GET.get('room', '')
+    qs = MascotLog.objects.all()
+    if room:
+        qs = qs.filter(room=room)
+    logs = qs[:500]
+    rooms = MascotLog.objects.values_list('room', flat=True).distinct().order_by('room')
+    return render(request, 'recordings/mascot_logs.html', {
+        'logs': logs,
+        'rooms': rooms,
+        'room_filter': room,
+    })
+
+
+@site_login_required
+def api_mascot_room_logs(request, room):
+    """JSON: логи и задачи Маскота для комнаты (для виджета на странице записи)."""
+    from recordings.models import MascotTask
+    logs = list(
+        MascotLog.objects.filter(room=room)
+        .order_by('created_at')
+        .values('event', 'text', 'speaker', 'created_at')
+    )
+    tasks = list(
+        MascotTask.objects.filter(room=room)
+        .order_by('created_at')
+        .values('id', 'title', 'speaker', 'done', 'created_at')
+    )
+    # Сериализуем datetime
+    for e in logs:
+        e['created_at'] = e['created_at'].strftime('%H:%M:%S')
+    for t in tasks:
+        t['created_at'] = t['created_at'].strftime('%H:%M:%S')
+    return JsonResponse({'logs': logs, 'tasks': tasks})
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_mascot_task(request):
+    """Агент создаёт задачу. Auth: X-Agent-Key."""
+    from recordings.models import MascotTask
+    key = request.headers.get('X-Agent-Key', '')
+    if key != getattr(settings, 'MASTER_API_KEY', ''):
+        return JsonResponse({'error': 'forbidden'}, status=403)
+    try:
+        data = _json_module.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'bad json'}, status=400)
+    task = MascotTask.objects.create(
+        room=data.get('room', ''),
+        title=data.get('title', ''),
+        speaker=data.get('speaker', ''),
+    )
+    return JsonResponse({'ok': True, 'task_id': task.id})
+
+
+@site_login_required
+@require_http_methods(['POST'])
+def api_mascot_task_done(request, task_id):
+    """Отметить задачу выполненной/невыполненной."""
+    from recordings.models import MascotTask
+    task = get_object_or_404(MascotTask, pk=task_id)
+    task.done = not task.done
+    task.save(update_fields=['done'])
+    return JsonResponse({'ok': True, 'done': task.done})
+
+
+@site_login_required
+def batch_analyze(request):
+    """GET: страница выбора + форма. POST: вызов LLM."""
+    from wiki_kb.models import WikiArticle
+    import requests as _requests
+
+    if request.method == 'POST':
+        import json as _json
+        try:
+            data = _json.loads(request.body)
+        except Exception:
+            return JsonResponse({'error': 'bad json'}, status=400)
+
+        ids = [int(i) for i in data.get('ids', []) if str(i).isdigit()]
+        prompt = data.get('prompt', '').strip()
+        if not ids or not prompt:
+            return JsonResponse({'error': 'ids and prompt required'}, status=400)
+
+        recs = Recording.objects.filter(pk__in=ids, transcription__isnull=False).exclude(transcription='')
+        if not recs.exists():
+            return JsonResponse({'error': 'Нет записей с транскрипцией'}, status=400)
+
+        # Собираем все транскрипции
+        parts = []
+        for rec in recs:
+            title = rec.ai_title or rec.filename
+            parts.append(f"=== {title} ===\n{rec.transcription}")
+        combined = "\n\n".join(parts)
+
+        full_prompt = f"{prompt}\n\n{combined}"
+
+        # Вызываем LLM
+        llm_url = getattr(settings, 'LLM_URL', 'https://r-ai.business-pad.com/api/ai_request/')
+        llm_auth = getattr(settings, 'LLM_AUTH', 'Basic YXBpX3VzZXI6QXBpVXNlclRlc3QxMjMh')
+        llm_referer = getattr(settings, 'LLM_REFERER', 'https://core.business-pad.com/')
+        llm_model = getattr(settings, 'LLM_MODEL', 'gpt-4.1-mini')
+
+        try:
+            resp = _requests.post(
+                llm_url,
+                json={
+                    'question_to_send': full_prompt,
+                    'session_id': 'batch_analyze',
+                    'user': 'openai',
+                    'log_id': 'log',
+                    'model': llm_model,
+                },
+                headers={
+                    'Authorization': llm_auth,
+                    'Referer': llm_referer,
+                    'Content-Type': 'application/json',
+                },
+                timeout=120,
+            )
+            resp.raise_for_status()
+            result_data = resp.json()
+            messages = result_data.get('messages') or result_data.get('response', '')
+            result_text = messages[-1] if isinstance(messages, list) and messages else str(messages)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+
+        return JsonResponse({'result': result_text})
+
+    # GET
+    ids_raw = request.GET.get('ids', '')
+    ids = [int(i) for i in ids_raw.split(',') if i.strip().isdigit()]
+    recordings = Recording.objects.filter(pk__in=ids)
+    wiki_articles = WikiArticle.objects.filter(is_deleted=False).order_by('order', 'title')
+    import json as _json
+    return render(request, 'recordings/batch_analyze.html', {
+        'recordings': recordings,
+        'rec_ids_json': _json.dumps(ids),
+        'wiki_articles': wiki_articles,
+    })
+
+
+@site_login_required
+@require_http_methods(['POST'])
+def batch_analyze_place(request):
+    """Страница выбора места в вики для результата GPT-анализа."""
+    from wiki_kb.models import WikiArticle
+    import json as _json
+
+    title = request.POST.get('title', '').strip()
+    content = request.POST.get('content', '').strip()
+    ids_raw = request.POST.get('ids', '')
+    ids = [int(i) for i in ids_raw.split(',') if i.strip().isdigit()]
+
+    if not title or not content:
+        return redirect('recordings:index')
+
+    # Строим дерево
+    roots = WikiArticle.objects.filter(is_deleted=False, parent__isnull=True).order_by('order', 'title')
+
+    def build_tree(nodes, depth=0):
+        result = []
+        for node in nodes:
+            result.append({
+                'article': node,
+                'depth': depth,
+                'padding_left': f'calc(0.6rem + {depth * 1.4:.1f}rem)',
+            })
+            result.extend(build_tree(node.get_children(), depth + 1))
+        return result
+
+    wiki_tree = build_tree(roots)
+
+    return render(request, 'recordings/batch_analyze_place.html', {
+        'title': title,
+        'content': content,
+        'ids_json': _json.dumps(ids),
+        'wiki_tree': wiki_tree,
+    })
+
+
+@site_login_required
+@require_http_methods(['POST'])
+def batch_analyze_create_wiki(request):
+    """Создать вики-статью с результатом GPT."""
+    from wiki_kb.models import WikiArticle, WikiRevision
+    import json as _json
+    from django.utils.text import slugify
+
+    # Принимаем и form-data (от batch_analyze_place), и JSON (legacy)
+    content_type = request.content_type or ''
+    if 'application/json' in content_type:
+        try:
+            data = _json.loads(request.body)
+        except Exception:
+            return JsonResponse({'error': 'bad json'}, status=400)
+        title = data.get('title', '').strip()
+        content = data.get('content', '').strip()
+        parent_id = data.get('parent_id', '')
+        ids = [int(i) for i in data.get('ids', []) if str(i).isdigit()]
+    else:
+        title = request.POST.get('title', '').strip()
+        content = request.POST.get('content', '').strip()
+        parent_id = request.POST.get('parent_id', '')
+        ids_raw = request.POST.get('ids', '')
+        ids = [int(i) for i in ids_raw.split(',') if i.strip().isdigit()]
+
+    if not title or not content:
+        return redirect('recordings:index')
+
+    parent = None
+    if parent_id:
+        try:
+            parent = WikiArticle.objects.get(pk=int(parent_id))
+        except (WikiArticle.DoesNotExist, ValueError):
+            pass
+
+    # Уникальный slug
+    base_slug = slugify(title) or 'batch-analysis'
+    slug = base_slug
+    counter = 1
+    while WikiArticle.objects.filter(slug=slug).exists():
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+
+    # Привязываем записи
+    recordings = Recording.objects.filter(pk__in=ids)
+
+    article = WikiArticle.objects.create(
+        title=title,
+        slug=slug,
+        content=content,
+        parent=parent,
+    )
+    article.recordings.set(recordings)
+
+    WikiRevision.objects.create(
+        article=article,
+        content=content,
+        comment='Создано через пакетный анализ GPT',
+    )
+
+    url = f"/kb/{slug}/"
+    # Если JSON-запрос — вернуть JSON, если form — редирект
+    content_type = request.content_type or ''
+    if 'application/json' in content_type:
+        return JsonResponse({'url': url})
+    return redirect(url)
+
+
+# ── Системные настройки / GPU-режим ──────────────────────────────────────────
+
+def _write_ocr_gpu_flag(enabled: bool):
+    """Записываем файл-флаг на shared volume, OCR контейнер его читает."""
+    import os as _os
+    flag_path = _os.path.join(getattr(settings, 'MEDIA_ROOT', '/app/data/media'), '..', 'ocr_gpu_mode')
+    flag_path = _os.path.normpath(flag_path)
+    try:
+        with open(flag_path, 'w') as f:
+            f.write('1' if enabled else '0')
+    except Exception:
+        pass
+
+
+@site_login_required
+def system_config(request):
+    """Страница системных настроек (только для BP-пользователей)."""
+    from django.conf import settings as django_settings
+    user = get_current_user(request)
+    bp_slug = getattr(django_settings, 'BP_SPACE_SLUG', 'org-bp')
+    if not user or not user.space or user.space.slug != bp_slug:
+        return redirect('recordings:index')
+
+    if request.method == 'POST':
+        key = request.POST.get('key', '').strip()
+        value = request.POST.get('value', '').strip()
+        if key == 'reset_stuck':
+            from .models import Recording as _Rec
+            from .queue_services import enqueue_transcribe as _enqueue
+            stuck = list(_Rec.objects.filter(status=_Rec.Status.TRANSCRIBING))
+            for r in stuck:
+                r.status = _Rec.Status.STABLE
+                r.transcription_progress = 0
+                r.transcription_stage = ''
+                r.save(update_fields=['status', 'transcription_progress', 'transcription_stage'])
+                _enqueue(r, priority=1)
+        elif key:
+            SystemConfig.set(key, value)
+            if key == 'ocr_gpu_mode':
+                _write_ocr_gpu_flag(value == '1')
+        return redirect('recordings:system_config')
+
+    ocr_gpu_mode = SystemConfig.get('ocr_gpu_mode', '0') == '1'
+
+    from .models import TranscribeQueue, EmbeddingQueue
+    transcribing_now = Recording.objects.filter(status=Recording.Status.TRANSCRIBING).order_by('-updated_at')
+    transcribe_queue = TranscribeQueue.objects.select_related('recording').order_by('-priority', 'created_at')
+    embedding_queue = EmbeddingQueue.objects.select_related('recording').order_by('created_at')
+
+    # Читаем livekit.yaml
+    import yaml as _yaml
+    lk_config = None
+    lk_yaml_error = None
+    import os as _os2
+    lk_yaml_path = _os2.path.join(str(django_settings.BASE_DIR), 'livekit.yaml')
+    try:
+        with open(lk_yaml_path) as f:
+            lk_config = _yaml.safe_load(f)
+    except FileNotFoundError:
+        lk_yaml_error = f'Файл не найден: {lk_yaml_path}'
+    except Exception as e:
+        lk_yaml_error = str(e)
+
+    def _mask(val, show=4):
+        """Маскирует чувствительный ключ: первые show символов + ••••••"""
+        if not val:
+            return ''
+        return val[:show] + '••••••' if len(val) > show else '••••••'
+
+    # Маскируем ключи из YAML чтобы не попали в HTML
+    if lk_config and isinstance(lk_config.get('keys'), dict):
+        lk_config = dict(lk_config)
+        lk_config['keys'] = {k: _mask(str(v)) for k, v in lk_config['keys'].items()}
+
+    return render(request, 'recordings/system_config.html', {
+        'ocr_gpu_mode': ocr_gpu_mode,
+        'lk_config': lk_config,
+        'lk_yaml_error': lk_yaml_error,
+        'lk_url': getattr(django_settings, 'LIVEKIT_URL', ''),
+        'lk_api_key': _mask(getattr(django_settings, 'LIVEKIT_API_KEY', '')),
+        'transcribing_now': transcribing_now,
+        'transcribe_queue': transcribe_queue,
+        'embedding_queue': embedding_queue,
+    })
+
+
+@csrf_exempt
+def api_system_config(request):
+    """Внутренний API для чтения настроек (только GET, с хоста)."""
+    key = request.GET.get('key', '')
+    if not key:
+        return JsonResponse({'error': 'key required'}, status=400)
+    return JsonResponse({'key': key, 'value': SystemConfig.get(key, '')})
+
+
+# ── Встречи (LiveKit Meeting Rooms) ──────────────────────────────────────────
+
+def _generate_livekit_token(room_name: str, identity: str, display_name: str) -> str:
+    """Генерирует JWT токен для подключения к LiveKit комнате."""
+    import jwt
+    import time
+    api_key = getattr(settings, 'LIVEKIT_API_KEY', '')
+    api_secret = getattr(settings, 'LIVEKIT_API_SECRET', '')
+    now = int(time.time())
+    payload = {
+        'iss': api_key,
+        'sub': identity,
+        'nbf': now,
+        'exp': now + 3600 * 4,
+        'name': display_name,
+        'video': {
+            'room': room_name,
+            'roomJoin': True,
+            'canPublish': True,
+            'canSubscribe': True,
+        },
+    }
+    return jwt.encode(payload, api_secret, algorithm='HS256')
+
+
+@site_login_required
+def meetings_page(request):
+    """Список встреч пространства."""
+    user = get_current_user(request)
+    qs = MeetingRoom.objects.filter(space=user.space, ended_at__isnull=True) if user and user.space else MeetingRoom.objects.none()
+    return render(request, 'recordings/meetings.html', {'meetings': qs})
+
+
+@site_login_required
+@require_http_methods(['POST'])
+@csrf_exempt
+def create_meeting(request):
+    """Создать встречу. POST JSON: {title, with_mascot}"""
+    import uuid
+    import json as _json
+    user = get_current_user(request)
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'bad json'}, status=400)
+    title = data.get('title', '').strip()
+    if not title:
+        return JsonResponse({'error': 'title required'}, status=400)
+    with_mascot = bool(data.get('with_mascot', False))
+    from django.utils.text import slugify
+    base_slug = slugify(title) or uuid.uuid4().hex[:12]
+    room_name = base_slug
+    suffix = 1
+    while MeetingRoom.objects.filter(room_name=room_name).exists():
+        room_name = f'{base_slug}-{suffix}'
+        suffix += 1
+    meeting = MeetingRoom.objects.create(
+        room_name=room_name,
+        title=title,
+        with_mascot=with_mascot,
+        created_by=user,
+        space=user.space if user else None,
+    )
+    tg_users = []
+    if user and user.space:
+        qs = SiteUser.objects.filter(space=user.space, tg_chat_id__isnull=False).exclude(pk=user.pk)
+        tg_users = [{'id': u.pk, 'email': u.email} for u in qs]
+    join_url = f'https://meet.business-pad.com/rooms/{room_name}'
+    return JsonResponse({
+        'room_name': room_name,
+        'title': title,
+        'with_mascot': with_mascot,
+        'join_url': join_url,
+        'tg_users': tg_users,
+    })
+
+
+@site_login_required
+def meeting_room(request, room_name):
+    """Страница встречи (LiveKit embed)."""
+    meeting = get_object_or_404(MeetingRoom, room_name=room_name)
+    user = get_current_user(request)
+    lk_url = getattr(settings, 'LIVEKIT_URL', '')
+    token = _generate_livekit_token(room_name, str(user.pk), user.email)
+    return render(request, 'recordings/meeting_room.html', {
+        'meeting': meeting,
+        'lk_url': lk_url,
+        'token': token,
+    })
+
+
+@site_login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def meeting_invite(request, room_name):
+    """Отправить TG-приглашения участникам встречи. POST JSON: {user_ids: [...]}"""
+    import json as _json
+    from . import telegram_service
+    meeting = get_object_or_404(MeetingRoom, room_name=room_name)
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'bad json'}, status=400)
+    user_ids = [int(i) for i in data.get('user_ids', []) if str(i).isdigit()]
+    join_url = f'https://meet.business-pad.com/rooms/{room_name}'
+    users = SiteUser.objects.filter(pk__in=user_ids, tg_chat_id__isnull=False)
+    sent = 0
+    for u in users:
+        telegram_service.send_meeting_invite(u.tg_chat_id, meeting.title, join_url)
+        sent += 1
+    return JsonResponse({'ok': True, 'sent': sent})
+
+
+@site_login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def end_meeting(request, room_name):
+    """Завершить встречу (выставить ended_at)."""
+    from django.utils import timezone
+    meeting = get_object_or_404(MeetingRoom, room_name=room_name)
+    meeting.ended_at = timezone.now()
+    meeting.save(update_fields=['ended_at'])
+    return JsonResponse({'ok': True})
+
+
+@site_login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def invite_mascot(request, room_name):
+    """Включить маскота в существующей встрече. Создаёт запись в БД если её нет."""
+    user = get_current_user(request)
+    meeting, _ = MeetingRoom.objects.get_or_create(
+        room_name=room_name,
+        defaults={
+            'title': room_name,
+            'with_mascot': False,
+            'created_by': user,
+            'space': user.space if user else None,
+        }
+    )
+    meeting.with_mascot = True
+    meeting.save(update_fields=['with_mascot'])
+    return JsonResponse({'ok': True})
+
+
+@site_login_required
+def api_livekit_rooms(request):
+    """Данные о живых комнатах LiveKit + инфо из БД."""
+    import asyncio
+    from django.utils import timezone as tz
+
+    lk_url = getattr(settings, 'LIVEKIT_URL', '').replace('ws://', 'http://').replace('wss://', 'https://')
+    lk_key = getattr(settings, 'LIVEKIT_API_KEY', '')
+    lk_secret = getattr(settings, 'LIVEKIT_API_SECRET', '')
+
+    if not lk_url or not lk_key or not lk_secret:
+        return JsonResponse({'rooms': [], 'error': 'LiveKit не настроен'})
+
+    async def _fetch():
+        try:
+            from livekit import api as lkapi
+            async with lkapi.LiveKitAPI(lk_url, lk_key, lk_secret) as lk:
+                rooms_resp = await lk.room.list_rooms(lkapi.ListRoomsRequest())
+                result = []
+                for room in rooms_resp.rooms:
+                    participants = []
+                    try:
+                        p_resp = await lk.room.list_participants(
+                            lkapi.ListParticipantsRequest(room=room.name)
+                        )
+                        for p in p_resp.participants:
+                            participants.append({
+                                'identity': p.identity,
+                                'name': p.name or p.identity,
+                                'is_publisher': p.num_tracks > 0,
+                                'tracks': p.num_tracks,
+                                'joined_at': p.joined_at,
+                            })
+                    except Exception:
+                        pass
+                    result.append({
+                        'name': room.name,
+                        'num_participants': room.num_participants,
+                        'num_publishers': room.num_publishers,
+                        'creation_time': room.creation_time,
+                        'active_recording': room.active_recording,
+                        'metadata': room.metadata or '',
+                        'participants': participants,
+                    })
+                return result
+        except Exception as e:
+            return {'error': str(e)}
+
+    try:
+        raw = asyncio.run(_fetch())
+    except RuntimeError:
+        # Если event loop уже запущен (редко в Django sync), fallback
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+            raw = ex.submit(asyncio.run, _fetch()).result()
+
+    if isinstance(raw, dict) and 'error' in raw:
+        return JsonResponse({'rooms': [], 'error': raw['error']})
+
+    # Обогащаем данными из БД
+    user = get_current_user(request)
+    db_rooms = {}
+    if user and user.space:
+        for m in MeetingRoom.objects.filter(space=user.space):
+            db_rooms[m.room_name] = {
+                'id': m.pk,
+                'title': m.title,
+                'with_mascot': m.with_mascot,
+                'ended_at': m.ended_at.isoformat() if m.ended_at else None,
+                'created_by': m.created_by.email if m.created_by else '',
+            }
+
+    now_ts = int(tz.now().timestamp())
+    rooms_out = []
+    for r in raw:
+        db = db_rooms.get(r['name'], {})
+        duration_sec = now_ts - r['creation_time'] if r['creation_time'] else 0
+        rooms_out.append({
+            **r,
+            'duration_sec': duration_sec,
+            'db': db,
+        })
+
+    return JsonResponse({'rooms': rooms_out})
+
+
+@site_login_required
+def api_calendar_events(request):
+    """JSON события для календаря встреч. Группирует записи по room_code."""
+    import re
+    from collections import defaultdict
+    from datetime import timedelta
+    from django.utils.dateparse import parse_datetime
+
+    user = get_current_user(request)
+    if not user or not user.space:
+        return JsonResponse({'events': []})
+
+    rooms = list(MeetingRoom.objects.filter(space=user.space).select_related('created_by'))
+    room_map = {r.room_name: r for r in rooms}
+
+    all_recs = list(Recording.objects.filter(space=user.space).only(
+        'pk', 'filename', 'ai_title', 'status'
+    ))
+
+    fn_pattern = re.compile(
+        r'^(\d{4}-\d{2}-\d{2}T[\d.:]+Z)-(.+?)(?:-org-[a-z0-9-]+)?\.mp3$',
+        re.IGNORECASE,
+    )
+
+    room_rec_map = defaultdict(list)  # room_code → [(dt, recording)]
+    for rec in all_recs:
+        m = fn_pattern.match(rec.filename)
+        if not m:
+            continue
+        ts_str, room_code = m.group(1), m.group(2)
+        ts = parse_datetime(ts_str)
+        if ts is None:
+            continue
+        room_rec_map[room_code].append((ts, rec))
+
+    events = []
+
+    # 1. Events from MeetingRoom entries
+    for room in rooms:
+        recs = sorted(room_rec_map.get(room.room_name, []), key=lambda x: x[0])
+        start = room.created_at
+        end = room.ended_at
+        if not end:
+            if recs:
+                end = recs[-1][0] + timedelta(minutes=5)
+            else:
+                end = start + timedelta(minutes=60)
+
+        events.append({
+            'id': f'room-{room.pk}',
+            'title': room.title or room.room_name,
+            'start': start.isoformat(),
+            'end': end.isoformat(),
+            'color': '#16a34a' if not room.ended_at else '#2563eb',
+            'extendedProps': {
+                'room_name': room.room_name,
+                'room_url': f'/meetings/{room.room_name}/',
+                'is_active': room.ended_at is None,
+                'created_by': room.created_by.email if room.created_by else '',
+                'recordings': [
+                    {
+                        'id': r.pk,
+                        'title': r.ai_title or r.filename,
+                        'url': f'/r/{r.pk}/',
+                        'status': r.status,
+                        'ts': ts.isoformat(),
+                    }
+                    for ts, r in recs
+                ],
+            },
+        })
+
+    # 2. Events from recordings without a MeetingRoom entry
+    for room_code, rec_list in room_rec_map.items():
+        if room_code in room_map:
+            continue
+        sorted_recs = sorted(rec_list, key=lambda x: x[0])
+
+        # Split into sessions: gap > 2h → new session
+        sessions = []
+        cur = [sorted_recs[0]]
+        for item in sorted_recs[1:]:
+            if item[0] - cur[-1][0] > timedelta(hours=2):
+                sessions.append(cur)
+                cur = [item]
+            else:
+                cur.append(item)
+        sessions.append(cur)
+
+        for i, session in enumerate(sessions):
+            start = session[0][0]
+            end = session[-1][0] + timedelta(minutes=5)
+            events.append({
+                'id': f'anon-{room_code}-{i}',
+                'title': room_code,
+                'start': start.isoformat(),
+                'end': end.isoformat(),
+                'color': '#64748b',
+                'extendedProps': {
+                    'room_name': room_code,
+                    'room_url': None,
+                    'is_active': False,
+                    'created_by': '',
+                    'recordings': [
+                        {
+                            'id': r.pk,
+                            'title': r.ai_title or r.filename,
+                            'url': f'/r/{r.pk}/',
+                            'status': r.status,
+                            'ts': ts.isoformat(),
+                        }
+                        for ts, r in session
+                    ],
+                },
+            })
+
+    return JsonResponse({'events': events})
+
+
+@csrf_exempt
+def api_room_config(request, room_name):
+    """Конфиг комнаты для монитора маскота. Auth: X-Agent-Key."""
+    key = request.headers.get('X-Agent-Key', '')
+    if key != getattr(settings, 'MASTER_API_KEY', ''):
+        return JsonResponse({'error': 'forbidden'}, status=403)
+    try:
+        meeting = MeetingRoom.objects.get(room_name=room_name)
+        return JsonResponse({'with_mascot': meeting.with_mascot})
+    except MeetingRoom.DoesNotExist:
+        return JsonResponse({'with_mascot': False})
+
+
+@csrf_exempt
+@require_http_methods(['GET'])
+def api_active_meetings(request):
+    """Активные встречи для бота. Auth: X-Agent-Key. Params: chat_id или space_slug."""
+    key = request.headers.get('X-Agent-Key', '')
+    if key != getattr(settings, 'MASTER_API_KEY', ''):
+        return JsonResponse({'error': 'forbidden'}, status=403)
+
+    chat_id = request.GET.get('chat_id')
+    space_slug = request.GET.get('space_slug')
+
+    space = None
+    if chat_id:
+        user = SiteUser.objects.filter(tg_chat_id=int(chat_id)).first()
+        space = user.space if user else None
+    elif space_slug:
+        from recordings.models import Space
+        space = Space.objects.filter(slug=space_slug).first()
+    else:
+        return JsonResponse({'error': 'chat_id or space_slug required'}, status=400)
+
+    if not space:
+        return JsonResponse({'meetings': []})
+
+    active_room_names = set()
+    participant_counts = {}
+
+    lk_url = getattr(settings, 'LIVEKIT_URL', '').replace('ws://', 'http://').replace('wss://', 'https://')
+    lk_key = getattr(settings, 'LIVEKIT_API_KEY', '')
+    lk_secret = getattr(settings, 'LIVEKIT_API_SECRET', '')
+
+    if lk_url and lk_key and lk_secret:
+        try:
+            import asyncio
+            from livekit import api as lkapi
+
+            async def _fetch():
+                async with lkapi.LiveKitAPI(lk_url, lk_key, lk_secret) as lk:
+                    resp = await lk.room.list_rooms(lkapi.ListRoomsRequest())
+                    for r in resp.rooms:
+                        if r.num_participants > 0:
+                            active_room_names.add(r.name)
+                            participant_counts[r.name] = r.num_participants
+
+            asyncio.run(_fetch())
+        except Exception as e:
+            import logging as _log
+            _log.getLogger(__name__).warning('LiveKit rooms fetch failed: %s', e)
+
+    db_rooms = MeetingRoom.objects.filter(space=space, ended_at__isnull=True).order_by('-created_at')
+    site_url = getattr(settings, 'SITE_URL', '').rstrip('/')
+
+    if active_room_names:
+        rooms = [r for r in db_rooms if r.room_name in active_room_names]
+    else:
+        rooms = list(db_rooms[:8])
+
+    return JsonResponse({'meetings': [
+        {
+            'room_name': rm.room_name,
+            'title': rm.title,
+            'participants': participant_counts.get(rm.room_name, 0),
+            'url': f'{site_url}/meetings/{rm.room_name}/',
+        }
+        for rm in rooms
+    ]})
+
+
+# ── Bot Chat History ──────────────────────────────────────────────────────────
+
+@site_login_required
+def bot_history(request):
+    """История переписок всех пользователей с ботами."""
+    user = get_current_user(request)
+
+    # Собираем все уникальные (chat_id, bot_id) пары для пространства
+    # Определяем пространство: показываем только свои боты + главный бот пространства
+    space = user.space
+
+    # Пользователи пространства с их chat_id
+    space_users = SiteUser.objects.filter(space=space, tg_chat_id__isnull=False).values('tg_chat_id', 'email')
+    space_chat_ids = {u['tg_chat_id']: u['email'] for u in space_users}
+
+    # Кастомные боты этого пространства
+    space_bots = {b.pk: b for b in CustomBot.objects.filter(space=space, is_active=True)}
+
+    # Все уникальные (chat_id, bot_id) из истории для этих chat_id
+    convs_qs = (
+        BotChatHistory.objects
+        .filter(chat_id__in=list(space_chat_ids.keys()))
+        .values('chat_id', 'bot_id')
+        .distinct()
+        .order_by('bot_id', 'chat_id')
+    )
+
+    selected_chat_id = request.GET.get('chat_id')
+    selected_bot_id = request.GET.get('bot_id', '')
+    try:
+        selected_chat_id = int(selected_chat_id) if selected_chat_id else None
+        selected_bot_id_int = int(selected_bot_id) if selected_bot_id else None
+    except (ValueError, TypeError):
+        selected_chat_id = None
+        selected_bot_id_int = None
+
+    # Список разговоров для сайдбара
+    conversations = []
+    for c in convs_qs:
+        cid = c['chat_id']
+        bid = c['bot_id']
+        last_msg = BotChatHistory.objects.filter(chat_id=cid, bot_id=bid).order_by('-created_at').first()
+        bot_name = space_bots[bid].username if bid and bid in space_bots else 'Главный бот'
+        conversations.append({
+            'chat_id': cid,
+            'bot_id': bid,
+            'bot_id_str': str(bid) if bid is not None else '',
+            'email': space_chat_ids.get(cid, f'TG {cid}'),
+            'bot_name': bot_name,
+            'last_at': last_msg.created_at if last_msg else None,
+            'active': cid == selected_chat_id and bid == selected_bot_id_int,
+        })
+
+    # Сообщения выбранного разговора
+    messages_list = []
+    if selected_chat_id is not None:
+        qs = (
+            BotChatHistory.objects
+            .filter(chat_id=selected_chat_id, bot_id=selected_bot_id_int)
+            .select_related('recording')
+            .order_by('created_at')
+        )
+        messages_list = list(qs)
+
+    return render(request, 'recordings/bot_history.html', {
+        'conversations': conversations,
+        'messages_list': messages_list,
+        'selected_chat_id': selected_chat_id,
+        'selected_bot_id': selected_bot_id,
+        'space_chat_ids': space_chat_ids,
+        'space_bots': space_bots,
+    })
+
+
+@site_login_required
+@require_http_methods(['POST'])
+def bot_history_insert_transcription(request, history_id):
+    """Подставить транскрибацию вместо/после аудио-сообщения в истории."""
+    entry = get_object_or_404(BotChatHistory, pk=history_id)
+    rec = entry.recording
+
+    if not rec:
+        return JsonResponse({'error': 'Нет связанной записи.'}, status=400)
+    if rec.status != Recording.Status.DONE:
+        return JsonResponse({'error': f'Транскрибация ещё не готова (статус: {rec.status}).'}, status=400)
+    if not rec.transcription:
+        return JsonResponse({'error': 'Транскрибация пуста.'}, status=400)
+
+    # Обновляем контент записи истории — вставляем транскрибацию
+    transcription_preview = rec.transcription[:3000]
+    if len(rec.transcription) > 3000:
+        transcription_preview += '\n...[обрезано]'
+
+    entry.content = f'🎙 [{rec.filename}]\n\n{transcription_preview}'
+    entry.save(update_fields=['content'])
+
+    # Также добавляем транскрибацию в активный контекст агента (как user-сообщение)
+    # чтобы можно было задавать вопросы по этому аудио
+    BotChatHistory.add(
+        entry.chat_id, entry.bot_id, 'user',
+        f'[Транскрибация аудио «{rec.filename}»]\n{rec.transcription[:2000]}',
+    )
+
+    return JsonResponse({
+        'ok': True,
+        'content': entry.content,
+        'filename': rec.filename,
+        'rec_id': rec.pk,
+    })
+
+
+# ── Bot Chat Sessions (admin) ─────────────────────────────────────────────────
+
+from datetime import timedelta as _timedelta
+
+SESSION_GAP_HOURS = 1
+
+
+def _build_sessions(space):
+    """
+    Разбивает историю переписок на сессии (промежуток между сообщениями >= SESSION_GAP_HOURS).
+    Возвращает список dict: {chat_id, bot_id, messages, start_at, end_at, ...}.
+    """
+    # Пользователи пространства
+    space_users = {
+        u['tg_chat_id']: u['email']
+        for u in SiteUser.objects.filter(space=space, tg_chat_id__isnull=False).values('tg_chat_id', 'email')
+    }
+    # Кастомные боты пространства
+    space_bots = {b.pk: b for b in CustomBot.objects.filter(space=space, is_active=True)}
+
+    # Все сообщения всех пользователей пространства, отсортированные
+    all_msgs = list(
+        BotChatHistory.objects
+        .filter(chat_id__in=list(space_users.keys()))
+        .select_related('recording')
+        .order_by('chat_id', 'bot_id', 'created_at')
+    )
+
+    gap = _timedelta(hours=SESSION_GAP_HOURS)
+    sessions = []
+    cur = None
+
+    for msg in all_msgs:
+        key = (msg.chat_id, msg.bot_id)
+        if cur is None or cur['key'] != key or (msg.created_at - cur['end_at']) >= gap:
+            if cur:
+                sessions.append(cur)
+            # first user message as preview
+            preview = msg.content[:80] if msg.role == 'user' else ''
+            cur = {
+                'key': key,
+                'chat_id': msg.chat_id,
+                'bot_id': msg.bot_id,
+                'messages': [msg],
+                'start_at': msg.created_at,
+                'end_at': msg.created_at,
+                'preview': preview,
+            }
+        else:
+            cur['messages'].append(msg)
+            cur['end_at'] = msg.created_at
+            if not cur['preview'] and msg.role == 'user':
+                cur['preview'] = msg.content[:80]
+
+    if cur:
+        sessions.append(cur)
+
+    # Аннотируем каждую сессию
+    now = timezone.now()
+    result = []
+    for s in sessions:
+        user_msgs = [m for m in s['messages'] if m.role in ('user', 'audio')]
+        bot_name = space_bots[s['bot_id']].username if s['bot_id'] and s['bot_id'] in space_bots else 'Главный бот'
+        s['email'] = space_users.get(s['chat_id'], f'TG {s["chat_id"]}')
+        s['bot_name'] = bot_name
+        s['user_msg_count'] = len(user_msgs)
+        s['total_count'] = len(s['messages'])
+        s['has_audio'] = any(m.role == 'audio' for m in s['messages'])
+        s['completed'] = (now - s['end_at']) >= gap
+        s['session_id'] = f"{s['chat_id']}_{s['bot_id'] or 0}_{int(s['start_at'].timestamp())}"
+        result.append(s)
+
+    # Сортируем: сначала завершённые, внутри — новые сверху
+    result.sort(key=lambda x: x['end_at'], reverse=True)
+    return result, space_users, space_bots
+
+
+@site_login_required
+def bot_sessions(request):
+    """Страница сессий переписок с ботами. Завершённая сессия = час без сообщений."""
+    user = get_current_user(request)
+    space = user.space
+    if not space:
+        return render(request, 'recordings/bot_sessions.html', {'sessions': [], 'selected': None})
+
+    sessions, space_users, space_bots = _build_sessions(space)
+
+    # Только завершённые по умолчанию, если не запрошены все
+    show_active = request.GET.get('show_active') == '1'
+    if not show_active:
+        display_sessions = [s for s in sessions if s['completed']]
+    else:
+        display_sessions = sessions
+
+    selected_id = request.GET.get('s')
+    selected = None
+    if selected_id:
+        selected = next((s for s in sessions if s['session_id'] == selected_id), None)
+
+    return render(request, 'recordings/bot_sessions.html', {
+        'sessions': display_sessions,
+        'selected': selected,
+        'show_active': show_active,
+        'total_completed': sum(1 for s in sessions if s['completed']),
+        'total_active': sum(1 for s in sessions if not s['completed']),
+    })
+
+
+@site_login_required
+@require_http_methods(['POST'])
+def bot_history_insert_ocr(request, history_id):
+    """Подставить результат OCR вместо ocr-сообщения в истории."""
+    entry = get_object_or_404(BotChatHistory, pk=history_id)
+    job = entry.ocr_job
+    if not job:
+        return JsonResponse({'error': 'Нет связанной OCR-задачи.'}, status=400)
+    if job.status != 'done' or not job.result_markdown:
+        return JsonResponse({'error': f'OCR ещё не готов (статус: {job.status}).'}, status=400)
+
+    preview = job.result_markdown[:3000]
+    if len(job.result_markdown) > 3000:
+        preview += '\n...[обрезано]'
+
+    entry.content = f'📷 [{job.original_filename}]\n\n{preview}'
+    entry.save(update_fields=['content'])
+
+    # Добавляем в контекст агента
+    BotChatHistory.add(
+        entry.chat_id, entry.bot_id, 'user',
+        f'[Результат OCR «{job.original_filename}»]\n{job.result_markdown[:2000]}',
+    )
+    return JsonResponse({'ok': True, 'content': entry.content, 'filename': job.original_filename})
+
+
+@site_login_required
+@require_http_methods(['POST'])
+def bot_history_delete_entry(request, history_id):
+    """Удалить одну запись из истории чата."""
+    entry = get_object_or_404(BotChatHistory, pk=history_id)
+    entry.delete()
+    return JsonResponse({'ok': True})

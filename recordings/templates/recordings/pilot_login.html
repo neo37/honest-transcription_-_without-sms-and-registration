@@ -131,8 +131,9 @@
 
     {% if error %}<p class="error">{{ error }}</p>{% endif %}
 
-    <form method="post" action="{% url 'recordings:pilot_login' %}{% if next_url %}?next={{ next_url }}{% endif %}">
+    <form method="post" action="{% url 'recordings:pilot_login' %}">
         {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next_url }}">
 
         <label for="id_email">Email</label>
         <input id="id_email" type="email" name="email" required autofocus

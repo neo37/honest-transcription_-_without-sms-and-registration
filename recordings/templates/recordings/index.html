@@ -87,22 +87,24 @@
     }
     .filter-row {
         display: flex;
-        gap: 0.75rem;
+        gap: 0.5rem;
         flex-wrap: wrap;
         align-items: flex-end;
     }
-    .filter-row > div { display: flex; flex-direction: column; gap: 0.3rem; }
-    .filter-row label { font-size: 0.82rem; color: var(--muted); font-weight: 500; }
+    .filter-row > div { display: flex; flex-direction: column; gap: 0.25rem; }
+    .filter-row label { font-size: 0.78rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
     .filter-row input, .filter-row select {
-        padding: 0.5rem 0.75rem;
+        padding: 0.45rem 0.65rem;
         background: var(--card);
         border: 1px solid var(--border);
         border-radius: 8px;
         color: var(--text-secondary);
         font-family: inherit;
-        font-size: 0.92rem;
+        font-size: 0.9rem;
     }
     .filter-row input:focus, .filter-row select:focus { outline: none; border-color: var(--accent); }
+    .filter-row input[type="date"] { width: 9rem; }
+    .filter-row input[type="time"] { width: 7rem; }
     .filter-row input[type="text"] { min-width: 16rem; }
     .filter-row input[type="number"] { width: 5rem; }
     .filter-row .checkboxes { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.25rem; }
@@ -135,6 +137,32 @@
         .filter-row { flex-direction: column; }
         .filter-row input[type="text"] { min-width: auto; }
     }
+
+    /* batch select */
+    .rec-select-cb { position:absolute; top:0.75rem; right:0.75rem; width:18px; height:18px; cursor:pointer; accent-color:var(--accent); }
+    .recording { position:relative; }
+    .recording.selected { outline:2px solid var(--accent); }
+    #batch-toolbar { position:fixed; bottom:1.5rem; left:50%; transform:translateX(-50%); background:var(--card); border:1px solid var(--accent); border-radius:12px; padding:0.6rem 1.2rem; display:flex; align-items:center; gap:1rem; box-shadow:0 4px 20px rgba(0,0,0,0.15); z-index:200; transition:opacity 0.2s; }
+    #batch-toolbar.hidden { opacity:0; pointer-events:none; }
+    #batch-count { font-size:0.9rem; color:var(--text); }
+    #batch-clear { font-size:0.82rem; color:var(--muted); cursor:pointer; text-decoration:underline; background:none; border:none; padding:0; }
+
+    /* Блок активных транскрибаций */
+    #transcribing-banner { margin-bottom: 1rem; }
+    .transcribing-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        background: var(--bg-soft);
+        border: 1px solid var(--warning);
+        border-radius: 10px;
+        padding: 0.65rem 1rem;
+        margin-bottom: 0.5rem;
+    }
+    .transcribing-name { flex: 1; font-size: 0.92rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .transcribing-stage { font-size: 0.82rem; color: var(--muted); min-width: 10rem; text-align: right; }
+    .transcribing-bar-wrap { width: 120px; height: 6px; background: var(--border); border-radius: 3px; flex-shrink: 0; }
+    .transcribing-bar { height: 6px; background: var(--warning); border-radius: 3px; transition: width 0.4s; }
 </style>
 {% endblock %}
 {% block content %}
@@ -142,11 +170,15 @@
     <h1>Записи
         {% if active_tab == 'ft' and ft_q %}по запросу «{{ ft_q|truncatewords:5 }}»
         {% elif active_tab == 'ext' and ext_q %}по смыслу «{{ ext_q|truncatewords:5 }}»
+        {% elif speaker_filter %}с участием «{{ speaker_filter }}»
         {% elif date_to %}{{ selected_date }} — {{ date_to }}
         {% else %}за {{ selected_date }}
         {% endif %}
     </h1>
 </div>
+
+<!-- Активные транскрибации -->
+<div id="transcribing-banner"></div>
 
 <!-- Кнопка открытия фильтров -->
 <button type="button" class="filters-toggle" id="filters-toggle-btn">
@@ -155,7 +187,7 @@
 </button>
 
 <!-- Панель фильтров (скрыта по умолчанию) -->
-<div class="filters-panel {% if active_tab == 'ft' and ft_q or active_tab == 'ext' and ext_q or date_to or time_from or time_to or fn_filters %}is-open{% endif %}" id="filters-panel">
+<div class="filters-panel {% if active_tab == 'ft' and ft_q or active_tab == 'ext' and ext_q or date_to or time_from or time_to or fn_filters or speaker_filter %}is-open{% endif %}" id="filters-panel">
 
     <!-- Переключатель режима -->
     <div class="filter-tabs">
@@ -171,11 +203,11 @@
             <input type="hidden" name="tab" value="date">
             <div class="filter-row">
                 <div>
-                    <label for="date">Дата с</label>
+                    <label for="date">С</label>
                     <input type="date" id="date" name="date" value="{{ selected_date }}">
                 </div>
                 <div>
-                    <label for="date_to">Дата по</label>
+                    <label for="date_to">По</label>
                     <input type="date" id="date_to" name="date_to" value="{{ date_to }}">
                 </div>
                 <div>
@@ -187,18 +219,16 @@
                     <input type="time" id="time_to" name="time_to" value="{{ time_to }}">
                 </div>
                 <div>
-                    <label>Фильтр по файлу</label>
-                    <div class="checkboxes">
-                        {% for fval, flabel in fn_options %}
-                        <label>
-                            <input type="checkbox" name="fn" value="{{ fval }}" {% if fval in fn_filters %}checked{% endif %}>
-                            {{ flabel }}
-                        </label>
-                        {% endfor %}
-                    </div>
+                    <label for="speaker_filter">Участник</label>
+                    <input type="text" id="speaker_filter" name="speaker" value="{{ speaker_filter }}"
+                           placeholder="Имя участника..." style="width:11rem;"
+                           list="speaker-filter-list">
+                    <datalist id="speaker-filter-list">
+                        {% for n in space_speaker_profiles %}<option value="{{ n }}">{% endfor %}
+                    </datalist>
                 </div>
                 <div style="align-self:flex-end">
-                    <button type="submit" class="btn">Применить</button>
+                    <button type="submit" class="btn">Показать</button>
                 </div>
             </div>
         </form>
@@ -262,9 +292,26 @@
     </div>
 </div>
 
+<!-- Активные чип-фильтры -->
+<div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+    {% if hide_empty %}
+    <a href="?tab={{ active_tab }}&date={{ selected_date }}&date_to={{ date_to }}&time_from={{ time_from }}&time_to={{ time_to }}&speaker={{ speaker_filter }}&hide_empty=0"
+       style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.25rem 0.65rem 0.25rem 0.75rem;background:var(--accent);color:#fff;border-radius:100px;font-size:0.82rem;font-weight:500;text-decoration:none;transition:opacity 0.15s;"
+       title="Скрыты записи без транскрипции или с очень короткой. Нажмите, чтобы показать все.">
+        Скрыты пустые <span style="font-size:0.95rem;line-height:1;margin-left:0.15rem;">×</span>
+    </a>
+    {% endif %}
+</div>
+
 <p class="section-title">Список записей ({{ recordings|length }})</p>
+<div id="batch-toolbar" class="hidden">
+    <span id="batch-count">0 записей</span>
+    <button class="btn btn-accent" onclick="goBatch()" style="font-size:0.85rem;">Анализ через GPT</button>
+    <button id="batch-clear" onclick="clearBatch()">Снять выбор</button>
+</div>
 {% for rec in recordings %}
 <article class="card recording {{ rec.status }}">
+<input type="checkbox" class="rec-select-cb" data-id="{{ rec.pk }}" onchange="toggleRec(this)">
     <div class="rec-head">
         <strong>
             {% if rec.status == 'done' %}
@@ -282,25 +329,13 @@
         {% if rec.comment_count %}{% if rec.comment_count > 0 %}<span class="comment-count"> · {{ rec.comment_count }} коммент.</span>{% endif %}{% endif %}
         {% for rec_item, score in semantic_results %}{% if rec_item.pk == rec.pk %}<span class="rec-score"> · релевантность {% widthratio score 1 100 %}%</span>{% endif %}{% endfor %}
     </div>
-    <div class="rec-tag">
-        <form method="post" action="{% url 'recordings:set_recording_tag' rec.pk %}">
-            {% csrf_token %}
-            <input type="hidden" name="next" value="{{ request.get_full_path }}">
-            <label for="tag-{{ rec.pk }}">Тег:</label>
-            <select name="tag" id="tag-{{ rec.pk }}" onchange="this.form.submit()">
-                {% for tval, tlabel in tag_choices %}
-                <option value="{{ tval }}" {% if rec.tag == tval %}selected{% endif %}>{{ tlabel }}</option>
-                {% endfor %}
-            </select>
-        </form>
-    </div>
     {% if rec.transcription %}
     {% if rec.ai_summary %}
     <div class="transcription" style="font-style:italic;margin-bottom:0.5rem;color:var(--accent);border-bottom:none;padding-bottom:0;">
         <strong>AI Summary:</strong> {{ rec.ai_summary|truncatewords:40 }}
     </div>
     {% endif %}
-    <div class="transcription">{{ rec.transcription|truncatewords:30 }}</div>
+    <div class="transcription" data-speaker-names="{{ rec.speaker_names_json }}">{{ rec.transcription|truncatewords:30 }}</div>
     <p class="rec-actions">
         <a href="{% url 'recordings:recording_detail' rec.pk %}" class="btn btn-ghost">Читать и комментировать{% if rec.comment_count %}{% if rec.comment_count > 0 %} ({{ rec.comment_count }}){% endif %}{% endif %}</a>
         <button type="button" class="btn btn-ask-q"
@@ -476,6 +511,61 @@
     });
 })();
 
+/* ── Замена "Участник N" на имена спикеров в превью ── */
+(function() {
+    document.querySelectorAll('.transcription[data-speaker-names]').forEach(function(el) {
+        var names;
+        try { names = JSON.parse(el.dataset.speakerNames); } catch(e) { return; }
+        if (!names || !Object.keys(names).length) return;
+        var html = el.innerHTML;
+        Object.keys(names).forEach(function(k) {
+            if (names[k]) html = html.split(k).join(names[k]);
+        });
+        el.innerHTML = html;
+    });
+})();
+
+/* ── Прогресс активных транскрибаций ── */
+(function() {
+    var banner = document.getElementById('transcribing-banner');
+    if (!banner) return;
+
+    function render(items) {
+        if (!items || !items.length) { banner.innerHTML = ''; return; }
+        var html = '';
+        items.forEach(function(item) {
+            var name = item.ai_title || item.filename;
+            var pct = item.transcription_progress || 0;
+            var stage = item.transcription_stage || 'Транскрибируется';
+            html += '<div class="transcribing-item">' +
+                '<span class="transcribing-name">⏳ ' + name + '</span>' +
+                '<div class="transcribing-bar-wrap"><div class="transcribing-bar" style="width:' + pct + '%"></div></div>' +
+                '<span class="transcribing-stage">' + stage + ' · ' + pct + '%</span>' +
+                '</div>';
+        });
+        banner.innerHTML = html;
+    }
+
+    function poll() {
+        fetch('{% url "recordings:api_transcribing_progress" %}')
+            .then(function(r) { return r.json(); })
+            .then(function(data) { render(data.items); })
+            .catch(function() {});
+    }
+
+    poll();
+    var _pollTimer = setInterval(poll, 4000);
+
+    // Перезапускаем поллинг когда страница снова активна (мобильный/фон)
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+            clearInterval(_pollTimer);
+            poll();
+            _pollTimer = setInterval(poll, 4000);
+        }
+    });
+})();
+
 (function () {
     var btn   = document.getElementById('filters-toggle-btn');
     var panel = document.getElementById('filters-panel');
@@ -505,5 +595,30 @@
         });
     });
 })();
+</script>
+<script>
+var selectedIds = new Set();
+function toggleRec(cb) {
+    var id = cb.dataset.id;
+    var art = cb.closest('article');
+    if (cb.checked) { selectedIds.add(id); art.classList.add('selected'); }
+    else { selectedIds.delete(id); art.classList.remove('selected'); }
+    updateBatchToolbar();
+}
+function updateBatchToolbar() {
+    var n = selectedIds.size;
+    var tb = document.getElementById('batch-toolbar');
+    document.getElementById('batch-count').textContent = n + ' ' + (n===1?'запись':n<5?'записи':'записей') + ' выбрано';
+    if (n > 0) tb.classList.remove('hidden'); else tb.classList.add('hidden');
+}
+function clearBatch() {
+    selectedIds.clear();
+    document.querySelectorAll('.rec-select-cb').forEach(function(cb){ cb.checked=false; cb.closest('article').classList.remove('selected'); });
+    updateBatchToolbar();
+}
+function goBatch() {
+    if (!selectedIds.size) return;
+    window.location.href = '/batch-analyze/?ids=' + Array.from(selectedIds).join(',');
+}
 </script>
 {% endblock %}

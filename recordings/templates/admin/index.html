@@ -2,9 +2,107 @@
 {% load i18n %}
 
 {% block content %}
-<div class="module">
-  <h2>Регулярные задачи и очереди</h2>
-  <p><a href="{% url 'admin_worker_status' %}">Состояние воркеров</a> — последний опрос S3, очередь транскрибации, очередь эмбеддингов.</p>
+
+<style>
+.platform-tools { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.pt-card {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 14px 16px;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: box-shadow .15s, border-color .15s;
+}
+.pt-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.1); border-color: #aaa; }
+.pt-icon { font-size: 1.4rem; }
+.pt-name { font-weight: 600; font-size: .92rem; color: #1a73e8; }
+.pt-desc { font-size: .78rem; color: #888; line-height: 1.4; }
+.pt-section-title { font-size: .78rem; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: .06em; margin: 16px 0 8px; }
+</style>
+
+<div class="module" style="padding: 16px 20px 20px;">
+  <h2 style="margin-bottom:14px">🛠 Инструменты платформы</h2>
+
+  <div class="pt-section-title">Переписки и боты</div>
+  <div class="platform-tools">
+    <a class="pt-card" href="/bot-sessions/">
+      <span class="pt-icon">💬</span>
+      <span class="pt-name">Сессии переписок</span>
+      <span class="pt-desc">Завершённые и активные чаты пользователей с ботами. Подстановка транскрибаций.</span>
+    </a>
+    <a class="pt-card" href="/bot-history/">
+      <span class="pt-icon">📜</span>
+      <span class="pt-name">Сырая история чатов</span>
+      <span class="pt-desc">Все сообщения по конкретной паре (пользователь, бот) без разбивки на сессии.</span>
+    </a>
+  </div>
+
+  <div class="pt-section-title">Транскрибация и записи</div>
+  <div class="platform-tools">
+    <a class="pt-card" href="/uploads/">
+      <span class="pt-icon">📤</span>
+      <span class="pt-name">Загрузка аудио/видео</span>
+      <span class="pt-desc">Ручная загрузка файлов в S3 и постановка в очередь транскрибации.</span>
+    </a>
+    <a class="pt-card" href="/batch-analyze/">
+      <span class="pt-icon">🤖</span>
+      <span class="pt-name">Пакетный анализ записей</span>
+      <span class="pt-desc">AI-саммари, заголовки и теги для нескольких записей сразу.</span>
+    </a>
+    <a class="pt-card" href="{% url 'admin_worker_status' %}">
+      <span class="pt-icon">⚙️</span>
+      <span class="pt-name">Состояние воркеров</span>
+      <span class="pt-desc">Последний опрос S3, очередь транскрибации, очередь эмбеддингов.</span>
+    </a>
+  </div>
+
+  <div class="pt-section-title">Встречи и маскот</div>
+  <div class="platform-tools">
+    <a class="pt-card" href="/meetings/">
+      <span class="pt-icon">📹</span>
+      <span class="pt-name">Встречи (LiveKit)</span>
+      <span class="pt-desc">Список активных и прошедших встреч пространства.</span>
+    </a>
+    <a class="pt-card" href="/mascot-logs/">
+      <span class="pt-icon">🎙</span>
+      <span class="pt-name">Логи Маскота</span>
+      <span class="pt-desc">События голосового агента: joined, heard, said, wake, задачи.</span>
+    </a>
+  </div>
+
+  <div class="pt-section-title">База знаний и OCR</div>
+  <div class="platform-tools">
+    <a class="pt-card" href="/kb/">
+      <span class="pt-icon">📖</span>
+      <span class="pt-name">База знаний (Wiki)</span>
+      <span class="pt-desc">Иерархическая база знаний с Markdown-редактором и эмбеддингами.</span>
+    </a>
+    <a class="pt-card" href="/ocr/">
+      <span class="pt-icon">📷</span>
+      <span class="pt-name">OCR документов</span>
+      <span class="pt-desc">Распознавание текста с изображений и PDF через OCR-сервис.</span>
+    </a>
+  </div>
+
+  <div class="pt-section-title">Пользователи и рассылки</div>
+  <div class="platform-tools">
+    <a class="pt-card" href="/system-config/">
+      <span class="pt-icon">⚙</span>
+      <span class="pt-name">Системные настройки</span>
+      <span class="pt-desc">OpenAI ключ, модель, прочие параметры платформы.</span>
+    </a>
+    <a class="pt-card" href="/admin/recordings/siteuser/tg-broadcast/">
+      <span class="pt-icon">📨</span>
+      <span class="pt-name">Telegram-рассылка</span>
+      <span class="pt-desc">Отправить сообщение всем или выбранным пользователям в Telegram.</span>
+    </a>
+  </div>
+
 </div>
+
 {{ block.super }}
 {% endblock %}

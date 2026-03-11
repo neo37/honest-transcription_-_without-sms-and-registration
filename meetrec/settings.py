@@ -15,14 +15,14 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
 
 INSTALLED_APPS = [
+    'recordings',   # до admin — чтобы наши шаблоны admin/ переопределяли стандартные
+    'wiki_kb',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'recordings',
-    'wiki_kb',
 ]
 
 MIDDLEWARE = [
@@ -104,7 +104,7 @@ S3_VERIFY_SSL = env.bool('S3_VERIFY_SSL', default=True)
 
 # Fixed login for site (cached in session) — legacy, kept for reference
 SITE_LOGIN_USERNAME = env('SITE_LOGIN_USERNAME', default='adminbp')
-SITE_LOGIN_PASSWORD = env('SITE_LOGIN_PASSWORD', default='meetTestingSummary1!')
+SITE_LOGIN_PASSWORD = env('SITE_LOGIN_PASSWORD', default='')
 
 # BP-пространство: участники видят все записи без лимита
 BP_SPACE_SLUG = 'org-bp'
@@ -177,6 +177,11 @@ MASTER_API_KEY = env('MASTER_API_KEY', default='')
 TELEGRAM_BOT_USERNAME = env('TELEGRAM_BOT_USERNAME', default='')
 SITE_URL = env('SITE_URL', default='')
 
+# LiveKit (ВКС с голосовым агентом)
+LIVEKIT_URL = env('LIVEKIT_URL', default='')
+LIVEKIT_API_KEY = env('LIVEKIT_API_KEY', default='')
+LIVEKIT_API_SECRET = env('LIVEKIT_API_SECRET', default='')
+
 import hashlib as _hashlib
 TELEGRAM_WEBHOOK_SECRET = _hashlib.sha256(SECRET_KEY.encode()).hexdigest()[:32]
 
@@ -195,5 +200,56 @@ OCR_API_KEY = env('OCR_API_KEY', default='')  # опционально: заго
 OCR_API_TIMEOUT = env.int('OCR_API_TIMEOUT', default=300)
 # Публичный API OCR: X-Api-Key заголовок для /api/ocr/submit/ и /api/ocr/status/
 OCR_PUBLIC_API_KEY = env('OCR_PUBLIC_API_KEY', default='')
+
+# WhisperX + pyannote: speaker diarization (нужен HuggingFace token)
+# Получить бесплатно: huggingface.co → Settings → Access Tokens
+# Принять лицензии: huggingface.co/pyannote/speaker-diarization-3.1
+#                   huggingface.co/pyannote/segmentation-3.0
+HUGGINGFACE_TOKEN = env('HUGGINGFACE_TOKEN', default='')
+
+LLM_URL = os.environ.get('LLM_URL', 'https://r-ai.business-pad.com/api/ai_request/')
+LLM_AUTH = os.environ.get('LLM_AUTH', '')
+LLM_REFERER = os.environ.get('LLM_REFERER', 'https://core.business-pad.com/')
+LLM_MODEL = os.environ.get('LLM_MODEL', 'gpt-4.1-mini')
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'simple': {
+            'format': '[{levelname}] {asctime} {name}: {message}',
+            'style': '{',
+            'datefmt': '%H:%M:%S',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'django.security': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'recordings': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'wiki_kb': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+    },
+}
 
 # Local folder for downloading MP3 before transcription (MEDIA_ROOT set above)

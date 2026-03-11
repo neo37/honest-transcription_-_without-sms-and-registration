@@ -1,0 +1,59 @@
+{% extends "recordings/base.html" %}
+{% block title %}Логи Маскота{% endblock %}
+
+{% block content %}
+<div style="max-width:1000px;margin:0 auto;padding:20px">
+
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px">
+    <h1 style="margin:0;font-size:1.4rem">🎙 Логи Маскота</h1>
+    <form method="get" style="display:flex;gap:8px;align-items:center">
+      <select name="room" onchange="this.form.submit()"
+              style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:.9rem">
+        <option value="">Все комнаты</option>
+        {% for r in rooms %}
+          <option value="{{ r }}" {% if r == room_filter %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select>
+      {% if room_filter %}<a href="?" style="font-size:.85rem;color:#888">✕ сбросить</a>{% endif %}
+    </form>
+    <span style="margin-left:auto;font-size:.85rem;color:#888" id="refresh-timer">обновление через 10с</span>
+  </div>
+
+  <div id="log-table">
+    {% include "recordings/_mascot_log_rows.html" %}
+  </div>
+
+</div>
+
+<style>
+.log-row { display:grid; grid-template-columns:140px 90px 130px 1fr; gap:0; border-bottom:1px solid #f0f0f0; padding:8px 4px; align-items:start; font-size:.88rem; }
+.log-row:hover { background:#fafafa; }
+.log-time { color:#999; font-size:.8rem; white-space:nowrap; }
+.log-room { color:#555; font-size:.8rem; overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.badge { display:inline-block;padding:2px 8px;border-radius:10px;font-size:.78rem;font-weight:600; }
+.badge-joined { background:#e8f5e9;color:#2e7d32; }
+.badge-heard  { background:#e3f2fd;color:#1565c0; }
+.badge-said   { background:#fce4ec;color:#880e4f; }
+.badge-wake   { background:#fff8e1;color:#f57f17; }
+.badge-emoji  { background:#f3e5f5;color:#6a1b9a; }
+.badge-chat   { background:#e0f7fa;color:#006064; }
+.log-text { color:#222; white-space:pre-wrap;word-break:break-word; }
+.log-speaker { color:#999;font-size:.8rem; }
+</style>
+
+<script>
+let countdown = 10;
+const timer = document.getElementById('refresh-timer');
+setInterval(() => {
+  countdown--;
+  timer.textContent = 'обновление через ' + countdown + 'с';
+  if (countdown <= 0) {
+    fetch(location.href + (location.search ? '&' : '?') + '_ajax=1')
+      .then(r => r.text()).then(html => {
+        document.getElementById('log-table').innerHTML = html;
+        countdown = 10;
+      });
+  }
+}, 1000);
+</script>
+{% endblock %}

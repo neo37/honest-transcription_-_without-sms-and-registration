@@ -1,0 +1,98 @@
+{% extends "recordings/base.html" %}
+{% block title %}Выбор места в вики{% endblock %}
+{% block extra_css %}
+<style>
+.wiki-tree-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.6rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.wiki-tree-item:hover { background: var(--bg-soft); }
+.wiki-tree-item.selected { background: var(--accent-soft, #e8f4ff); border: 1px solid var(--accent); }
+.wiki-tree-item input[type=radio] { accent-color: var(--accent); flex-shrink: 0; }
+.wiki-tree-label { font-size: 0.9rem; }
+.result-preview {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    white-space: pre-wrap;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    max-height: 300px;
+    overflow-y: auto;
+    color: var(--text);
+}
+.tree-indent { display: inline-block; width: 1.4rem; flex-shrink: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <h1>Выбор места в вики</h1>
+    <p class="breadcrumb"><a href="{% url 'recordings:index' %}">← Записи</a></p>
+</div>
+
+<!-- Результат GPT (свёрнутый) -->
+<div class="card" style="margin-bottom:1rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+        <p class="section-title" style="margin:0;">Ответ GPT — «{{ title }}»</p>
+        <button class="btn btn-sm" style="font-size:0.78rem;padding:0.2rem 0.6rem;" onclick="togglePreview()">показать/скрыть</button>
+    </div>
+    <div id="result-preview" class="result-preview" style="display:none;">{{ content }}</div>
+</div>
+
+<!-- Выбор места в вики -->
+<div class="card">
+    <p class="section-title">Где разместить страницу?</p>
+    <form method="POST" action="{% url 'recordings:batch_analyze_create_wiki' %}" id="place-form">
+        {% csrf_token %}
+        <input type="hidden" name="title" value="{{ title }}">
+        <input type="hidden" name="content" value="{{ content }}">
+        <input type="hidden" name="ids" value="{{ ids_json }}">
+        <input type="hidden" name="parent_id" id="parent-id-field" value="">
+
+        <div style="max-height:500px;overflow-y:auto;margin-bottom:1.25rem;padding-right:0.25rem;">
+            <label class="wiki-tree-item" onclick="selectParent('', this)">
+                <input type="radio" name="wiki-parent" value="" checked>
+                <span class="wiki-tree-label" style="color:var(--muted);">📁 В корне (без родителя)</span>
+            </label>
+            {% for item in wiki_tree %}
+            <label class="wiki-tree-item" onclick="selectParent('{{ item.article.pk }}', this)" style="padding-left:{{ item.padding_left }};">
+                <input type="radio" name="wiki-parent" value="{{ item.article.pk }}">
+                <span class="wiki-tree-label">
+                    {% if item.depth > 0 %}└ {% endif %}{{ item.article.title }}
+                </span>
+            </label>
+            {% endfor %}
+        </div>
+
+        <div style="display:flex;align-items:center;gap:1rem;">
+            <button type="submit" class="btn btn-accent">Создать страницу в вики</button>
+            <span id="create-status" style="font-size:0.85rem;color:var(--muted);"></span>
+        </div>
+    </form>
+</div>
+
+<script>
+function selectParent(id, el) {
+    document.querySelectorAll('.wiki-tree-item').forEach(function(x){ x.classList.remove('selected'); });
+    el.classList.add('selected');
+    document.getElementById('parent-id-field').value = id;
+}
+
+function togglePreview() {
+    var el = document.getElementById('result-preview');
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+document.getElementById('place-form').addEventListener('submit', function() {
+    document.getElementById('create-status').textContent = 'Создаём…';
+    document.querySelector('button[type=submit]').disabled = true;
+});
+</script>
+{% endblock %}
