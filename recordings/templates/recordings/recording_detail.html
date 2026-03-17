@@ -138,6 +138,10 @@
     {% if recording.transcribed_at %} · Транскрибировано: {{ recording.transcribed_at|date:"d.m.Y H:i" }}{% endif %}
 </div>
 
+<div class="detail-actions" style="margin-bottom: 1rem;">
+    <a href="{% url 'recordings:download_recording' recording.pk %}" class="btn btn-accent">⬇ Скачать запись</a>
+</div>
+
 {% if recording.transcription %}
 <div id="transcription-text" class="detail-transcription" style="display:none">{{ recording.transcription }}</div>
 <div id="dialog-view" class="dialog-view" style="display:none"></div>
@@ -166,12 +170,6 @@
 </div>
 
 <div class="detail-actions">
-    {% if download_url %}
-    <a href="{{ download_url }}" class="btn" download>Скачать запись</a>
-    {% else %}
-    <a href="{% url 'recordings:download_recording' recording.pk %}" class="btn">Скачать запись</a>
-    {% endif %}
-
     <button type="button" class="btn btn-accent" onclick="copyAndGoDeepSeek()">Скопировать и в DeepSeek</button>
 
     <div>
@@ -219,13 +217,39 @@
         <!-- Параметры транскрипции (скрываются если не transcription) -->
         <div id="transcription-params" style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
             <div>
-                <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:0.25rem;">Качество</label>
-                <select name="quality" style="padding:0.5rem;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-soft);color:var(--text);">
-                    <option value="base" {% if recording.transcription_quality == 'base' %}selected{% endif %}>Базовое (быстро)</option>
-                    <option value="small" {% if recording.transcription_quality == 'small' %}selected{% endif %}>Среднее</option>
-                    <option value="medium" {% if recording.transcription_quality == 'medium' %}selected{% endif %}>Хорошее</option>
-                    <option value="large-v3" {% if recording.transcription_quality == 'large-v3' %}selected{% endif %}>Наилучшее (медленно)</option>
+                <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:0.25rem;">Движок / модель / устройство</label>
+                <select name="engine" style="padding:0.5rem;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-soft);color:var(--text);min-width:320px;">
+                    {% if hf_token_set %}
+                    <optgroup label="WhisperX + pyannote (с диаризацией спикеров)">
+                        <option value="whisperx:small:auto"  {% if recording.transcription_quality == 'small'    or not recording.transcription_quality %}selected{% endif %}>WhisperX small — авто (GPU→CPU)</option>
+                        <option value="whisperx:small:gpu">WhisperX small — GPU</option>
+                        <option value="whisperx:small:cpu">WhisperX small — CPU</option>
+                        <option value="whisperx:medium:auto">WhisperX medium — авто</option>
+                        <option value="whisperx:medium:gpu">WhisperX medium — GPU</option>
+                        <option value="whisperx:medium:cpu">WhisperX medium — CPU (медленно)</option>
+                        <option value="whisperx:large-v3:gpu">WhisperX large-v3 — GPU (OOM риск)</option>
+                        <option value="whisperx:large-v3:cpu">WhisperX large-v3 — CPU (очень медленно)</option>
+                    </optgroup>
+                    {% endif %}
+                    <optgroup label="faster-whisper (без диаризации, только текст)">
+                        <option value="faster:tiny:auto"  {% if not hf_token_set and recording.transcription_quality == 'base' %}selected{% endif %}>faster-whisper tiny — авто</option>
+                        <option value="faster:small:auto" {% if not hf_token_set and not recording.transcription_quality or recording.transcription_quality == 'small' and not hf_token_set %}selected{% endif %}>faster-whisper small — авто</option>
+                        <option value="faster:small:gpu">faster-whisper small — GPU</option>
+                        <option value="faster:small:cpu">faster-whisper small — CPU</option>
+                        <option value="faster:medium:auto">faster-whisper medium — авто</option>
+                        <option value="faster:medium:gpu">faster-whisper medium — GPU</option>
+                        <option value="faster:medium:cpu">faster-whisper medium — CPU</option>
+                        <option value="faster:large-v3:cpu">faster-whisper large-v3 — CPU</option>
+                    </optgroup>
                 </select>
+                <!-- Версии библиотек -->
+                <div style="margin-top:0.35rem;font-size:0.72rem;color:var(--muted);line-height:1.6;">
+                    {% if lib_versions.whisperx %}whisperx {{ lib_versions.whisperx }}{% endif %}
+                    {% if lib_versions.faster_whisper %} · faster-whisper {{ lib_versions.faster_whisper }}{% endif %}
+                    {% if lib_versions.pyannote_audio %} · pyannote.audio {{ lib_versions.pyannote_audio }}{% endif %}
+                    {% if lib_versions.torch %} · torch {{ lib_versions.torch }}{% endif %}
+                    {% if lib_versions.ctranslate2 %} · ctranslate2 {{ lib_versions.ctranslate2 }}{% endif %}
+                </div>
             </div>
             <div>
                 <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:0.25rem;">Язык</label>
@@ -233,14 +257,6 @@
                     <option value="ru" {% if recording.transcription_language == 'ru' %}selected{% endif %}>Русский</option>
                     <option value="en" {% if recording.transcription_language == 'en' %}selected{% endif %}>Английский</option>
                     <option value="auto" {% if recording.transcription_language == 'auto' %}selected{% endif %}>Автоопределение</option>
-                </select>
-            </div>
-            <div>
-                <label style="display:block;font-size:0.8rem;color:var(--muted);margin-bottom:0.25rem;">Устройство</label>
-                <select name="device" style="padding:0.5rem;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-soft);color:var(--text);">
-                    <option value="auto">Авто (по настройкам)</option>
-                    <option value="cpu">CPU</option>
-                    <option value="gpu">GPU (CUDA)</option>
                 </select>
             </div>
         </div>
@@ -254,6 +270,76 @@
             {% endif %}
         </div>
     </form>
+
+{% if recording.transcription_log %}
+<details style="margin-top:1.25rem;" id="tlog-details">
+    <summary style="cursor:pointer;font-size:0.82rem;font-weight:600;color:var(--muted);user-select:none;list-style:none;display:flex;align-items:center;gap:0.4rem;">
+        <span id="tlog-arrow" style="font-size:0.75rem;transition:transform 0.15s;">▶</span>
+        Лог обработки ({{ recording.transcription_log|length }} попыт.)
+    </summary>
+    <div style="margin-top:0.75rem;display:flex;flex-direction:column;gap:0.75rem;" id="tlog-body">
+    {% for attempt in recording.transcription_log %}
+    <div style="background:var(--bg-soft);border:1px solid var(--border);border-radius:10px;padding:0.75rem 1rem;font-size:0.82rem;">
+        <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.5rem;">
+            <span style="font-weight:700;
+                {% if attempt.result == 'done' %}color:#16a34a{% else %}color:#dc2626{% endif %};">
+                {% if attempt.result == 'done' %}✓ Успех{% else %}✗ Ошибка{% endif %}
+            </span>
+            <span style="color:var(--muted);">{{ attempt.started_at|slice:":19"|cut:"T" }}</span>
+            <span style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:0.1rem 0.5rem;font-size:0.75rem;color:var(--text);">
+                {% if attempt.trigger == 'manual' %}👤 Вручную
+                {% elif attempt.trigger == 'restart' %}🔄 После рестарта
+                {% else %}🤖 Авто{% endif %}
+            </span>
+        </div>
+        {% if attempt.error %}
+        <div style="color:#dc2626;margin-bottom:0.5rem;word-break:break-word;">{{ attempt.error }}</div>
+        {% endif %}
+        {% if attempt.steps %}
+        <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
+            <thead>
+                <tr style="color:var(--muted);text-align:left;border-bottom:1px solid var(--border);">
+                    <th style="padding:0.2rem 0.4rem;">Шаг</th>
+                    <th style="padding:0.2rem 0.4rem;">Параметры</th>
+                    <th style="padding:0.2rem 0.4rem;text-align:right;">Время</th>
+                    <th style="padding:0.2rem 0.4rem;text-align:center;">Статус</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for step in attempt.steps %}
+            <tr style="border-bottom:1px solid var(--border);{% if not step.ok %}background:#fef2f2;{% endif %}">
+                <td style="padding:0.25rem 0.4rem;font-weight:600;">{{ step.name }}</td>
+                <td style="padding:0.25rem 0.4rem;color:var(--muted);word-break:break-all;">
+                    {% if step.engine %}{{ step.engine }}{% endif %}
+                    {% if step.model %} · {{ step.model }}{% endif %}
+                    {% if step.device %} · {{ step.device }}{% endif %}
+                    {% if step.compute %} · {{ step.compute }}{% endif %}
+                    {% if step.diarization %} · диар: {{ step.diarization }}{% endif %}
+                    {% if step.model and step.name == 'embedding' %} · {{ step.model }}{% endif %}
+                    {% if step.size_bytes %}{{ step.size_bytes|filesizeformat }}{% endif %}
+                    {% if step.error and not step.ok %}<span style="color:#dc2626;">{{ step.error|truncatechars:60 }}</span>{% endif %}
+                </td>
+                <td style="padding:0.25rem 0.4rem;text-align:right;white-space:nowrap;">
+                    {% if step.duration_sec %}{{ step.duration_sec }}с{% endif %}
+                </td>
+                <td style="padding:0.25rem 0.4rem;text-align:center;">
+                    {% if step.ok %}✓{% else %}✗{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+    {% endfor %}
+    </div>
+</details>
+<script>
+document.getElementById('tlog-details').addEventListener('toggle', function() {
+    document.getElementById('tlog-arrow').style.transform = this.open ? 'rotate(90deg)' : '';
+});
+</script>
+{% endif %}
 </div>
 
 <style>
@@ -311,6 +397,22 @@
         </a>
         {% endif %}
         {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if download_logs %}
+<div class="card" style="margin-top:1.5rem;">
+    <p class="section-title" style="margin-bottom:0.75rem;">История скачиваний</p>
+    <div style="display:flex;flex-direction:column;gap:0.4rem;">
+    {% for dl in download_logs %}
+    <div style="display:flex;align-items:center;gap:0.75rem;font-size:0.85rem;padding:0.4rem 0;border-bottom:1px solid var(--border);">
+        <span style="color:var(--muted);min-width:120px;flex-shrink:0;">{{ dl.created_at|date:"d.m.Y H:i" }}</span>
+        <span style="flex:1;">{{ dl.username|default:"—" }}</span>
+        {% if dl.tg_username %}<span style="color:#229ED9;font-size:0.78rem;">@{{ dl.tg_username }}</span>{% endif %}
+        <span style="color:var(--muted);font-size:0.78rem;">{{ dl.os_name|default:"" }}</span>
+    </div>
+    {% endfor %}
     </div>
 </div>
 {% endif %}

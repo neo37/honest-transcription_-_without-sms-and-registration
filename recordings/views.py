@@ -1,7 +1,13 @@
 import re
+import json
+import time
+import logging
 import threading
+
+logger = logging.getLogger(__name__)
+from datetime import date
 from django.conf import settings
-from django.http import JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
@@ -9,8 +15,10 @@ from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
 from django.db.models import Count
-from .models import Recording, PollLog, Comment, OcrJob, AccessLog, ShareToken, TagDefinition, Space, SiteUser, OrgRegistration, MagicLoginToken, MascotLog, SystemConfig, MeetingRoom, BotChatHistory, CustomBot
+from django.utils.text import slugify
+from .models import Recording, PollLog, Comment, OcrJob, AccessLog, ShareToken, TagDefinition, Space, SiteUser, OrgRegistration, MagicLoginToken, MascotLog, SystemConfig, MeetingRoom, BotChatHistory, CustomBot, DayShareLink, MeetingAttendee, RecurringBusyTime, DirectMessage, BPChatTopic, BPChatMessage
 from .auth_backend import site_login_required, get_current_user
 from . import services
 from .s3_client import get_presigned_download_url, upload_file_to_s3
@@ -49,12 +57,16 @@ def _log_access(request, event, recording=None):
         ua = request.META.get('HTTP_USER_AGENT', '')
         user = get_current_user(request)
         username = user.email if user else request.session.get('site_username', '')
+        tg_chat_id = user.tg_chat_id if user else None
+        tg_username = user.tg_username if user else ''
         AccessLog.objects.create(
             username=username,
             ip=_get_client_ip(request),
             user_agent=ua[:500],
             os_name=_parse_os(ua),
             screen=request.session.get('screen_resolution', ''),
+            tg_chat_id=tg_chat_id,
+            tg_username=tg_username,
             event=event,
             recording=recording,
         )
@@ -74,11 +86,27 @@ def api_speaker_profiles(request):
 
 @site_login_required
 def api_transcribing_progress(request):
-    """Список активных транскрибаций с прогрессом."""
-    recs = Recording.objects.filter(status=Recording.Status.TRANSCRIBING).values(
+    """Список активных транскрибаций с прогрессом + очередь ожидания."""
+    from .models import TranscribeQueue
+    active = list(Recording.objects.filter(status=Recording.Status.TRANSCRIBING).values(
         'id', 'filename', 'ai_title', 'transcription_progress', 'transcription_stage'
+    ))
+    queue_rows = list(
+        TranscribeQueue.objects
+        .select_related('recording')
+        .order_by('-priority', 'created_at')
+        .values('recording_id', 'recording__filename', 'recording__ai_title')
     )
-    return JsonResponse({'items': list(recs)})
+    queued = [
+        {
+            'id': row['recording_id'],
+            'filename': row['recording__filename'],
+            'ai_title': row['recording__ai_title'],
+            'position': idx + 1,
+        }
+        for idx, row in enumerate(queue_rows)
+    ]
+    return JsonResponse({'active': active, 'queued': queued})
 
 
 @csrf_exempt
@@ -399,6 +427,20 @@ def pilot_login(request):
 
 SMARTY_SPACE_SLUG = 'spacecode-smarty'
 
+
+@require_http_methods(['GET'])
+def api_check_smarty_email(request):
+    """Проверить, существует ли пользователь в пространстве spacecode-smarty."""
+    email = (request.GET.get('email') or '').strip().lower()
+    if not email:
+        return JsonResponse({'ok': False, 'reason': 'no_email'})
+    try:
+        user = SiteUser.objects.get(email__iexact=email, space__slug=SMARTY_SPACE_SLUG)
+        return JsonResponse({'ok': True, 'first_login': user.first_login_at is None})
+    except SiteUser.DoesNotExist:
+        return JsonResponse({'ok': False, 'reason': 'not_found'})
+
+
 def smarty_register(request):
     """Регистрация для smarty.rest — создаёт OrgRegistration в пространстве spacecode-smarty."""
     import random, string
@@ -445,6 +487,9 @@ def smarty_register(request):
     })
 
 
+@never_cache
+@ensure_csrf_cookie
+@require_http_methods(['GET', 'POST'])
 def smarty_login(request):
     """Landing + login для домена smarty.rest."""
     if request.session.get('user_id'):
@@ -454,17 +499,36 @@ def smarty_login(request):
         return redirect(reverse('recordings:index'))
     error = None
     if request.method == 'POST':
-        email = (request.POST.get('email') or '').strip().lower()
-        password = (request.POST.get('password') or '').strip()
+        from django.utils import timezone as tz
+        email    = (request.POST.get('email')     or '').strip().lower()
+        password = (request.POST.get('password')  or '').strip()
+        password2= (request.POST.get('password2') or '').strip()
         if not email or not password:
-            error = 'Введите email и пароль. / Please enter email and password.'
+            error = 'Введите email и пароль.'
         else:
             try:
                 user = SiteUser.objects.select_related('space').get(
-                    email__iexact=email,
-                    space__slug=SMARTY_SPACE_SLUG,
+                    email__iexact=email, space__slug=SMARTY_SPACE_SLUG,
                 )
-                if user.check_password(password):
+                if user.first_login_at is None:
+                    # Первый вход — устанавливаем свой пароль
+                    if len(password) < 6:
+                        error = 'Пароль должен быть не короче 6 символов.'
+                    elif password != password2:
+                        error = 'Пароли не совпадают.'
+                    else:
+                        user.set_password(password)
+                        user.first_login_at = tz.now()
+                        user.save(update_fields=['password', 'first_login_at'])
+                        request.session['user_id'] = user.pk
+                        request.session.set_expiry(60 * 60 * 24 * 7)
+                        request.session.modified = True
+                        _log_access(request, AccessLog.EVENT_LOGIN)
+                        next_url = request.POST.get('next') or request.GET.get('next') or ''
+                        if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+                            return redirect(next_url)
+                        return redirect(reverse('recordings:index'))
+                elif user.check_password(password):
                     request.session['user_id'] = user.pk
                     request.session.set_expiry(60 * 60 * 24 * 7)
                     request.session.modified = True
@@ -474,9 +538,9 @@ def smarty_login(request):
                         return redirect(next_url)
                     return redirect(reverse('recordings:index'))
                 else:
-                    error = 'Неверный пароль. / Invalid password.'
+                    error = 'Неверный пароль.'
             except SiteUser.DoesNotExist:
-                error = 'Пользователь не найден. / User not found.'
+                error = 'Пользователь не найден. Зарегистрируйтесь через форму рядом.'
     next_url = request.GET.get('next', '')
     return render(request, 'recordings/smarty_landing.html', {'error': error, 'next_url': next_url})
 
@@ -683,6 +747,10 @@ def index(request):
     speaker_filter = (request.GET.get('speaker') or '').strip()
     # Фильтр «скрывать почти пустые» — включён по умолчанию, ?hide_empty=0 отключает
     hide_empty = request.GET.get('hide_empty', '1') != '0'
+    # Фильтр «три последних конструктивных» — включён по умолчанию, ?last3=0 отключает
+    last3 = request.GET.get('last3', '1') != '0'
+    # Фильтр «только мои» — ?mine=1
+    only_mine = request.GET.get('mine') == '1'
     date_str = request.GET.get('date') or timezone.localtime(timezone.now()).strftime('%Y-%m-%d')
     date_to_str = request.GET.get('date_to', '').strip()
     time_from = request.GET.get('time_from', '')
@@ -701,6 +769,16 @@ def index(request):
     else:
         base_qs = Recording.objects.filter(space__isnull=True)
 
+    # Скрываем личные записи других пользователей
+    if current_user:
+        base_qs = base_qs.filter(Q(is_personal=False) | Q(owner=current_user))
+    else:
+        base_qs = base_qs.filter(is_personal=False)
+
+    # Фильтр «только мои»
+    if only_mine and current_user:
+        base_qs = base_qs.filter(owner=current_user, is_personal=True)
+
     if tab == 'ft' and ft_q:
         try:
             recordings = list(fulltext_search(base_qs, ft_q, search_comments=search_comments)[:100])
@@ -711,6 +789,22 @@ def index(request):
             semantic_results = semantic_search(ext_q, limit=ext_limit, min_score=ext_min_score)
             recordings = [rec for rec, _ in semantic_results]
         except Exception:
+            pass
+    elif last3:
+        # Три последних конструктивных: любые записи с непустой транскрипцией, без ограничений по дате
+        try:
+            from django.db.models import Q as _Q
+            qs = base_qs.filter(
+                _Q(transcription__isnull=False) & ~_Q(transcription='')
+            )
+            if speaker_filter:
+                from django.db.models.functions import Cast
+                from django.db.models import TextField
+                qs = qs.annotate(
+                    _snames=Cast('speaker_names', TextField())
+                ).filter(_snames__icontains=speaker_filter)
+            recordings = list(qs.order_by('-created_at')[:3])
+        except OperationalError:
             pass
     else:
         try:
@@ -814,6 +908,8 @@ def index(request):
         'tag_choices': tag_choices,
         'fn_filters': fn_filters,
         'hide_empty': hide_empty,
+        'last3': last3,
+        'only_mine': only_mine,
         'fn_options': [('cpq', 'CPQ'), ('daily', 'Daily'), ('bp', 'BP'), ('analytics', 'Analytics'), ('demo', 'Demo')],
         'user_space_slug': user_space_slug,
         'current_user': current_user,
@@ -912,6 +1008,10 @@ def recording_detail(request, recording_id):
     import re as _re
     import json as _json
     rec = get_object_or_404(Recording, pk=recording_id)
+    current_user = get_current_user(request)
+    if rec.is_personal and rec.owner_id != (current_user.pk if current_user else None):
+        from django.http import Http404
+        raise Http404
     _log_access(request, AccessLog.EVENT_VIEW, recording=rec)
     comments = list(rec.comments.all())
     download_url = None
@@ -939,7 +1039,10 @@ def recording_detail(request, recording_id):
         if isinstance(names_dict, dict):
             all_names.update(v for v in names_dict.values() if v and isinstance(v, str))
 
-    current_user = get_current_user(request)
+    hf_token_set = bool(getattr(settings, 'HUGGINGFACE_TOKEN', ''))
+    download_logs = list(
+        rec.access_logs.filter(event=AccessLog.EVENT_DOWNLOAD).order_by('-created_at')[:20]
+    )
     return render(request, 'recordings/recording_detail.html', {
         'recording': rec,
         'comments': comments,
@@ -947,6 +1050,9 @@ def recording_detail(request, recording_id):
         'speaker_profiles': sorted(all_names),
         'auto_names_json': _json.dumps(auto_names, ensure_ascii=False),
         'current_user': current_user,
+        'lib_versions': services.get_lib_versions(),
+        'hf_token_set': hf_token_set,
+        'download_logs': download_logs,
     })
 
 
@@ -988,7 +1094,9 @@ def run_recording_transcription(request, recording_id):
     rec = get_object_or_404(Recording, pk=recording_id)
 
     stage = request.POST.get('stage', 'transcription')  # transcription | ai_summary | embedding
-    device = request.POST.get('device', 'auto')          # auto | cpu | gpu
+    device = request.POST.get('device', 'auto')          # auto | cpu | gpu (legacy)
+    # Новый combined-param: "whisperx:small:gpu" / "faster:medium:cpu" / etc.
+    engine_param = request.POST.get('engine', '')        # engine:model:device
 
     next_url = request.POST.get('next') or request.GET.get('next') or reverse('recordings:recording_detail', args=[rec.pk])
 
@@ -1021,41 +1129,59 @@ def run_recording_transcription(request, recording_id):
         return redirect(next_url)
 
     # stage == 'transcription' (default)
-    quality = request.POST.get('quality')
     lang = request.POST.get('language')
     update_fields = []
-    if quality in dict(Recording.QUALITY_CHOICES):
-        rec.transcription_quality = quality
-        update_fields.append('transcription_quality')
+
+    # Парсим engine param (новый формат: "whisperx:small:gpu" / "faster:medium:cpu")
+    if engine_param:
+        parts = engine_param.split(':')
+        eng = parts[0] if len(parts) > 0 else ''  # whisperx | faster
+        mdl = parts[1] if len(parts) > 1 else 'small'
+        dev = parts[2] if len(parts) > 2 else 'auto'
+        if eng in ('whisperx', 'faster'):
+            SystemConfig.set(f'engine_override_{rec.pk}', eng)
+        if mdl:
+            SystemConfig.set(f'model_override_{rec.pk}', mdl)
+            if mdl in dict(Recording.QUALITY_CHOICES):
+                rec.transcription_quality = mdl
+                update_fields.append('transcription_quality')
+        if dev in ('cpu', 'gpu'):
+            SystemConfig.set(f'device_override_{rec.pk}', dev)
+    else:
+        # Обратная совместимость: старые поля quality / device
+        quality = request.POST.get('quality')
+        if quality in dict(Recording.QUALITY_CHOICES):
+            rec.transcription_quality = quality
+            update_fields.append('transcription_quality')
+        if device in ('cpu', 'gpu'):
+            SystemConfig.set(f'device_override_{rec.pk}', device)
+
     if lang in dict(Recording.LANGUAGE_CHOICES):
         rec.transcription_language = lang
         update_fields.append('transcription_language')
-
-    # Сохраняем device override в SystemConfig (временно, до окончания транскрипции)
-    if device in ('cpu', 'gpu'):
-        SystemConfig.set(f'device_override_{rec.pk}', device)
 
     rec.transcription = ''
     rec.status = Recording.Status.STABLE
     update_fields.extend(['transcription', 'status'])
     rec.save(update_fields=update_fields)
 
+    SystemConfig.set(f'trigger_{rec.pk}', 'manual')
     enqueue_transcribe(rec, priority=1)
 
-    def _run_one():
-        try:
-            services.process_one_transcribe()
-        except Exception:
-            pass
-    threading.Thread(target=_run_one, daemon=True).start()
-    messages.success(request, f'Транскрибация для «{rec.filename}» поставлена в очередь.')
+    messages.success(request, f'Запись «{rec.filename}» добавлена в очередь транскрибации.')
     return redirect(next_url)
 
 
 @site_login_required
+@site_login_required
 def download_recording(request, recording_id):
-    """Редирект на временную ссылку скачивания MP3 из S3."""
+    """Редирект на временную ссылку скачивания MP3 из S3. Логирует скачивание."""
     rec = get_object_or_404(Recording, pk=recording_id)
+    current_user = get_current_user(request)
+    if rec.is_personal and rec.owner_id != (current_user.pk if current_user else None):
+        from django.http import Http404
+        raise Http404
+    _log_access(request, AccessLog.EVENT_DOWNLOAD, recording=rec)
     url = get_presigned_download_url(rec.s3_key, rec.filename, expires_in=60)
     return redirect(url)
 
@@ -1147,12 +1273,15 @@ def uploads_page(request):
                     os.remove(tmp_path)
                 except OSError:
                     pass
+        is_personal = request.POST.get('is_personal') == '1'
         rec = Recording.objects.create(
             s3_key=s3_key,
             filename=os.path.basename(safe_name),
             size_bytes=size,
             status=Recording.Status.STABLE,
             space=current_user.space if current_user else None,
+            owner=current_user if current_user else None,
+            is_personal=is_personal,
         )
         # Decrement free tier counter
         if current_user and current_user.free_left is not None:
@@ -1226,39 +1355,62 @@ def ocr_page(request):
             'ocr_date': ocr_date,
             'ocr_date_to': ocr_date_to,
         })
-    f = request.FILES.get('document')
-    if not f:
+    files = request.FILES.getlist('documents')
+    if not files:
+        # fallback: legacy single-file field name
+        single = request.FILES.get('document')
+        if single:
+            files = [single]
+    if not files:
         messages.warning(request, 'Выберите файл (PDF или изображение).')
         return redirect(reverse('recordings:ocr'))
     _mime_ext = {
         'image/jpeg': '.jpg', 'image/jpg': '.jpg',
         'image/png': '.png', 'application/pdf': '.pdf',
     }
-    suffix = os.path.splitext(f.name or '')[1].lower()
-    if not suffix:
-        suffix = _mime_ext.get((f.content_type or '').split(';')[0].strip().lower(), '.bin')
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        for chunk in f.chunks():
-            tmp.write(chunk)
-        path = tmp.name
     ocr_method = request.POST.get('method', 'auto')
     if ocr_method not in ('auto', 'tesseract', 'olmocr'):
         ocr_method = 'auto'
-    job = OcrJob.objects.create(
-        original_filename=f.name or 'document',
-        file_path=path,
-        status='pending',
-        space=current_user.space if current_user else None,
-    )
-    _run_ocr_job(job, method=ocr_method)
-    try:
-        if os.path.exists(path):
-            os.remove(path)
-    except OSError:
-        pass
-    job.file_path = ''
-    job.save(update_fields=['file_path'])
-    return redirect(reverse('recordings:ocr_job_detail', args=[job.id]))
+    jobs_created = []
+    for f in files:
+        suffix = os.path.splitext(f.name or '')[1].lower()
+        if not suffix:
+            suffix = _mime_ext.get((f.content_type or '').split(';')[0].strip().lower(), '.bin')
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            for chunk in f.chunks():
+                tmp.write(chunk)
+            path = tmp.name
+        job = OcrJob.objects.create(
+            original_filename=f.name or 'document',
+            file_path=path,
+            status='pending',
+            space=current_user.space if current_user else None,
+        )
+        jobs_created.append((job, path, ocr_method))
+
+    def _run_queue(items):
+        for job, path, method in items:
+            try:
+                _run_ocr_job(job, method=method)
+            except Exception:
+                pass
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+            except OSError:
+                pass
+            job.file_path = ''
+            try:
+                job.save(update_fields=['file_path'])
+            except Exception:
+                pass
+
+    threading.Thread(target=_run_queue, args=(jobs_created,), daemon=True).start()
+
+    if len(jobs_created) == 1:
+        return redirect(reverse('recordings:ocr_job_detail', args=[jobs_created[0][0].id]))
+    messages.success(request, f'Добавлено {len(jobs_created)} файлов в очередь OCR.')
+    return redirect(reverse('recordings:ocr'))
 
 
 def _run_ocr_job(job, method='auto'):
@@ -1832,6 +1984,135 @@ def cabinet(request):
     })
 
 
+@site_login_required
+def profile_settings(request):
+    """Настройки профиля: отображаемое имя и аватар."""
+    import uuid as _uuid2
+    user = get_current_user(request)
+    saved = False
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'profile':
+            display_name = request.POST.get('display_name', '').strip()
+            tz = request.POST.get('timezone', '').strip()
+            user.display_name = display_name
+            if tz:
+                user.timezone = tz
+            user.save(update_fields=['display_name', 'timezone'])
+            saved = True
+        elif action == 'avatar':
+            avatar_file = request.FILES.get('avatar')
+            if avatar_file:
+                ext = avatar_file.name.rsplit('.', 1)[-1].lower() if '.' in avatar_file.name else 'jpg'
+                s3_key = f'avatars/{user.pk}/{_uuid2.uuid4().hex}.{ext}'
+                import tempfile, os
+                with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}') as tmp:
+                    for chunk in avatar_file.chunks():
+                        tmp.write(chunk)
+                    tmp_path = tmp.name
+                try:
+                    upload_file_to_s3(tmp_path, s3_key, content_type=avatar_file.content_type or 'image/jpeg')
+                finally:
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+                # Generate view URL (no Content-Disposition, long expiry for avatars)
+                from .s3_client import get_s3_client
+                _s3 = get_s3_client()
+                avatar_url = _s3.generate_presigned_url(
+                    'get_object',
+                    Params={'Bucket': settings.S3_BUCKET, 'Key': s3_key},
+                    ExpiresIn=604800,  # 7 days
+                )
+                user.avatar_url = avatar_url
+                user.save(update_fields=['avatar_url'])
+                return JsonResponse({'avatar_url': avatar_url})
+            return JsonResponse({'error': 'No file'}, status=400)
+
+    timezones = [
+        ('Europe/Moscow', 'МСК — Москва (UTC+3)'),
+        ('Europe/Podgorica', 'Черногория (UTC+1/+2)'),
+        ('Europe/Belgrade', 'Сербия (UTC+1/+2)'),
+        ('Europe/Kiev', 'Украина (UTC+2/+3)'),
+        ('Europe/Minsk', 'Беларусь (UTC+3)'),
+        ('Asia/Almaty', 'Казахстан Алматы (UTC+5)'),
+        ('Asia/Tashkent', 'Узбекистан (UTC+5)'),
+        ('Asia/Tbilisi', 'Грузия (UTC+4)'),
+        ('Asia/Yerevan', 'Армения (UTC+4)'),
+        ('Asia/Baku', 'Азербайджан (UTC+4)'),
+        ('Asia/Dubai', 'ОАЭ Дубай (UTC+4)'),
+        ('Asia/Novosibirsk', 'Новосибирск (UTC+7)'),
+        ('Asia/Yekaterinburg', 'Екатеринбург (UTC+5)'),
+        ('Europe/London', 'Лондон (UTC+0/+1)'),
+        ('Europe/Berlin', 'Берлин (UTC+1/+2)'),
+        ('UTC', 'UTC'),
+    ]
+    return render(request, 'recordings/profile_settings.html', {'user': user, 'saved': saved, 'timezones': timezones})
+
+
+@site_login_required
+def calendar_settings(request):
+    """Настройки участия в встречах и уведомлений."""
+    user = get_current_user(request)
+
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        meeting_id = data.get('meeting_id')
+        attending = data.get('attending', False)
+        # notify_before_minutes=0 means no notifications
+        notify_before = max(0, int(data.get('notify_before_minutes', 15)))
+        no_notify = bool(data.get('no_notify', False))
+        if no_notify:
+            notify_before = 0
+        repeat_every = max(1, int(data.get('repeat_every_minutes', 1)))
+        try:
+            meeting = MeetingRoom.objects.get(pk=meeting_id)
+        except MeetingRoom.DoesNotExist:
+            return JsonResponse({'error': 'Meeting not found'}, status=404)
+        if attending:
+            MeetingAttendee.objects.update_or_create(
+                user=user,
+                meeting=meeting,
+                defaults={
+                    'notify_before_minutes': notify_before,
+                    'repeat_every_minutes': repeat_every,
+                },
+            )
+        else:
+            MeetingAttendee.objects.filter(user=user, meeting=meeting).delete()
+        return JsonResponse({'ok': True})
+
+    # GET: list upcoming meetings
+    from django.db.models import Q as _CalQ
+    now = timezone.now()
+    meetings = MeetingRoom.objects.filter(
+        space=user.space,
+    ).filter(
+        _CalQ(scheduled_at__gte=now) | _CalQ(ended_at__isnull=True)
+    ).order_by('scheduled_at', 'created_at')
+
+    attending_ids = set(
+        MeetingAttendee.objects.filter(user=user, meeting__in=meetings).values_list('meeting_id', flat=True)
+    )
+    attendee_map = {
+        a.meeting_id: a
+        for a in MeetingAttendee.objects.filter(user=user, meeting__in=meetings)
+    }
+    for m in meetings:
+        att = attendee_map.get(m.pk)
+        m.notify_before = att.notify_before_minutes if att else 15
+        m.repeat_every = att.repeat_every_minutes if att else 1
+
+    return render(request, 'recordings/calendar_settings.html', {
+        'meetings': meetings,
+        'attending_ids': attending_ids,
+        'current_user': user,
+    })
+
+
 @require_http_methods(['GET'])
 def api_dadata_suggest(request):
     """Прокси к DaData API подсказок по организациям (токен не светим во фронте)."""
@@ -2279,6 +2560,9 @@ def system_config(request):
         key = request.POST.get('key', '').strip()
         value = request.POST.get('value', '').strip()
         if key == 'reset_stuck':
+            if request.POST.get('confirm_password') != '11':
+                messages.error(request, 'Неверный пароль.')
+                return redirect('recordings:system_config')
             from .models import Recording as _Rec
             from .queue_services import enqueue_transcribe as _enqueue
             stuck = list(_Rec.objects.filter(status=_Rec.Status.TRANSCRIBING))
@@ -2288,7 +2572,140 @@ def system_config(request):
                 r.transcription_stage = ''
                 r.save(update_fields=['status', 'transcription_progress', 'transcription_stage'])
                 _enqueue(r, priority=1)
+            messages.success(request, f'Сброшено {len(stuck)} зависших → STABLE, поставлены в приоритет.')
+        elif key == 'clear_queues':
+            if request.POST.get('confirm_password') != '11':
+                messages.error(request, 'Неверный пароль.')
+                return redirect('recordings:system_config')
+            from .models import TranscribeQueue as _TQ, EmbeddingQueue as _EQ
+            tq = _TQ.objects.count()
+            eq = _EQ.objects.count()
+            _TQ.objects.all().delete()
+            _EQ.objects.all().delete()
+            messages.success(request, f'Очереди очищены: транскрибация {tq}, эмбеддинги {eq}.')
+        elif key == 'enqueue_missing':
+            if request.POST.get('confirm_password') != '11':
+                messages.error(request, 'Неверный пароль.')
+                return redirect('recordings:system_config')
+            from .models import TranscribeQueue as _TQ
+            from .queue_services import enqueue_transcribe as _enqueue
+            from django.db.models import Q as _Q
+            already_queued = set(_TQ.objects.values_list('recording_id', flat=True))
+            recs = list(
+                Recording.objects
+                .filter(s3_key__isnull=False)
+                .exclude(s3_key='')
+                .exclude(status__in=[Recording.Status.PENDING, Recording.Status.DONE, Recording.Status.TRANSCRIBING])
+                .exclude(_Q(transcription__isnull=False) & ~_Q(transcription=''))
+                .order_by('-created_at')
+            )
+            added = 0
+            for r in recs:
+                if r.pk not in already_queued:
+                    _enqueue(r, priority=0)
+                    added += 1
+            messages.success(request, f'Добавлено в очередь: {added} записей (без уже стоящих).')
+        elif key == 'restart_one':
+            if request.POST.get('confirm_password') != '11':
+                messages.error(request, 'Неверный пароль.')
+                return redirect('recordings:system_config')
+            from .queue_services import enqueue_transcribe as _enqueue
+            rec_id = request.POST.get('recording_id', '')
+            try:
+                r = Recording.objects.get(pk=int(rec_id))
+            except (Recording.DoesNotExist, ValueError, TypeError):
+                messages.error(request, 'Запись не найдена.')
+                return redirect('recordings:system_config')
+            if r.status == Recording.Status.TRANSCRIBING:
+                r.status = Recording.Status.STABLE
+                r.transcription_progress = 0
+                r.transcription_stage = ''
+                r.save(update_fields=['status', 'transcription_progress', 'transcription_stage'])
+            _enqueue(r, priority=1)
+            messages.success(request, f'Запись «{r.filename}» поставлена в приоритетную очередь.')
+        elif key == 'reprocess_all':
+            if request.POST.get('confirm_password') != '11':
+                messages.error(request, 'Неверный пароль.')
+                return redirect('recordings:system_config')
+            from .models import TranscribeQueue as _TQ, EmbeddingQueue as _EQ
+            from .queue_services import enqueue_transcribe as _enqueue
+            from django.db.models import Q as _Q
+            # 1. Запомнить ID записей, которые уже стояли в очереди
+            already_queued_ids = set(_TQ.objects.values_list('recording_id', flat=True))
+            # 2. Очистить все очереди
+            _TQ.objects.all().delete()
+            _EQ.objects.all().delete()
+            # 3. Сбросить зависшие TRANSCRIBING → STABLE
+            Recording.objects.filter(status=Recording.Status.TRANSCRIBING).update(
+                status=Recording.Status.STABLE,
+                transcription_progress=0,
+                transcription_stage='',
+            )
+            # 4. Ставим в очередь:
+            #    - те что уже стояли в очереди (already_queued_ids) — сохраняем их место
+            #    - те у которых нет транскрипции И статус не DONE и не PENDING
+            #    Исключаем: PENDING (файл нестабилен), DONE (уже обработаны), с готовой транскрипцией
+            has_transcription = _Q(transcription__isnull=False) & ~_Q(transcription='')
+            recs = list(
+                Recording.objects
+                .filter(s3_key__isnull=False)
+                .exclude(s3_key='')
+                .filter(
+                    _Q(pk__in=already_queued_ids) |
+                    (
+                        ~_Q(status__in=[Recording.Status.PENDING, Recording.Status.DONE]) &
+                        ~has_transcription
+                    )
+                )
+                .exclude(has_transcription)
+                .order_by('-created_at')
+            )
+            for r in recs:
+                r.transcription_progress = 0
+                r.transcription_stage = ''
+                r.status = Recording.Status.STABLE
+                r.save(update_fields=['status', 'transcription_progress', 'transcription_stage'])
+                _enqueue(r, priority=0)
+            messages.success(request, f'Поставлено в очередь {len(recs)} записей (без уже обработанных). Поллер обработает их последовательно.')
+        elif key == 'default_transcription_model':
+            allowed_models = ('tiny', 'base', 'small', 'medium', 'large-v3', 'large-v3-turbo')
+            if value in allowed_models:
+                SystemConfig.set('default_transcription_model', value)
+                messages.success(request, f'Модель по умолчанию: {value}')
+            else:
+                messages.error(request, 'Неизвестная модель.')
+        elif key == 'bulk_enqueue_selected':
+            if request.POST.get('confirm_password') != '11':
+                messages.error(request, 'Неверный пароль.')
+                return redirect('recordings:system_config')
+            from .queue_services import enqueue_transcribe as _enqueue
+            model = request.POST.get('bulk_model', 'small')
+            allowed_models = ('tiny', 'base', 'small', 'medium', 'large-v3', 'large-v3-turbo')
+            if model not in allowed_models:
+                model = 'small'
+            rec_ids = [int(x) for x in request.POST.getlist('rec_ids') if x.isdigit()]
+            recs = list(Recording.objects.filter(pk__in=rec_ids))
+            for r in recs:
+                r.transcription_quality = model
+                r.transcription_progress = 0
+                r.transcription_stage = ''
+                if r.status == Recording.Status.TRANSCRIBING:
+                    r.status = Recording.Status.STABLE
+                r.save(update_fields=['transcription_quality', 'transcription_progress', 'transcription_stage', 'status'])
+                _enqueue(r, priority=1)
+            messages.success(request, f'Поставлено в очередь: {len(recs)} записей, модель «{model}».')
+        elif key == 'llm_provider':
+            # Выбор провайдера LLM — без пароля (не деструктивно)
+            allowed = ('gonka', 'openai', 'grok')
+            if value in allowed:
+                SystemConfig.set('llm_provider', value)
+                messages.success(request, f'LLM провайдер переключён на {value}.')
+            else:
+                messages.error(request, 'Неизвестный провайдер.')
         elif key:
+            if key == 'ocr_gpu_mode' and request.POST.get('confirm_password') != '11':
+                messages.error(request, 'Неверный пароль.')
+                return redirect('recordings:system_config')
             SystemConfig.set(key, value)
             if key == 'ocr_gpu_mode':
                 _write_ocr_gpu_flag(value == '1')
@@ -2297,9 +2714,21 @@ def system_config(request):
     ocr_gpu_mode = SystemConfig.get('ocr_gpu_mode', '0') == '1'
 
     from .models import TranscribeQueue, EmbeddingQueue
+    from django.db.models import Q as _Q
     transcribing_now = Recording.objects.filter(status=Recording.Status.TRANSCRIBING).order_by('-updated_at')
     transcribe_queue = TranscribeQueue.objects.select_related('recording').order_by('-priority', 'created_at')
     embedding_queue = EmbeddingQueue.objects.select_related('recording').order_by('created_at')
+
+    # Необработанные записи: есть s3_key, нет транскрипции, статус не PENDING
+    unprocessed = Recording.objects.filter(
+        s3_key__isnull=False
+    ).exclude(s3_key='').exclude(
+        status=Recording.Status.PENDING
+    ).filter(
+        _Q(transcription__isnull=True) | _Q(transcription='')
+    ).select_related('space').order_by('-created_at')[:200]
+
+    default_model = SystemConfig.get('default_transcription_model', 'small')
 
     # Читаем livekit.yaml
     import yaml as _yaml
@@ -2326,8 +2755,37 @@ def system_config(request):
         lk_config = dict(lk_config)
         lk_config['keys'] = {k: _mask(str(v)) for k, v in lk_config['keys'].items()}
 
+    import os as _os3
+    llm_provider = SystemConfig.get('llm_provider', '')
+    gonka_key_set = bool(_os3.environ.get('GONKA_PRIVATE_KEY') or SystemConfig.get('gonka_private_key', ''))
+    openai_key_set = bool(SystemConfig.get('openai_api_key', ''))
+    grok_key_set = bool(SystemConfig.get('grok_api_key', ''))
+    # Эффективный провайдер (с учётом автовыбора)
+    if llm_provider:
+        effective_provider = llm_provider
+    elif gonka_key_set:
+        effective_provider = 'gonka'
+    elif grok_key_set:
+        effective_provider = 'grok'
+    elif openai_key_set:
+        effective_provider = 'openai'
+    else:
+        effective_provider = '—'
+
+    transcription_models = [
+        ('tiny',           'Tiny (очень быстро, хуже качество)'),
+        ('base',           'Base (быстро)'),
+        ('small',          'Small (баланс) — по умолчанию'),
+        ('medium',         'Medium (хорошее качество)'),
+        ('large-v3',       'Large-v3 (наилучшее)'),
+        ('large-v3-turbo', 'Large-v3-turbo (быстро + качество)'),
+    ]
+
     return render(request, 'recordings/system_config.html', {
         'ocr_gpu_mode': ocr_gpu_mode,
+        'unprocessed': unprocessed,
+        'default_model': default_model,
+        'models': transcription_models,
         'lk_config': lk_config,
         'lk_yaml_error': lk_yaml_error,
         'lk_url': getattr(django_settings, 'LIVEKIT_URL', ''),
@@ -2335,6 +2793,11 @@ def system_config(request):
         'transcribing_now': transcribing_now,
         'transcribe_queue': transcribe_queue,
         'embedding_queue': embedding_queue,
+        'llm_provider': llm_provider,
+        'effective_provider': effective_provider,
+        'gonka_key_set': gonka_key_set,
+        'openai_key_set': openai_key_set,
+        'grok_key_set': grok_key_set,
     })
 
 
@@ -2377,7 +2840,102 @@ def meetings_page(request):
     """Список встреч пространства."""
     user = get_current_user(request)
     qs = MeetingRoom.objects.filter(space=user.space, ended_at__isnull=True) if user and user.space else MeetingRoom.objects.none()
-    return render(request, 'recordings/meetings.html', {'meetings': qs})
+    recurring_busy = list(RecurringBusyTime.objects.filter(owner=user, is_active=True).order_by('start_time')) if user else []
+    return render(request, 'recordings/meetings.html', {
+        'meetings': qs,
+        'recurring_busy': recurring_busy,
+    })
+
+
+@site_login_required
+def meetings_export_csv(request):
+    """Экспорт встреч в CSV."""
+    import csv
+    from django.http import HttpResponse
+    user = get_current_user(request)
+    qs = MeetingRoom.objects.filter(space=user.space).order_by('-created_at') if user and user.space else MeetingRoom.objects.none()
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="meetings.csv"'
+    response.write('\ufeff')  # BOM for Excel
+    writer = csv.writer(response)
+    writer.writerow(['Название', 'ID комнаты', 'Начало', 'Конец', 'Маскот', 'Создал', 'Завершена', 'Ссылка'])
+    for m in qs:
+        writer.writerow([
+            m.title,
+            m.room_name,
+            m.scheduled_at.strftime('%d.%m.%Y %H:%M') if m.scheduled_at else '',
+            m.ended_at.strftime('%d.%m.%Y %H:%M') if m.ended_at else '',
+            'Да' if m.with_mascot else 'Нет',
+            m.created_by.email if m.created_by else '',
+            m.ended_at.strftime('%d.%m.%Y %H:%M') if m.ended_at else '',
+            f'https://meet.business-pad.com/rooms/{m.room_name}',
+        ])
+    return response
+
+
+@site_login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def meetings_import_csv(request):
+    """Импорт встреч из CSV. Создаёт MeetingRoom записи без LiveKit комнаты."""
+    import csv
+    import io
+    user = get_current_user(request)
+    f = request.FILES.get('file')
+    if not f:
+        return JsonResponse({'error': 'file required'}, status=400)
+    try:
+        content = f.read().decode('utf-8-sig')
+        from datetime import datetime as _dt
+        import uuid as _uuid2
+
+        def _parse_dt(s):
+            """Parse '25.03.2026 10:00' or '2026-03-25 10:00' or '2026-03-25T10:00'."""
+            if not s:
+                return None
+            s = s.strip()
+            for fmt in ('%d.%m.%Y %H:%M', '%Y-%m-%d %H:%M', '%Y-%m-%dT%H:%M', '%d.%m.%Y', '%Y-%m-%d'):
+                try:
+                    return timezone.make_aware(_dt.strptime(s, fmt))
+                except ValueError:
+                    continue
+            return None
+
+        reader = csv.DictReader(io.StringIO(content))
+        created = 0
+        skipped = 0
+        for row in reader:
+            title = (row.get('Название') or row.get('title') or '').strip()
+            room_name = (row.get('ID комнаты') or row.get('room_name') or '').strip()
+            scheduled_str = (row.get('Начало') or row.get('scheduled_at') or row.get('start') or '').strip()
+            ended_str = (row.get('Конец') or row.get('ended_at') or row.get('end') or '').strip()
+            if not title or title.startswith('#'):
+                skipped += 1
+                continue
+            # Validate room_name: Zoom/Meet links and special chars are invalid LiveKit room names
+            import re as _re
+            if not room_name or _re.search(r'[?/\\]', room_name) or len(room_name) > 64:
+                room_name = _uuid2.uuid4().hex[:12]
+            # If room_name taken, generate new unique one (don't skip)
+            if MeetingRoom.objects.filter(room_name=room_name).exists():
+                room_name = _uuid2.uuid4().hex[:12]
+                while MeetingRoom.objects.filter(room_name=room_name).exists():
+                    room_name = _uuid2.uuid4().hex[:12]
+            scheduled_at = _parse_dt(scheduled_str)
+            ended_at = _parse_dt(ended_str)
+            MeetingRoom.objects.create(
+                room_name=room_name,
+                title=title,
+                with_mascot=False,
+                created_by=user,
+                space=user.space if user else None,
+                scheduled_at=scheduled_at,
+                ended_at=ended_at,
+            )
+            created += 1
+        return JsonResponse({'ok': True, 'created': created, 'skipped': skipped})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
 
 
 @site_login_required
@@ -2396,6 +2954,16 @@ def create_meeting(request):
     if not title:
         return JsonResponse({'error': 'title required'}, status=400)
     with_mascot = bool(data.get('with_mascot', False))
+    scheduled_at_str = data.get('scheduled_at', '').strip() if data.get('scheduled_at') else ''
+    scheduled_at = None
+    if scheduled_at_str:
+        from datetime import datetime as _dt
+        for fmt in ('%d.%m.%Y %H:%M', '%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M'):
+            try:
+                scheduled_at = timezone.make_aware(_dt.strptime(scheduled_at_str, fmt))
+                break
+            except ValueError:
+                continue
     from django.utils.text import slugify
     base_slug = slugify(title) or uuid.uuid4().hex[:12]
     room_name = base_slug
@@ -2403,12 +2971,23 @@ def create_meeting(request):
     while MeetingRoom.objects.filter(room_name=room_name).exists():
         room_name = f'{base_slug}-{suffix}'
         suffix += 1
+    ended_at_str = data.get('ended_at', '').strip() if data.get('ended_at') else ''
+    ended_at = None
+    if ended_at_str:
+        for fmt in ('%d.%m.%Y %H:%M', '%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M'):
+            try:
+                ended_at = timezone.make_aware(_dt.strptime(ended_at_str, fmt))
+                break
+            except ValueError:
+                continue
     meeting = MeetingRoom.objects.create(
         room_name=room_name,
         title=title,
         with_mascot=with_mascot,
         created_by=user,
         space=user.space if user else None,
+        scheduled_at=scheduled_at,
+        ended_at=ended_at,
     )
     tg_users = []
     if user and user.space:
@@ -2451,13 +3030,46 @@ def meeting_invite(request, room_name):
     except Exception:
         return JsonResponse({'error': 'bad json'}, status=400)
     user_ids = [int(i) for i in data.get('user_ids', []) if str(i).isdigit()]
-    join_url = f'https://meet.business-pad.com/rooms/{room_name}'
-    users = SiteUser.objects.filter(pk__in=user_ids, tg_chat_id__isnull=False)
+    comment = data.get('comment', '').strip() or None
+    join_url = meeting.join_url or f'https://meet.business-pad.com/rooms/{room_name}'
+    users = SiteUser.objects.filter(pk__in=user_ids)
     sent = 0
     for u in users:
-        telegram_service.send_meeting_invite(u.tg_chat_id, meeting.title, join_url)
-        sent += 1
+        # Create attendance record so meeting appears as "theirs" and they get 15-min reminder
+        MeetingAttendee.objects.get_or_create(
+            user=u, meeting=meeting,
+            defaults={'notify_before_minutes': 15, 'repeat_every_minutes': 1},
+        )
+        if u.tg_chat_id:
+            telegram_service.send_meeting_invite(
+                u.tg_chat_id, meeting.title, join_url,
+                comment=comment,
+                scheduled_at=meeting.scheduled_at,
+                ended_at=meeting.ended_at,
+            )
+            sent += 1
     return JsonResponse({'ok': True, 'sent': sent})
+
+
+@site_login_required
+def api_space_members(request):
+    """JSON список участников пространства (для приглашения на встречу)."""
+    user = get_current_user(request)
+    if not user or not user.space:
+        return JsonResponse({'members': []})
+    room_name = request.GET.get('room')
+    invited_ids = set()
+    if room_name:
+        try:
+            meeting = MeetingRoom.objects.get(room_name=room_name)
+            invited_ids = set(MeetingAttendee.objects.filter(meeting=meeting).values_list('user_id', flat=True))
+        except MeetingRoom.DoesNotExist:
+            pass
+    members = SiteUser.objects.filter(space=user.space).exclude(pk=user.pk)
+    return JsonResponse({'members': [
+        {'id': m.pk, 'email': m.email, 'name': m.display_name or m.email, 'has_tg': bool(m.tg_chat_id), 'invited': m.pk in invited_ids}
+        for m in members
+    ]})
 
 
 @site_login_required
@@ -2470,6 +3082,96 @@ def end_meeting(request, room_name):
     meeting.ended_at = timezone.now()
     meeting.save(update_fields=['ended_at'])
     return JsonResponse({'ok': True})
+
+
+@site_login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def delete_meeting(request, room_name):
+    """Удалить встречу. Если есть записи — отвязать от пространства (мягкое удаление), иначе удалить совсем."""
+    meeting = get_object_or_404(MeetingRoom, room_name=room_name)
+    has_recordings = Recording.objects.filter(filename__contains=room_name).exists()
+    if has_recordings:
+        # Soft delete: disassociate from space so it disappears from calendar
+        meeting.space = None
+        meeting.save(update_fields=['space'])
+    else:
+        meeting.delete()
+    return JsonResponse({'ok': True})
+
+
+@site_login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def edit_meeting(request, room_name):
+    """Переименовать/перенести встречу. POST JSON: {title, scheduled_at}"""
+    import json as _json
+    user = get_current_user(request)
+    meeting, _ = MeetingRoom.objects.get_or_create(
+        room_name=room_name,
+        defaults={
+            'title': room_name,
+            'space': user.space if user else None,
+            'created_by': user,
+        },
+    )
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'bad json'}, status=400)
+    title = data.get('title', '').strip()
+    scheduled_str = data.get('scheduled_at', '').strip()
+    update_fields = []
+    if title:
+        meeting.title = title
+        update_fields.append('title')
+    if scheduled_str:
+        from datetime import datetime as _dt
+        for fmt in ('%Y-%m-%dT%H:%M', '%d.%m.%Y %H:%M', '%Y-%m-%d %H:%M'):
+            try:
+                dt = timezone.make_aware(_dt.strptime(scheduled_str, fmt))
+                meeting.scheduled_at = dt
+                update_fields.append('scheduled_at')
+                break
+            except ValueError:
+                continue
+    elif 'scheduled_at' in data and data['scheduled_at'] == '':
+        meeting.scheduled_at = None
+        update_fields.append('scheduled_at')
+    join_url = data.get('join_url', '').strip()
+    meeting.join_url = join_url or None
+    update_fields.append('join_url')
+    if 'repeat' in data:
+        repeat = data.get('repeat', '')
+        if repeat in dict(MeetingRoom.REPEAT_CHOICES):
+            meeting.repeat = repeat
+            update_fields.append('repeat')
+    if update_fields:
+        meeting.save(update_fields=update_fields)
+    return JsonResponse({'ok': True, 'title': meeting.title,
+                         'scheduled_at': meeting.scheduled_at.isoformat() if meeting.scheduled_at else None,
+                         'join_url': meeting.join_url or '',
+                         'repeat': meeting.repeat})
+
+
+@require_http_methods(['GET'])
+def meetings_csv_sample(request):
+    """Скачать пример CSV файла для импорта встреч."""
+    import csv
+    from django.http import HttpResponse
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="meetings_sample.csv"'
+    response.write('\ufeff')
+    writer = csv.writer(response)
+    writer.writerow(['Название', 'ID комнаты', 'Начало', 'Конец'])
+    writer.writerow(['# Формат даты: дд.мм.гггг чч:мм  Московское время', '', '', ''])
+    writer.writerow(['# ID комнаты — необязателен. Оставьте пустым — система создаст ID сама.', '', '', ''])
+    writer.writerow(['# Для повторяющихся встреч оставляйте ID пустым (каждая строка = отдельная встреча)', '', '', ''])
+    writer.writerow(['Еженедельная планёрка', '', '25.03.2026 10:00', '25.03.2026 11:00'])
+    writer.writerow(['Еженедельная планёрка', '', '01.04.2026 10:00', '01.04.2026 11:00'])
+    writer.writerow(['Созвон с клиентом', 'klient-call-1', '26.03.2026 14:30', '26.03.2026 15:00'])
+    writer.writerow(['Ретроспектива', '', '28.03.2026 16:00', '28.03.2026 17:30'])
+    return response
 
 
 @site_login_required
@@ -2561,6 +3263,9 @@ def api_livekit_rooms(request):
                 'title': m.title,
                 'with_mascot': m.with_mascot,
                 'ended_at': m.ended_at.isoformat() if m.ended_at else None,
+                'scheduled_at': m.scheduled_at.isoformat() if m.scheduled_at else None,
+                'join_url': m.join_url or '',
+                'repeat': m.repeat or '',
                 'created_by': m.created_by.email if m.created_by else '',
             }
 
@@ -2585,12 +3290,25 @@ def api_calendar_events(request):
     from collections import defaultdict
     from datetime import timedelta
     from django.utils.dateparse import parse_datetime
+    from zoneinfo import ZoneInfo
+    _MSK = ZoneInfo('Europe/Moscow')
+
+    def _iso_msk(dt):
+        """Конвертирует datetime в МСК и возвращает ISO без offset (FullCalendar интерпретирует как localTime)."""
+        if dt is None:
+            return None
+        return dt.astimezone(_MSK).strftime('%Y-%m-%dT%H:%M:%S')
 
     user = get_current_user(request)
     if not user or not user.space:
         return JsonResponse({'events': []})
 
-    rooms = list(MeetingRoom.objects.filter(space=user.space).select_related('created_by'))
+    mine_only = request.GET.get('mine') == '1'
+    my_meeting_ids = set(MeetingAttendee.objects.filter(user=user).values_list('meeting_id', flat=True))
+    rooms_qs = MeetingRoom.objects.filter(space=user.space).select_related('created_by')
+    if mine_only:
+        rooms_qs = rooms_qs.filter(pk__in=my_meeting_ids)
+    rooms = list(rooms_qs)
     room_map = {r.room_name: r for r in rooms}
 
     all_recs = list(Recording.objects.filter(space=user.space).only(
@@ -2615,32 +3333,54 @@ def api_calendar_events(request):
 
     events = []
 
+    def _is_all_day(dt):
+        """True если время ровно полночь — признак all-day события из Google Calendar."""
+        return dt is not None and dt.hour == 0 and dt.minute == 0 and dt.second == 0
+
     # 1. Events from MeetingRoom entries
     for room in rooms:
         recs = sorted(room_rec_map.get(room.room_name, []), key=lambda x: x[0])
-        start = room.created_at
+        start = room.scheduled_at or (recs[0][0] if recs else room.created_at)
+        # start гарантированно не None (created_at всегда есть)
         end = room.ended_at
+
+        # Для all-day событий из Google Calendar оба времени — полночь
+        all_day = _is_all_day(room.scheduled_at) and _is_all_day(room.ended_at)
+
         if not end:
-            if recs:
-                end = recs[-1][0] + timedelta(minutes=5)
+            # Берём только записи, которые начались ПОСЛЕ start (чтобы не получить end < start)
+            recs_after_start = [r for r in recs if r[0] >= start]
+            if recs_after_start:
+                end = recs_after_start[-1][0] + timedelta(minutes=5)
+            elif all_day:
+                end = start + timedelta(days=1)
             else:
                 end = start + timedelta(minutes=60)
 
-        events.append({
+        # Гарантируем end > start (защита от ended_at < scheduled_at в БД)
+        if end <= start:
+            end = start + timedelta(minutes=60)
+
+        is_mine = room.pk in my_meeting_ids
+        color = '#16a34a' if not room.ended_at else ('#7c3aed' if is_mine else '#2563eb')
+
+        ev = {
             'id': f'room-{room.pk}',
-            'title': room.title or room.room_name,
-            'start': start.isoformat(),
-            'end': end.isoformat(),
-            'color': '#16a34a' if not room.ended_at else '#2563eb',
+            'title': room.title or room.room_name or '(без названия)',
+            'color': color,
             'extendedProps': {
                 'room_name': room.room_name,
+                'is_mine': is_mine,
                 'room_url': f'/meetings/{room.room_name}/',
                 'is_active': room.ended_at is None,
+                'join_url': room.join_url or '',
+                'scheduled_at': room.scheduled_at.isoformat() if room.scheduled_at else None,
+                'repeat': room.repeat or '',
                 'created_by': room.created_by.email if room.created_by else '',
                 'recordings': [
                     {
                         'id': r.pk,
-                        'title': r.ai_title or r.filename,
+                        'title': r.ai_title or r.filename or '(без названия)',
                         'url': f'/r/{r.pk}/',
                         'status': r.status,
                         'ts': ts.isoformat(),
@@ -2648,7 +3388,30 @@ def api_calendar_events(request):
                     for ts, r in recs
                 ],
             },
-        })
+        }
+        if all_day:
+            # FullCalendar: all-day → передаём дату без времени
+            ev['start'] = start.astimezone(_MSK).strftime('%Y-%m-%d')
+            ev['end'] = end.astimezone(_MSK).strftime('%Y-%m-%d')
+            ev['allDay'] = True
+        else:
+            ev['start'] = _iso_msk(start)
+            ev['end'] = _iso_msk(end)
+        events.append(ev)
+
+        # Генерируем повторяющиеся события (weekly) на 8 недель вперёд
+        if room.repeat == 'weekly' and not all_day and room.scheduled_at:
+            duration = end - start
+            for week in range(1, 9):
+                rep_start = start + timedelta(weeks=week)
+                rep_end = rep_start + duration
+                rep_ev = dict(ev)
+                rep_ev['id'] = f'room-{room.pk}-w{week}'
+                rep_ev['start'] = _iso_msk(rep_start)
+                rep_ev['end'] = _iso_msk(rep_end)
+                rep_ev['extendedProps'] = dict(ev['extendedProps'])
+                rep_ev['extendedProps']['scheduled_at'] = rep_start.isoformat()
+                events.append(rep_ev)
 
     # 2. Events from recordings without a MeetingRoom entry
     for room_code, rec_list in room_rec_map.items():
@@ -2673,8 +3436,8 @@ def api_calendar_events(request):
             events.append({
                 'id': f'anon-{room_code}-{i}',
                 'title': room_code,
-                'start': start.isoformat(),
-                'end': end.isoformat(),
+                'start': _iso_msk(start),
+                'end': _iso_msk(end),
                 'color': '#64748b',
                 'extendedProps': {
                     'room_name': room_code,
@@ -2695,6 +3458,317 @@ def api_calendar_events(request):
             })
 
     return JsonResponse({'events': events})
+
+
+@site_login_required
+@site_login_required
+def recurring_busy_times(request):
+    """CRUD для повторяющихся занятых интервалов (API: GET list, POST create, DELETE /<pk>/)."""
+    import json as _json
+    from .models import RecurringBusyTime
+    user = get_current_user(request)
+    if request.method == 'POST':
+        try:
+            data = _json.loads(request.body)
+        except Exception:
+            return JsonResponse({'error': 'bad json'}, status=400)
+        title = (data.get('title') or '').strip()
+        start = (data.get('start_time') or '').strip()
+        end = (data.get('end_time') or '').strip()
+        repeat = data.get('repeat', 'daily')
+        if not title or not start or not end:
+            return JsonResponse({'error': 'title, start_time, end_time required'}, status=400)
+        if repeat not in dict(RecurringBusyTime.REPEAT_CHOICES):
+            repeat = 'daily'
+        obj = RecurringBusyTime.objects.create(
+            owner=user, title=title, start_time=start, end_time=end, repeat=repeat,
+        )
+        return JsonResponse({'ok': True, 'id': obj.pk, 'title': obj.title,
+                             'start_time': start, 'end_time': end, 'repeat': obj.repeat,
+                             'repeat_label': obj.get_repeat_display()})
+    # GET
+    items = list(RecurringBusyTime.objects.filter(owner=user, is_active=True).order_by('start_time'))
+    return JsonResponse({'items': [
+        {'id': o.pk, 'title': o.title,
+         'start_time': o.start_time.strftime('%H:%M'),
+         'end_time': o.end_time.strftime('%H:%M'),
+         'repeat': o.repeat, 'repeat_label': o.get_repeat_display()}
+        for o in items
+    ]})
+
+
+@site_login_required
+@require_http_methods(['POST'])
+def delete_recurring_busy_time(request, pk):
+    from .models import RecurringBusyTime
+    user = get_current_user(request)
+    try:
+        obj = RecurringBusyTime.objects.get(pk=pk, owner=user)
+        obj.delete()
+        return JsonResponse({'ok': True})
+    except RecurringBusyTime.DoesNotExist:
+        return JsonResponse({'error': 'not found'}, status=404)
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def share_day_create(request):
+    """Создать или обновить ссылку-поделиться на свободные слоты дня.
+    POST JSON: {date, busy_slots, slot_duration_minutes, day_start, day_end, is_permanent}
+    is_permanent=true — ссылка всегда показывает завтрашний день.
+    """
+    import json as _json
+    from datetime import date as _date
+    user = get_current_user(request)
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'bad json'}, status=400)
+
+    is_permanent = bool(data.get('is_permanent', False))
+    busy_slots = data.get('busy_slots', [])
+    slot_min = int(data.get('slot_duration_minutes', 30))
+    day_start = data.get('day_start', '09:00')
+    day_end = data.get('day_end', '18:00')
+
+    if is_permanent:
+        # Upsert: one permanent link per owner
+        link, _ = DayShareLink.objects.update_or_create(
+            owner=user,
+            is_permanent=True,
+            defaults={
+                'date': None,
+                'busy_slots': busy_slots,
+                'slot_duration_minutes': slot_min,
+                'day_start': day_start,
+                'day_end': day_end,
+            },
+        )
+    else:
+        date_str = data.get('date', '')
+        if not date_str:
+            return JsonResponse({'error': 'date required'}, status=400)
+        try:
+            day = _date.fromisoformat(date_str)
+        except ValueError:
+            return JsonResponse({'error': 'invalid date'}, status=400)
+        # Upsert: one link per owner+date
+        link, _ = DayShareLink.objects.update_or_create(
+            owner=user,
+            date=day,
+            is_permanent=False,
+            defaults={
+                'busy_slots': busy_slots,
+                'slot_duration_minutes': slot_min,
+                'day_start': day_start,
+                'day_end': day_end,
+            },
+        )
+
+    book_url = request.build_absolute_uri(
+        reverse('recordings:booking_page', kwargs={'token': link.share_token})
+    )
+    return JsonResponse({'ok': True, 'url': book_url, 'token': str(link.share_token)})
+
+
+def booking_page(request, token):
+    """Публичная страница свободных слотов (без авторизации)."""
+    from datetime import datetime, timedelta, date as _date
+    link = get_object_or_404(DayShareLink, share_token=token)
+
+    # Для постоянной ссылки — всегда завтра
+    display_date = (_date.today() + timedelta(days=1)) if link.is_permanent else link.date
+
+    def hm(s):
+        h, m = map(int, s.split(':'))
+        return h * 60 + m
+
+    def fmt(total_min):
+        return f'{total_min // 60:02d}:{total_min % 60:02d}'
+
+    start_min = hm(link.day_start)
+    end_min = hm(link.day_end)
+    dur = link.slot_duration_minutes
+
+    # Строим список занятых интервалов
+    busy = []
+    busy_named = []  # [(start_min, end_min, title)]
+    for b in (link.busy_slots or []):
+        bs = hm(b['start'])
+        be = hm(b['end'])
+        busy.append((bs, be))
+        busy_named.append((bs, be, b.get('title', '')))
+
+    # Добавляем повторяющиеся занятые события владельца
+    from .models import RecurringBusyTime as _RBT
+    import calendar as _cal
+    _weekday = display_date.weekday() if display_date else None  # 0=пн, 6=вс
+    _is_weekday = _weekday is not None and _weekday < 5
+    for rbt in _RBT.objects.filter(owner=link.owner, is_active=True):
+        applies = (rbt.repeat == 'daily') or (rbt.repeat == 'weekdays' and _is_weekday)
+        if applies:
+            bs = rbt.start_time.hour * 60 + rbt.start_time.minute
+            be = rbt.end_time.hour * 60 + rbt.end_time.minute
+            busy.append((bs, be))
+            busy_named.append((bs, be, rbt.title))
+    busy.sort()
+
+    # Генерируем все слоты и исключаем занятые
+    free_slots = []
+    cur = start_min
+    while cur + dur <= end_min:
+        slot_end = cur + dur
+        # Проверяем пересечение с занятыми
+        overlap = any(bs < slot_end and be > cur for bs, be in busy)
+        if not overlap:
+            free_slots.append({'start': fmt(cur), 'end': fmt(slot_end)})
+        cur += dur
+
+    # Формируем список занятых для отображения (включая повторяющиеся)
+    busy_display = [{'start': fmt(bs), 'end': fmt(be), 'title': title}
+                    for bs, be, title in sorted(busy_named) if title]
+    return render(request, 'recordings/booking.html', {
+        'link': link,
+        'display_date': display_date,
+        'free_slots': free_slots,
+        'busy_slots': link.busy_slots,
+        'busy_display': busy_display,
+    })
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def book_slot(request, token):
+    """Гость бронирует слот: создаёт LiveKit комнату и отправляет TG-уведомление владельцу."""
+    import json as _json
+    import uuid
+    import hashlib
+    from datetime import timedelta as _td
+    from . import telegram_service
+
+    from datetime import timedelta, date as _date
+    link = get_object_or_404(DayShareLink, share_token=token)
+    actual_date = (_date.today() + timedelta(days=1)) if link.is_permanent else link.date
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'bad json'}, status=400)
+
+    slot_start = data.get('slot_start', '')
+    slot_end = data.get('slot_end', '')
+    guest_name = data.get('guest_name', '').strip() or 'Гость'
+    guest_phone = data.get('guest_phone', '').strip()
+    agenda = data.get('agenda', '').strip()
+    with_mascot = bool(data.get('with_mascot', False))
+
+    if not slot_start or not slot_end:
+        return JsonResponse({'error': 'slot_start and slot_end required'}, status=400)
+    if not guest_phone:
+        return JsonResponse({'error': 'Укажите номер телефона'}, status=400)
+    if not agenda:
+        return JsonResponse({'error': 'Укажите повестку встречи'}, status=400)
+
+    # Rate limiting: max 1 booking per hour per IP+fingerprint
+    from .models import BookingAttempt
+    from django.db.models import Q as _Q
+    ip = (
+        request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
+        or request.META.get('REMOTE_ADDR', '127.0.0.1')
+    )
+    user_agent = request.META.get('HTTP_USER_AGENT', '')
+    resolution = data.get('resolution', '')
+    fingerprint = hashlib.md5(f'{user_agent}|{resolution}'.encode()).hexdigest()
+
+    three_hours_ago = timezone.now() - _td(hours=3)
+    recent = BookingAttempt.objects.filter(
+        created_at__gte=three_hours_ago,
+    ).filter(
+        _Q(ip=ip) | _Q(fingerprint=fingerprint)
+    ).exists()
+    is_en = data.get('lang', 'ru') == 'en'
+    if recent:
+        msg = (
+            'You have already booked a meeting recently. Please try again in 3 hours.'
+            if is_en else
+            'Вы уже бронировали встречу недавно. Попробуйте снова через 3 часа.'
+        )
+        return JsonResponse({'error': msg, 'rate_limited': True}, status=429)
+
+    # Log attempt
+    BookingAttempt.objects.create(ip=ip, fingerprint=fingerprint)
+
+    # Создаём LiveKit комнату
+    date_slug = actual_date.strftime('%Y%m%d')
+    time_slug = slot_start.replace(':', '')
+    base_name = f'booking-{date_slug}-{time_slug}'
+    room_name = base_name
+    suffix = 1
+    while MeetingRoom.objects.filter(room_name=room_name).exists():
+        room_name = f'{base_name}-{suffix}'
+        suffix += 1
+
+    title = f'{guest_name} / {actual_date.strftime("%d.%m.%Y")} {slot_start}–{slot_end}'
+    # Вычисляем scheduled_at из даты + времени слота
+    from datetime import datetime as _dt2
+    try:
+        h, m = map(int, slot_start.split(':'))
+        scheduled_at = timezone.make_aware(_dt2(actual_date.year, actual_date.month, actual_date.day, h, m))
+    except Exception:
+        scheduled_at = None
+
+    meeting = MeetingRoom.objects.create(
+        room_name=room_name,
+        title=title,
+        with_mascot=with_mascot,
+        created_by=link.owner,
+        space=link.owner.space if link.owner else None,
+        scheduled_at=scheduled_at,
+    )
+
+    # Владелец автоматически участник встречи
+    MeetingAttendee.objects.get_or_create(
+        user=link.owner, meeting=meeting,
+        defaults={'notify_before_minutes': 15},
+    )
+
+    # Помечаем слот как занятый — чтобы следующий бронирующий его не видел
+    booked_busy = list(link.busy_slots or [])
+    booked_busy.append({'start': slot_start, 'end': slot_end, 'title': guest_name})
+    link.busy_slots = booked_busy
+    link.save(update_fields=['busy_slots'])
+
+    join_url = f'https://meet.business-pad.com/rooms/{room_name}'
+
+    # TG-уведомление владельцу
+    if link.owner.tg_chat_id:
+        msg = (
+            f'📅 *Новое бронирование!*\n\n'
+            f'👤 {guest_name}'
+            + (f'\n📞 {guest_phone}' if guest_phone else '')
+            + (f'\n📝 {agenda}' if agenda else '')
+            + f'\n📆 {actual_date.strftime("%d.%m.%Y")}, {slot_start}–{slot_end}\n\n'
+            f'🔗 {join_url}'
+        )
+        try:
+            telegram_service.send_message(link.owner.tg_chat_id, msg)
+        except Exception:
+            pass
+
+    bot_username = getattr(settings, 'TELEGRAM_BOT_USERNAME', '') or ''
+    if not bot_username:
+        from .telegram_service import get_bot_info
+        bot_username = get_bot_info().get('username', '')
+
+    return JsonResponse({
+        'ok': True,
+        'room_name': room_name,
+        'join_url': join_url,
+        'bot_username': bot_username,
+        'slot_start': slot_start,
+        'slot_end': slot_end,
+        'date': actual_date.strftime('%d.%m.%Y'),
+        'title': title,
+    })
 
 
 @csrf_exempt
@@ -2759,6 +3833,16 @@ def api_active_meetings(request):
             import logging as _log
             _log.getLogger(__name__).warning('LiveKit rooms fetch failed: %s', e)
 
+    from django.utils import timezone as _tz
+    import datetime as _dt
+    _now = _tz.now()
+    # Автоматически завершаем встречи без ended_at если прошло > 30 мин с scheduled_at
+    MeetingRoom.objects.filter(
+        space=space,
+        ended_at__isnull=True,
+        scheduled_at__lt=_now - _dt.timedelta(minutes=30),
+    ).update(ended_at=models.F('scheduled_at') + _dt.timedelta(minutes=30))
+
     db_rooms = MeetingRoom.objects.filter(space=space, ended_at__isnull=True).order_by('-created_at')
     site_url = getattr(settings, 'SITE_URL', '').rstrip('/')
 
@@ -2782,24 +3866,28 @@ def api_active_meetings(request):
 
 @site_login_required
 def bot_history(request):
-    """История переписок всех пользователей с ботами."""
+    """История переписок: кастомные боты видны только своему владельцу."""
     user = get_current_user(request)
-
-    # Собираем все уникальные (chat_id, bot_id) пары для пространства
-    # Определяем пространство: показываем только свои боты + главный бот пространства
     space = user.space
 
-    # Пользователи пространства с их chat_id
+    # Пользователи пространства с их chat_id (для отображения имён собеседников)
     space_users = SiteUser.objects.filter(space=space, tg_chat_id__isnull=False).values('tg_chat_id', 'email')
     space_chat_ids = {u['tg_chat_id']: u['email'] for u in space_users}
 
-    # Кастомные боты этого пространства
-    space_bots = {b.pk: b for b in CustomBot.objects.filter(space=space, is_active=True)}
+    # Только МОИ кастомные боты — переписки чужих ботов недоступны
+    my_bots = {b.pk: b for b in CustomBot.objects.filter(owner=user, is_active=True)}
+    own_bot_ids = list(my_bots.keys())
+    own_chat_id = user.tg_chat_id
 
-    # Все уникальные (chat_id, bot_id) из истории для этих chat_id
+    # Переписки: мои боты (все их чаты) + моя переписка с главным ботом
+    from django.db.models import Q as _Q
+    history_filter = _Q(bot_id__in=own_bot_ids)
+    if own_chat_id:
+        history_filter |= _Q(bot_id__isnull=True, chat_id=own_chat_id)
+
     convs_qs = (
         BotChatHistory.objects
-        .filter(chat_id__in=list(space_chat_ids.keys()))
+        .filter(history_filter)
         .values('chat_id', 'bot_id')
         .distinct()
         .order_by('bot_id', 'chat_id')
@@ -2820,7 +3908,7 @@ def bot_history(request):
         cid = c['chat_id']
         bid = c['bot_id']
         last_msg = BotChatHistory.objects.filter(chat_id=cid, bot_id=bid).order_by('-created_at').first()
-        bot_name = space_bots[bid].username if bid and bid in space_bots else 'Главный бот'
+        bot_name = my_bots[bid].username if bid and bid in my_bots else 'Главный бот'
         conversations.append({
             'chat_id': cid,
             'bot_id': bid,
@@ -2831,16 +3919,22 @@ def bot_history(request):
             'active': cid == selected_chat_id and bid == selected_bot_id_int,
         })
 
-    # Сообщения выбранного разговора
+    # Сообщения выбранного разговора — проверяем что bot принадлежит мне
     messages_list = []
     if selected_chat_id is not None:
-        qs = (
-            BotChatHistory.objects
-            .filter(chat_id=selected_chat_id, bot_id=selected_bot_id_int)
-            .select_related('recording')
-            .order_by('created_at')
+        # Безопасность: запрещаем смотреть переписки чужих ботов напрямую по URL
+        can_view = (
+            (selected_bot_id_int is None and own_chat_id == selected_chat_id) or
+            (selected_bot_id_int is not None and selected_bot_id_int in my_bots)
         )
-        messages_list = list(qs)
+        if can_view:
+            qs = (
+                BotChatHistory.objects
+                .filter(chat_id=selected_chat_id, bot_id=selected_bot_id_int)
+                .select_related('recording')
+                .order_by('created_at')
+            )
+            messages_list = list(qs)
 
     return render(request, 'recordings/bot_history.html', {
         'conversations': conversations,
@@ -2848,7 +3942,7 @@ def bot_history(request):
         'selected_chat_id': selected_chat_id,
         'selected_bot_id': selected_bot_id,
         'space_chat_ids': space_chat_ids,
-        'space_bots': space_bots,
+        'space_bots': my_bots,
     })
 
 
@@ -3030,3 +4124,1841 @@ def bot_history_delete_entry(request, history_id):
     entry = get_object_or_404(BotChatHistory, pk=history_id)
     entry.delete()
     return JsonResponse({'ok': True})
+
+
+# ─── Яндекс Вики → импорт в базу знаний ────────────────────────────────────
+
+_YA_WIKI_BASE = 'https://api.wiki.yandex.net/v1'
+
+
+def _ya_headers(token, org_id):
+    return {
+        'Authorization': f'OAuth {token}',
+        'X-Org-Id': str(org_id),
+    }
+
+
+@staff_member_required
+def yadoc_import(request):
+    return render(request, 'admin/recordings/yadoc_import.html')
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def yadoc_fetch_tree(request):
+    """Получить 2-уровневое дерево страниц из Яндекс Вики (AJAX)."""
+    import requests as rq
+
+    try:
+        body = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'Неверный JSON'}, status=400)
+
+    token = body.get('token', '').strip()
+    org_id = body.get('org_id', '').strip()
+    if not token or not org_id:
+        return JsonResponse({'error': 'Укажите токен и Org-ID'}, status=400)
+
+    headers = _ya_headers(token, org_id)
+    all_pages = []
+    next_page_token = None
+
+    try:
+        while True:
+            params = {'fields': 'id,slug,title,parentId', 'limit': 100}
+            if next_page_token:
+                params['pageToken'] = next_page_token
+            resp = rq.get(f'{_YA_WIKI_BASE}/pages', headers=headers, params=params, timeout=20)
+            if resp.status_code == 401:
+                return JsonResponse({'error': 'Неверный токен или Org-ID (401)'}, status=401)
+            if resp.status_code == 403:
+                return JsonResponse({'error': 'Нет доступа. Проверьте права токена (403)'}, status=403)
+            if resp.status_code != 200:
+                return JsonResponse({'error': f'Яндекс вернул {resp.status_code}: {resp.text[:300]}'}, status=400)
+            data = resp.json()
+            pages = data.get('pages', data.get('items', []))
+            all_pages.extend(pages)
+            next_page_token = data.get('nextPageToken')
+            if not next_page_token or len(all_pages) >= 1000:
+                break
+    except rq.RequestException as e:
+        return JsonResponse({'error': f'Ошибка сети: {e}'}, status=500)
+
+    # Строим дерево 2 уровней
+    page_map = {p['id']: p for p in all_pages}
+    children_map: dict = {}
+    roots = []
+
+    for p in all_pages:
+        pid = p.get('parentId')
+        if pid and pid in page_map:
+            children_map.setdefault(pid, []).append(p)
+        else:
+            roots.append(p)
+
+    def node(p, depth=0):
+        kids = []
+        if depth < 1:
+            kids = [node(c, depth + 1) for c in sorted(
+                children_map.get(p['id'], []), key=lambda x: x.get('slug', ''))]
+        return {
+            'id': p['id'],
+            'title': p.get('title') or p.get('slug', p['id']),
+            'slug': p.get('slug', ''),
+            'children': kids,
+        }
+
+    tree = [node(r) for r in sorted(roots, key=lambda x: x.get('slug', ''))]
+    return JsonResponse({'tree': tree, 'total': len(all_pages)})
+
+
+@staff_member_required
+@require_http_methods(['POST'])
+def yadoc_start_import(request):
+    """Сохранить параметры задания в сессию."""
+    try:
+        body = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'Неверный JSON'}, status=400)
+
+    request.session['yadoc_job'] = {
+        'token':        body.get('token', ''),
+        'org_id':       body.get('org_id', ''),
+        'selected_ids': body.get('selected_ids', []),
+        'tree':         body.get('tree', []),
+    }
+    return JsonResponse({'ok': True})
+
+
+@staff_member_required
+def yadoc_stream(request):
+    """SSE-поток: скачивает выбранные страницы и создаёт статьи в wiki_kb."""
+    import requests as rq
+    from wiki_kb.models import WikiArticle
+
+    job = request.session.get('yadoc_job')
+    if not job:
+        def _err():
+            yield 'data: {"type":"error","msg":"Задание не найдено — начните заново"}\n\n'
+        return StreamingHttpResponse(_err(), content_type='text/event-stream')
+
+    token = job['token']
+    org_id = job['org_id']
+    selected_ids = set(job['selected_ids'])
+    full_tree = job['tree']
+    headers = _ya_headers(token, org_id)
+
+    def generate():
+        def ev(data):
+            return f'data: {json.dumps(data, ensure_ascii=False)}\n\n'
+
+        def unique_slug(base):
+            parts = [slugify(p) for p in base.strip('/').split('/') if p]
+            candidate = ('-'.join(parts) or 'page')[:200]
+            orig, i = candidate, 0
+            while WikiArticle.objects.filter(slug=candidate).exists():
+                i += 1
+                candidate = f'{orig}-{i}'
+            return candidate
+
+        def fetch_body(page_id):
+            try:
+                r = rq.get(f'{_YA_WIKI_BASE}/pages/{page_id}',
+                           headers=headers, params={'fields': 'body'}, timeout=20)
+                if r.status_code == 200:
+                    d = r.json()
+                    return d.get('body') or d.get('text') or ''
+            except Exception:
+                pass
+            return ''
+
+        # Корневая статья
+        today = date.today().strftime('%Y-%m-%d')
+        root_title = f'Яндекс {today}'
+        root_slug = unique_slug(f'yandex-{today}')
+        root_article = WikiArticle.objects.create(
+            title=root_title, slug=root_slug,
+            content='Страницы, импортированные из Яндекс Вики.',
+        )
+        yield ev({'type': 'log', 'msg': f'📁 Создана корневая статья «{root_title}»'})
+
+        selected_nodes = [n for n in full_tree if n['id'] in selected_ids]
+        total = sum(1 + len(n.get('children', [])) for n in selected_nodes)
+        yield ev({'type': 'total', 'total': total})
+        done = 0
+
+        for node in selected_nodes:
+            body = fetch_body(node['id'])
+            slug1 = unique_slug(node.get('slug') or node['id'])
+            parent_art = WikiArticle.objects.create(
+                title=node.get('title') or 'Без названия',
+                slug=slug1, content=body, parent=root_article,
+            )
+            done += 1
+            yield ev({'type': 'progress', 'done': done, 'total': total,
+                      'msg': f'📄 {node.get("title") or node["id"]}'})
+
+            for child in node.get('children', []):
+                c_body = fetch_body(child['id'])
+                c_slug = unique_slug(child.get('slug') or child['id'])
+                WikiArticle.objects.create(
+                    title=child.get('title') or 'Без названия',
+                    slug=c_slug, content=c_body, parent=parent_art,
+                )
+                done += 1
+                yield ev({'type': 'progress', 'done': done, 'total': total,
+                          'msg': f'  └─ {child.get("title") or child["id"]}'})
+                time.sleep(0.05)
+
+        yield ev({'type': 'done',
+                  'msg': f'✅ Готово! Добавлено {done} страниц.',
+                  'wiki_url': f'/kb/{root_slug}/'})
+
+    response = StreamingHttpResponse(generate(), content_type='text/event-stream')
+    response['Cache-Control'] = 'no-cache'
+    response['X-Accel-Buffering'] = 'no'
+    return response
+
+
+@site_login_required
+def google_calendar_auth(request):
+    """Redirect user to Google OAuth for Calendar access."""
+    from django.conf import settings as _s
+    import urllib.parse
+    client_id = getattr(_s, 'GOOGLE_CLIENT_ID', '')
+    if not client_id:
+        return JsonResponse({'error': 'Google OAuth не настроен (GOOGLE_CLIENT_ID)'}, status=503)
+    redirect_uri = request.build_absolute_uri('/meetings/google-callback/')
+    params = urllib.parse.urlencode({
+        'client_id': client_id,
+        'redirect_uri': redirect_uri,
+        'response_type': 'code',
+        'scope': 'https://www.googleapis.com/auth/calendar.readonly',
+        'access_type': 'offline',
+        'prompt': 'consent',
+        'state': 'gcal',
+    })
+    return redirect(f'https://accounts.google.com/o/oauth2/v2/auth?{params}')
+
+
+def google_calendar_callback(request):
+    """Handle Google OAuth callback, save tokens to SiteUser."""
+    from django.conf import settings as _s
+    import urllib.request as _ur
+    import urllib.parse
+    user = get_current_user(request)
+    if not user:
+        return redirect('/login/')
+    code = request.GET.get('code', '')
+    if not code:
+        return redirect('/meetings/?gcal_error=no_code')
+    client_id = getattr(_s, 'GOOGLE_CLIENT_ID', '')
+    client_secret = getattr(_s, 'GOOGLE_CLIENT_SECRET', '')
+    redirect_uri = request.build_absolute_uri('/meetings/google-callback/')
+    payload = urllib.parse.urlencode({
+        'code': code,
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'redirect_uri': redirect_uri,
+        'grant_type': 'authorization_code',
+    }).encode()
+    req = _ur.Request('https://oauth2.googleapis.com/token', data=payload,
+                      headers={'Content-Type': 'application/x-www-form-urlencoded'})
+    try:
+        with _ur.urlopen(req, timeout=10) as r:
+            token_data = json.loads(r.read())
+    except Exception as e:
+        logger.error('Google OAuth token exchange failed: %s', e)
+        return redirect('/meetings/?gcal_error=token_failed')
+    user.google_calendar_token = token_data
+    user.save(update_fields=['google_calendar_token'])
+    return redirect('/meetings/?gcal_ok=1')
+
+
+@site_login_required
+@require_http_methods(['POST'])
+def google_calendar_import(request):
+    """Import upcoming events from Google Calendar into MeetingRoom."""
+    import urllib.request as _ur
+    import urllib.parse
+    from django.conf import settings as _s
+    from django.utils import timezone
+    from datetime import timedelta, datetime as _dt
+
+    user = get_current_user(request)
+    token_data = user.google_calendar_token if user else None
+    if not token_data or not token_data.get('access_token'):
+        return JsonResponse({'error': 'not_connected'}, status=400)
+
+    def _refresh_token(td):
+        client_id = getattr(_s, 'GOOGLE_CLIENT_ID', '')
+        client_secret = getattr(_s, 'GOOGLE_CLIENT_SECRET', '')
+        if not td.get('refresh_token'):
+            return td
+        payload = urllib.parse.urlencode({
+            'client_id': client_id,
+            'client_secret': client_secret,
+            'refresh_token': td['refresh_token'],
+            'grant_type': 'refresh_token',
+        }).encode()
+        req = _ur.Request('https://oauth2.googleapis.com/token', data=payload,
+                          headers={'Content-Type': 'application/x-www-form-urlencoded'})
+        try:
+            with _ur.urlopen(req, timeout=10) as r:
+                new_td = json.loads(r.read())
+            td['access_token'] = new_td['access_token']
+            if 'refresh_token' in new_td:
+                td['refresh_token'] = new_td['refresh_token']
+            return td
+        except Exception as e:
+            logger.warning('Google token refresh failed: %s', e)
+            return td
+
+    def _fetch_events(access_token):
+        now_str = timezone.now().isoformat().replace('+00:00', 'Z')
+        future_str = (timezone.now() + timedelta(days=60)).isoformat().replace('+00:00', 'Z')
+        params = urllib.parse.urlencode({
+            'timeMin': now_str,
+            'timeMax': future_str,
+            'singleEvents': 'true',
+            'orderBy': 'startTime',
+            'maxResults': '100',
+        })
+        req = _ur.Request(
+            f'https://www.googleapis.com/calendar/v3/calendars/primary/events?{params}',
+            headers={'Authorization': f'Bearer {access_token}'},
+        )
+        with _ur.urlopen(req, timeout=15) as r:
+            return json.loads(r.read())
+
+    # Try to fetch; if 401, refresh and retry once
+    access_token = token_data['access_token']
+    try:
+        data = _fetch_events(access_token)
+    except Exception as e:
+        if '401' in str(e):
+            token_data = _refresh_token(token_data)
+            user.google_calendar_token = token_data
+            user.save(update_fields=['google_calendar_token'])
+            access_token = token_data.get('access_token', '')
+            try:
+                data = _fetch_events(access_token)
+            except Exception as e2:
+                return JsonResponse({'error': str(e2)}, status=502)
+        else:
+            return JsonResponse({'error': str(e)}, status=502)
+
+    items = data.get('items', [])
+    created = 0
+    skipped = 0
+    import uuid as _uuid_mod
+
+    def _parse_gcal_dt(s):
+        if not s:
+            return None
+        for fmt in ('%Y-%m-%dT%H:%M:%S%z', '%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%d'):
+            try:
+                dt = _dt.strptime(s, fmt)
+                if dt.tzinfo is None:
+                    dt = timezone.make_aware(dt)
+                return dt
+            except ValueError:
+                pass
+        return None
+
+    for item in items:
+        if item.get('status') == 'cancelled':
+            skipped += 1
+            continue
+        google_id = item.get('id', '')
+        title = item.get('summary', '').strip() or 'Без названия'
+        start_raw = item.get('start', {}).get('dateTime') or item.get('start', {}).get('date', '')
+        end_raw = item.get('end', {}).get('dateTime') or item.get('end', {}).get('date', '')
+        scheduled_at = _parse_gcal_dt(start_raw)
+        ended_at = _parse_gcal_dt(end_raw)
+        join_url = (item.get('hangoutLink') or
+                    item.get('conferenceData', {}).get('entryPoints', [{}])[0].get('uri', '') or '')
+
+        # Skip if already imported
+        if google_id and MeetingRoom.objects.filter(google_event_id=google_id).exists():
+            skipped += 1
+            continue
+
+        room_name = _uuid_mod.uuid4().hex[:12]
+        while MeetingRoom.objects.filter(room_name=room_name).exists():
+            room_name = _uuid_mod.uuid4().hex[:12]
+
+        MeetingRoom.objects.create(
+            room_name=room_name,
+            title=title,
+            with_mascot=False,
+            created_by=user,
+            space=user.space if user else None,
+            scheduled_at=scheduled_at,
+            ended_at=ended_at,
+            join_url=join_url or None,
+            google_event_id=google_id or None,
+        )
+        created += 1
+
+    return JsonResponse({'ok': True, 'created': created, 'skipped': skipped})
+
+
+# ── Gonka AI панель ────────────────────────────────────────────────────────────
+
+_GONKA_NODES = [
+    'https://node3.gonka.ai',
+    'http://node1.gonka.ai:8000',
+    'http://node2.gonka.ai:8000',
+]
+_GONKA_EVM_ADDR = '0xB807a354cd0CBb955B5c90fC5F955428c82E6c45'
+_GONKA_ADDR = 'gonka12cf6d7346f2k6fe4hsl9nnehhzxnh0daw74nws'
+
+
+def _get_gonka_private_key():
+    import os
+    return os.environ.get('GONKA_PRIVATE_KEY', '')
+
+
+@site_login_required
+def gonka_panel(request):
+    """Секретная страница управления Gonka AI."""
+    import json as _json
+    import os as _os
+
+    saved = False
+    error = None
+
+    if request.method == 'POST':
+        action = request.POST.get('action', '')
+        if action == 'set_node':
+            node_url = request.POST.get('node_url', '').strip()
+            if node_url:
+                SystemConfig.set('gonka_node_url', node_url)
+                saved = True
+
+    pk = _get_gonka_private_key()
+    pk_masked = pk[:6] if pk else '??????'
+
+    current_node = SystemConfig.get('gonka_node_url', _GONKA_NODES[0])
+    model = SystemConfig.get('gonka_model', 'Qwen/Qwen3-235B-A22B-Instruct-2507-FP8')
+
+    return render(request, 'recordings/gonka_panel.html', {
+        'evm_address': _GONKA_EVM_ADDR,
+        'gonka_address': _GONKA_ADDR,
+        'pk_masked': pk_masked,
+        'pk_full': pk,
+        'nodes': _GONKA_NODES,
+        'nodes_json': _json.dumps(_GONKA_NODES),
+        'current_node': current_node,
+        'model': model,
+        'saved': saved,
+        'error': error,
+    })
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def gonka_api_node_check(request):
+    """Проверить доступность Gonka-нода."""
+    import json as _json
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'bad json'}, status=400)
+
+    node = data.get('node', '').strip()
+    if not node:
+        return JsonResponse({'ok': False, 'error': 'node required'}, status=400)
+
+    try:
+        import httpx as _httpx
+        r = _httpx.get(f'{node}/v1/identity', timeout=5)
+        if r.status_code == 200:
+            d = r.json()
+            block = d.get('data', {}).get('block', '?')
+            return JsonResponse({'ok': True, 'block': block})
+        return JsonResponse({'ok': False, 'error': f'HTTP {r.status_code}'})
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)[:100]})
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def gonka_api_test(request):
+    """Тестовый инференс-запрос через Gonka."""
+    import json as _json
+    import os as _os
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'bad json'}, status=400)
+
+    prompt = data.get('prompt', '').strip()
+    if not prompt:
+        return JsonResponse({'error': 'prompt required'}, status=400)
+
+    pk = _get_gonka_private_key()
+    if not pk:
+        return JsonResponse({'error': 'GONKA_PRIVATE_KEY не задан'})
+
+    node = SystemConfig.get('gonka_node_url', 'https://node3.gonka.ai')
+    model = SystemConfig.get('gonka_model', 'Qwen/Qwen3-235B-A22B-Instruct-2507-FP8')
+
+    try:
+        from gonka_openai import GonkaOpenAI
+        client = GonkaOpenAI(gonka_private_key=pk, source_url=node)
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{'role': 'user', 'content': prompt}],
+            temperature=0.3,
+            max_tokens=200,
+        )
+        return JsonResponse({
+            'result': resp.choices[0].message.content,
+            'model': model,
+            'node': node,
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)[:400]})
+
+
+@require_http_methods(['GET'])
+def db_export_download(request, filename):
+    """Скачать Excel-файл, сгенерированный DB-агентом."""
+    import re
+    import mimetypes
+    from django.http import FileResponse, Http404
+
+    # Только безопасные имена: chemico_export_YYYYMMDD_HHMMSS.xlsx
+    if not re.fullmatch(r'chemico_export_\d{8}_\d{6}\.xlsx', filename):
+        raise Http404
+
+    export_dir = settings.MEDIA_ROOT / 'db_exports'
+    fpath = export_dir / filename
+    if not fpath.exists():
+        raise Http404
+
+    mime, _ = mimetypes.guess_type(str(fpath))
+    response = FileResponse(open(fpath, 'rb'), content_type=mime or 'application/octet-stream')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+# ── Web Chat API ─────────────────────────────────────────────────────────────
+
+def _get_chat_session_id(request) -> int:
+    """Stable integer chat_id from session key."""
+    if not request.session.session_key:
+        request.session.create()
+    key = request.session.session_key
+    return abs(hash(key)) % (2**31)
+
+
+@csrf_exempt
+@require_http_methods(['GET'])
+def chat_page(request, token):
+    """Public web chat page for a CustomBot."""
+    from recordings.models import CustomBot
+    try:
+        import uuid as _uuid
+        bot = CustomBot.objects.get(public_chat_token=_uuid.UUID(str(token)), is_active=True)
+    except (CustomBot.DoesNotExist, ValueError):
+        from django.http import Http404
+        raise Http404
+    return render(request, 'recordings/chat.html', {'bot': bot})
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def chat_send(request, token):
+    """REST: send text message to the agent."""
+    import json as _json
+    from recordings.models import CustomBot, BotChatHistory
+    try:
+        import uuid as _uuid
+        bot = CustomBot.objects.get(public_chat_token=_uuid.UUID(str(token)), is_active=True)
+    except (CustomBot.DoesNotExist, ValueError):
+        return JsonResponse({'error': 'not found'}, status=404)
+
+    try:
+        data = _json.loads(request.body)
+        question = data.get('message', '').strip()
+    except Exception:
+        return JsonResponse({'error': 'bad request'}, status=400)
+
+    if not question:
+        return JsonResponse({'error': 'empty message'}, status=400)
+
+    chat_id = _get_chat_session_id(request)
+
+    # Route to db_agent or wiki_rag based on bot config
+    from recordings.models import SystemConfig
+    answer_mode = SystemConfig.get(f'db_bot_{bot.pk}_answer_mode', 'wiki_rag')
+
+    if answer_mode == 'db_agent':
+        from chemico_agent.agent import ask
+        result = ask(question, chat_id=chat_id, bot_id=bot.pk)
+        return JsonResponse({
+            'text': result['text'],
+            'excel_url': result.get('excel_url'),
+            'provider': result.get('provider'),
+            'model': result.get('model'),
+        })
+    else:
+        # Wiki RAG
+        from recordings.bot_agent import run_agent
+        space = getattr(bot.owner, 'space', None) if bot.owner else None
+        answer, sources = run_agent(
+            chat_id=chat_id,
+            user_message=question,
+            space=space,
+            bot_id=bot.pk,
+            custom_bot=bot,
+            owner=bot.owner,
+        )
+        return JsonResponse({'text': answer})
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def chat_upload(request, token):
+    """REST: upload file (photo/excel/csv) to the agent."""
+    from recordings.models import CustomBot, SystemConfig
+    try:
+        import uuid as _uuid
+        bot = CustomBot.objects.get(public_chat_token=_uuid.UUID(str(token)), is_active=True)
+    except (CustomBot.DoesNotExist, ValueError):
+        return JsonResponse({'error': 'not found'}, status=404)
+
+    if 'file' not in request.FILES:
+        return JsonResponse({'error': 'no file'}, status=400)
+
+    uploaded = request.FILES['file']
+    caption = request.POST.get('caption', '').strip()
+    chat_id = _get_chat_session_id(request)
+    answer_mode = SystemConfig.get(f'db_bot_{bot.pk}_answer_mode', 'wiki_rag')
+    fname = uploaded.name.lower()
+
+    import tempfile, os
+
+    # Save to temp file
+    suffix = os.path.splitext(uploaded.name)[1] or '.bin'
+    fd, tmp_path = tempfile.mkstemp(suffix=suffix)
+    try:
+        with os.fdopen(fd, 'wb') as f:
+            for chunk in uploaded.chunks():
+                f.write(chunk)
+
+        # Excel / CSV handling (only in db_agent mode)
+        if fname.endswith(('.xlsx', '.xls', '.csv')) and answer_mode == 'db_agent':
+            # Convert CSV to xlsx if needed
+            if fname.endswith('.csv'):
+                import pandas as pd
+                df = pd.read_csv(tmp_path)
+                xlsx_path = tmp_path + '.xlsx'
+                df.to_excel(xlsx_path, index=False)
+                os.unlink(tmp_path)
+                tmp_path = xlsx_path
+
+            from chemico_agent.excel_input import ask_about_excel, enrich_excel_from_db, _is_enrich_request
+            if _is_enrich_request(caption):
+                result = enrich_excel_from_db(tmp_path, caption or 'Дополни файл данными из базы данных')
+            else:
+                result = ask_about_excel(tmp_path, caption or 'Опиши содержимое файла: сколько строк, какие колонки, ключевые показатели')
+            return JsonResponse({
+                'text': result['text'],
+                'excel_url': result.get('excel_url'),
+            })
+
+        # Photo handling — OCR then agent
+        if fname.endswith(('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp')):
+            # Use OCR server
+            import requests as _req
+            from django.conf import settings as _s
+            ocr_url = getattr(_s, 'OCR_SERVER_URL', 'http://ocr:8001')
+            try:
+                with open(tmp_path, 'rb') as img_f:
+                    ocr_resp = _req.post(f'{ocr_url}/ocr', files={'file': img_f}, timeout=30)
+                ocr_text = ocr_resp.json().get('text', '').strip() if ocr_resp.ok else ''
+            except Exception:
+                ocr_text = ''
+
+            if not ocr_text:
+                return JsonResponse({'text': 'Текст на изображении не распознан.'})
+
+            question = f'На изображении распознан текст:\n{ocr_text}\n\n'
+            if caption:
+                question += f'Вопрос: {caption}'
+            else:
+                question += 'Что можно сказать по этим данным? Если это финансовые данные — сделай анализ.'
+
+            if answer_mode == 'db_agent':
+                from chemico_agent.agent import ask
+                result = ask(question, chat_id=chat_id, bot_id=bot.pk)
+                return JsonResponse({'text': result['text'], 'ocr_text': ocr_text})
+            else:
+                from recordings.bot_agent import ask as wiki_ask
+                answer = wiki_ask(question, bot=bot, chat_id=chat_id)
+                return JsonResponse({'text': answer, 'ocr_text': ocr_text})
+
+        return JsonResponse({'error': 'Неподдерживаемый тип файла'}, status=400)
+
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+
+@require_http_methods(['GET'])
+def chat_history(request, token):
+    """REST: get message history for the current session."""
+    from recordings.models import CustomBot, BotChatHistory
+    try:
+        import uuid as _uuid
+        bot = CustomBot.objects.get(public_chat_token=_uuid.UUID(str(token)), is_active=True)
+    except (CustomBot.DoesNotExist, ValueError):
+        return JsonResponse({'error': 'not found'}, status=404)
+
+    chat_id = _get_chat_session_id(request)
+    msgs = list(
+        BotChatHistory.objects.filter(chat_id=chat_id, bot_id=bot.pk)
+        .order_by('created_at')
+        .values('role', 'content', 'created_at')[:100]
+    )
+    for m in msgs:
+        m['created_at'] = m['created_at'].isoformat()
+    return JsonResponse({'messages': msgs})
+
+
+# ── Excel Studio ──────────────────────────────────────────────────────────────
+
+@site_login_required
+def db_excel_page(request):
+    user = get_current_user(request)
+    return render(request, 'recordings/db_excel.html', {'user': user})
+
+
+@site_login_required
+@csrf_exempt
+def db_excel_upload(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+    import pandas as pd, tempfile, os, math
+    f = request.FILES.get('file')
+    if not f:
+        return JsonResponse({'error': 'Файл не передан'}, status=400)
+    suffix = '.xlsx' if f.name.lower().endswith('.xlsx') else '.xls'
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    try:
+        for chunk in f.chunks():
+            tmp.write(chunk)
+        tmp.close()
+        engine = 'openpyxl' if suffix == '.xlsx' else 'xlrd'
+        df = pd.read_excel(tmp.name, engine=engine)
+        columns = [str(c) for c in df.columns]
+        rows = []
+        for _, row in df.iterrows():
+            r = {}
+            for k, v in row.items():
+                if v is None or (isinstance(v, float) and math.isnan(v)):
+                    r[str(k)] = None
+                elif hasattr(v, 'isoformat'):
+                    r[str(k)] = str(v)
+                else:
+                    r[str(k)] = v
+            rows.append(r)
+        return JsonResponse({'columns': columns, 'rows': rows,
+                             'filename': f.name, 'total': len(rows)})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except Exception:
+            pass
+
+
+@site_login_required
+@csrf_exempt
+def db_excel_fill_column(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+    import pandas as pd, tempfile, os, json as _json, math
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'bad json'}, status=400)
+
+    rows = data.get('rows', [])
+    col_name = data.get('col_name', '').strip()
+    prompt = data.get('prompt', '').strip()
+    key_col = data.get('key_col', '').strip()
+    test_mode = data.get('test', False)
+
+    if not rows or not col_name or not prompt:
+        return JsonResponse({'error': 'rows, col_name, prompt обязательны'}, status=400)
+
+    work_rows = rows[:3] if test_mode else rows
+    df = pd.DataFrame(work_rows)
+    orig_cols = set(str(c) for c in df.columns)
+    if col_name in df.columns:
+        df = df.drop(columns=[col_name])
+
+    tmp = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
+    result_path = None
+    try:
+        tmp.close()
+        df.to_excel(tmp.name, index=False)
+
+        instruction = f"Добавь колонку «{col_name}»: {prompt}."
+        if key_col:
+            instruction += f" Для сопоставления строк используй поле «{key_col}»."
+        instruction += " Сохрани все исходные строки, добавив только запрошенную колонку."
+
+        from chemico_agent.excel_input import enrich_excel_from_db
+        result = enrich_excel_from_db(tmp.name, instruction)
+
+        result_path = result.get('excel_path')
+        if not result_path or not os.path.exists(str(result_path)):
+            return JsonResponse({
+                'error': result.get('text', 'Агент не вернул файл'),
+                'col_name': col_name,
+            }, status=400)
+
+        df_result = pd.read_excel(result_path, engine='openpyxl')
+
+        # Ищем целевую колонку (точное совпадение, потом регистронезависимо)
+        target_col = None
+        for c in df_result.columns:
+            if str(c) == col_name:
+                target_col = c
+                break
+        if not target_col:
+            for c in df_result.columns:
+                if str(c).lower() == col_name.lower():
+                    target_col = c
+                    break
+        if not target_col:
+            new_cols = [c for c in df_result.columns if str(c) not in orig_cols]
+            target_col = new_cols[0] if new_cols else None
+
+        if not target_col:
+            return JsonResponse({
+                'error': 'Агент не создал нужный столбец',
+                'col_name': col_name,
+                'text': result.get('text', ''),
+            }, status=400)
+
+        values = []
+        for v in df_result[target_col]:
+            if v is None or (isinstance(v, float) and math.isnan(v)):
+                values.append(None)
+            elif hasattr(v, 'isoformat'):
+                values.append(str(v))
+            else:
+                values.append(v)
+
+        return JsonResponse({
+            'col_name': col_name,
+            'values': values,
+            'total': len(values),
+            'text': result.get('text', ''),
+        })
+    except Exception as e:
+        logger.exception('db_excel_fill_column failed')
+        return JsonResponse({'error': str(e), 'col_name': col_name}, status=500)
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except Exception:
+            pass
+        if result_path:
+            try:
+                os.unlink(str(result_path))
+            except Exception:
+                pass
+
+
+@site_login_required
+@csrf_exempt
+def db_excel_fill_sse(request):
+    """
+    SSE streaming fill endpoint.
+    Immediately sends a progress event, then blocks while the agent runs,
+    then streams the resulting values in chunks for a reactive fill effect.
+
+    Yields SSE events:
+      {type: 'progress', message: '...'}
+      {type: 'chunk',    start: N, values: [...], total: M}
+      {type: 'done',     total: N, text: '...'}
+      {type: 'error',    message: '...'}
+    """
+    if request.method != 'POST':
+        from django.http import HttpResponse
+        return HttpResponse('POST only', status=405)
+
+    import json as _json, pandas as pd, tempfile, os, math
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        from django.http import HttpResponse
+        return HttpResponse('bad json', status=400)
+
+    rows     = data.get('rows', [])
+    col_name = data.get('col_name', '').strip()
+    prompt   = data.get('prompt', '').strip()
+    key_col  = data.get('key_col', '').strip()
+
+    def generate():
+        yield 'data: ' + _json.dumps({'type': 'progress', 'message': '⏳ Агент выполняет запрос к базе данных...'}) + '\n\n'
+
+        tmp_path = result_path = None
+        try:
+            df = pd.DataFrame(rows)
+            orig_cols = set(str(c) for c in df.columns)
+            if col_name in df.columns:
+                df = df.drop(columns=[col_name])
+
+            tmp = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
+            tmp.close()
+            tmp_path = tmp.name
+            df.to_excel(tmp_path, index=False)
+
+            instruction = f'Добавь колонку «{col_name}»: {prompt}.'
+            if key_col:
+                instruction += f' Для сопоставления строк используй поле «{key_col}».'
+            instruction += ' Сохрани все исходные строки, добавив только запрошенную колонку.'
+
+            from chemico_agent.excel_input import enrich_excel_from_db
+            result = enrich_excel_from_db(tmp_path, instruction)
+
+            result_path = result.get('excel_path')
+            if not result_path or not os.path.exists(str(result_path)):
+                yield 'data: ' + _json.dumps({'type': 'error', 'message': result.get('text', 'Агент не вернул файл')}) + '\n\n'
+                return
+
+            df_result = pd.read_excel(result_path, engine='openpyxl')
+
+            target_col = next((c for c in df_result.columns if str(c) == col_name), None)
+            if not target_col:
+                target_col = next((c for c in df_result.columns if str(c).lower() == col_name.lower()), None)
+            if not target_col:
+                new_cols = [c for c in df_result.columns if str(c) not in orig_cols]
+                target_col = new_cols[0] if new_cols else None
+
+            if not target_col:
+                yield 'data: ' + _json.dumps({'type': 'error', 'message': 'Агент не создал нужный столбец'}) + '\n\n'
+                return
+
+            values = []
+            for v in df_result[target_col]:
+                if v is None or (isinstance(v, float) and math.isnan(v)):
+                    values.append(None)
+                elif hasattr(v, 'isoformat'):
+                    values.append(str(v))
+                else:
+                    values.append(v)
+
+            # Stream in ~20 chunks for reactive visual effect
+            chunk_size = max(1, math.ceil(len(values) / 20))
+            for i in range(0, len(values), chunk_size):
+                chunk = values[i:i + chunk_size]
+                yield 'data: ' + _json.dumps({'type': 'chunk', 'start': i, 'values': chunk, 'total': len(values)}) + '\n\n'
+
+            yield 'data: ' + _json.dumps({'type': 'done', 'total': len(values), 'text': result.get('text', '')}) + '\n\n'
+
+        except Exception as e:
+            logger.exception('db_excel_fill_sse failed')
+            yield 'data: ' + _json.dumps({'type': 'error', 'message': str(e)}) + '\n\n'
+        finally:
+            for p in [tmp_path, result_path]:
+                if p:
+                    try:
+                        os.unlink(str(p))
+                    except Exception:
+                        pass
+
+    from django.http import StreamingHttpResponse
+    resp = StreamingHttpResponse(generate(), content_type='text/event-stream')
+    resp['Cache-Control'] = 'no-cache'
+    resp['X-Accel-Buffering'] = 'no'
+    return resp
+
+
+@site_login_required
+@csrf_exempt
+def db_excel_col_chat(request):
+    """
+    Planner endpoint for column chat.
+    Determines if user's request has enough info to fill a column,
+    or asks ONE clarifying question with option chips.
+
+    Request JSON: {col_name, message, history: [{role, content}], columns, rows_sample}
+    Response JSON:
+      {ready: true,  prompt: "..."}          — enough info, use prompt to fill
+      {ready: false, question: "...", options: ["A","B","C"]}  — need clarification
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+    import json as _json
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'bad json'}, status=400)
+
+    col_name    = data.get('col_name', '').strip()
+    message     = data.get('message', '').strip()
+    history     = data.get('history', [])       # [{role, content}]
+    columns     = data.get('columns', [])[:20]
+    rows_sample = data.get('rows_sample', [])[:3]
+
+    if not col_name or not message:
+        return JsonResponse({'error': 'col_name и message обязательны'}, status=400)
+
+    history_text = ''
+    if history:
+        history_text = '\nИстория диалога:\n' + '\n'.join(
+            f"{'Пользователь' if m['role']=='user' else 'Ассистент'}: {m['content']}"
+            for m in history
+        ) + '\n'
+
+    import json as _json
+    rows_preview = _json.dumps(rows_sample[:2], ensure_ascii=False)[:600] if rows_sample else ''
+
+    # Load full DB schema (cached)
+    schema_ctx = ''
+    try:
+        from chemico_agent.knowledge import get_wiki_context_cached
+        schema_ctx = get_wiki_context_cached()
+        if not schema_ctx:
+            from chemico_agent.knowledge import BUILTIN_SCHEMA_DOCS
+            schema_ctx = BUILTIN_SCHEMA_DOCS
+    except Exception:
+        pass
+
+    planner_prompt = f"""Ты эксперт по базе данных Chemico (PostgreSQL) и помогаешь заполнять Excel-таблицы данными из неё.
+Ты понимаешь свободные описания пользователя и переводишь их в точные SQL-инструкции.
+
+{'=== СХЕМА БД Chemico ===' + chr(10) + schema_ctx + chr(10) if schema_ctx else ''}=== EXCEL-ТАБЛИЦА ===
+Столбец для заполнения: «{col_name}»
+Другие столбцы: {', '.join(columns)}
+{f'Пример строк: {rows_preview}' if rows_preview else ''}
+{history_text}=== НОВОЕ СООБЩЕНИЕ ПОЛЬЗОВАТЕЛЯ ===
+{message}
+
+=== ЗАДАЧА ===
+Пользователь описывает своими словами что хочет. Ты должен понять его намерение и определить:
+1. Понятно ЧТО достать из БД (поле, таблица, условия)
+2. Понятно КАК сопоставить строки Excel с БД (ключевой столбец для JOIN)
+3. Нет неоднозначности (если есть — задай ОДИН уточняющий вопрос)
+
+Если всё ясно — верни JSON:
+{{"ready": true, "prompt": "<точная инструкция агенту: что взять, из каких таблиц, по какому ключу, как обработать>"}}
+
+Если нужно уточнение — задай ОДИН короткий вопрос с вариантами:
+{{"ready": false, "question": "<короткий вопрос>", "options": ["Вариант А", "Вариант Б", "Вариант В"]}}
+
+ВАЖНО: используй знания схемы БД для интерпретации — например «номер сделки» = registration_number, «покупатель» = company_unit через SOLD productunit, «поставщик» = shipper_company через providerunit.
+Отвечай ТОЛЬКО валидным JSON без markdown-блоков."""
+
+    try:
+        from chemico_agent.llm import get_langchain_llm
+        llm = get_langchain_llm(temperature=0)
+        resp = llm.invoke(planner_prompt)
+        content = resp.content.strip()
+        # Strip markdown fences if LLM wrapped them
+        if content.startswith('```'):
+            lines = content.split('\n')
+            content = '\n'.join(lines[1:-1] if lines[-1] == '```' else lines[1:])
+        plan = _json.loads(content)
+        return JsonResponse(plan)
+    except Exception as e:
+        logger.exception('db_excel_col_chat planner failed')
+        # Fallback: treat as ready with raw message
+        return JsonResponse({'ready': True, 'prompt': message})
+
+
+@site_login_required
+@csrf_exempt
+def db_excel_templates(request):
+    import json as _json, uuid as _uuid
+    from wiki_kb.models import WikiArticle, WikiRevision
+    user = get_current_user(request)
+    space = getattr(user, 'space', None)
+
+    if request.method == 'GET':
+        qs = WikiArticle.objects.filter(
+            is_personal=True, is_deleted=False,
+            created_by=user, slug__startswith='xl-tpl-',
+        )
+        result = []
+        for art in qs.order_by('-updated_at')[:30]:
+            try:
+                config = _json.loads(art.content)
+                result.append({
+                    'slug': art.slug,
+                    'name': art.title.replace('XL: ', '', 1),
+                    'config': config,
+                    'updated_at': art.updated_at.isoformat(),
+                })
+            except Exception:
+                pass
+        return JsonResponse({'templates': result})
+
+    if request.method == 'POST':
+        try:
+            data = _json.loads(request.body)
+        except Exception:
+            return JsonResponse({'error': 'bad json'}, status=400)
+        name = (data.get('name') or '').strip()
+        config = data.get('config', {})
+        if not name:
+            return JsonResponse({'error': 'name required'}, status=400)
+        content = _json.dumps(config, ensure_ascii=False, indent=2)
+        base_slug = 'xl-tpl-' + (slugify(name) or 'template')
+        existing = WikiArticle.objects.filter(
+            slug__startswith=base_slug, created_by=user,
+            is_personal=True, is_deleted=False,
+        ).first()
+        if existing:
+            existing.content = content
+            existing.title = f'XL: {name}'
+            existing.save(update_fields=['content', 'title', 'updated_at'])
+            WikiRevision.objects.create(article=existing, content=content, comment='Excel-студия')
+            return JsonResponse({'ok': True, 'slug': existing.slug})
+        slug = base_slug + '-' + _uuid.uuid4().hex[:6]
+        art = WikiArticle.objects.create(
+            title=f'XL: {name}', slug=slug, content=content,
+            space=space, created_by=user, is_personal=True,
+        )
+        WikiRevision.objects.create(article=art, content=content, comment='Excel-студия')
+        return JsonResponse({'ok': True, 'slug': slug}, status=201)
+
+    return JsonResponse({'error': 'method not allowed'}, status=405)
+
+
+# ── Excel Session (Telegram → Studio) ─────────────────────────────────────────
+
+@site_login_required
+def db_excel_session(request, session_id):
+    """Загрузить сессию Excel Studio по UUID."""
+    from .models import ExcelSession
+    import json as _json
+    user = get_current_user(request)
+    try:
+        session = ExcelSession.objects.get(id=session_id)
+    except ExcelSession.DoesNotExist:
+        return render(request, 'recordings/db_excel.html', {
+            'user': user, 'session_error': 'Сессия не найдена',
+        })
+    return render(request, 'recordings/db_excel.html', {
+        'user': user,
+        'session_id': str(session.id),
+        'session_json': _json.dumps({
+            'filename': session.filename,
+            'columns': session.columns,
+            'rows': session.rows,
+            'col_configs': session.col_configs,
+        }),
+    })
+
+
+@site_login_required
+@csrf_exempt
+def db_excel_session_save(request, session_id):
+    """Сохранить состояние сессии (rows + col_configs)."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+    import json as _json
+    from .models import ExcelSession
+    try:
+        session = ExcelSession.objects.get(id=session_id)
+    except ExcelSession.DoesNotExist:
+        return JsonResponse({'error': 'not found'}, status=404)
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'bad json'}, status=400)
+    if 'rows' in data:
+        session.rows = data['rows']
+    if 'columns' in data:
+        session.columns = data['columns']
+    if 'col_configs' in data:
+        session.col_configs = data['col_configs']
+    session.save(update_fields=['rows', 'columns', 'col_configs', 'updated_at'])
+    return JsonResponse({'ok': True})
+
+
+@site_login_required
+@csrf_exempt
+def db_excel_wiki_templates(request):
+    """
+    GET             — список шаблонов из вики (chemico-tpl-*, xl-tpl-*, XL:, Шаблон:).
+    GET ?slug=<slug> — детальный конфиг одного шаблона (slug обязателен).
+    GET ?q=<query>  — поиск по slug/title для автодополнения.
+    """
+    from wiki_kb.models import WikiArticle
+    import json as _json
+    user = get_current_user(request)
+    space = getattr(user, 'space', None)
+
+    # ── Детальный запрос одной статьи ─────────────────────────────────────
+    slug = request.GET.get('slug', '').strip()
+    if slug:
+        try:
+            art = WikiArticle.objects.get(slug=slug, is_deleted=False)
+        except WikiArticle.DoesNotExist:
+            return JsonResponse({'error': 'not found'}, status=404)
+        col_configs = {}
+        content = art.content.strip() if art.content else ''
+        if content.startswith('{'):
+            try:
+                col_configs = _json.loads(content)
+            except Exception:
+                pass
+        return JsonResponse({
+            'slug': art.slug,
+            'title': art.title,
+            'col_configs': col_configs,
+            'has_configs': bool(col_configs),
+            'content_preview': content[:1000],
+            'url': f'/kb/{art.slug}/',
+        })
+
+    # ── Поиск для автодополнения ───────────────────────────────────────────
+    from django.db.models import Q as _Q
+    q = request.GET.get('q', '').strip()
+    if q:
+        qs = WikiArticle.objects.filter(is_deleted=False).filter(
+            _Q(slug__icontains=q) | _Q(title__icontains=q)
+        )
+        if space:
+            qs = qs.filter(_Q(space=space) | _Q(space__isnull=True))
+        results = [{'slug': a.slug, 'title': a.title} for a in qs.order_by('-updated_at')[:20]]
+        return JsonResponse({'results': results})
+
+    # ── Список шаблонов ────────────────────────────────────────────────────
+    qs = WikiArticle.objects.filter(
+        is_deleted=False,
+    ).filter(
+        _Q(slug__startswith='chemico-tpl-') |
+        _Q(slug__startswith='xl-tpl-') |
+        _Q(title__startswith='XL: ') |
+        _Q(title__startswith='Шаблон:') |
+        _Q(title__startswith='Шаблон ') |
+        _Q(slug='chemico-query-templates')
+    )
+    if space:
+        qs = qs.filter(_Q(space=space) | _Q(space__isnull=True))
+
+    result = []
+    for art in qs.order_by('-updated_at')[:40]:
+        entry = {
+            'slug': art.slug,
+            'title': art.title,
+            'updated_at': art.updated_at.isoformat(),
+            'url': f'/kb/{art.slug}/',
+        }
+        content = (art.content or '').strip()
+        if content.startswith('{'):
+            try:
+                cfg = _json.loads(content)
+                entry['col_configs'] = cfg
+            except Exception:
+                pass
+        result.append(entry)
+    return JsonResponse({'templates': result})
+
+
+# ── MicroPreset API ─────────────────────────────────────────────────────────
+
+@site_login_required
+@csrf_exempt
+def api_micropresets(request):
+    """
+    GET             — список пресетов пользователя
+    POST            — создать или обновить пресет {name, wiki_slug, col_configs, id?}
+    DELETE ?id=<n>  — удалить пресет
+    """
+    import json as _json
+    from .models import MicroPreset
+    user = get_current_user(request)
+
+    if request.method == 'GET':
+        presets = MicroPreset.objects.filter(user=user)
+        return JsonResponse({'presets': [
+            {
+                'id': p.id,
+                'name': p.name,
+                'wiki_slug': p.wiki_slug,
+                'col_configs': p.col_configs,
+                'updated_at': p.updated_at.isoformat(),
+                'col_count': len(p.col_configs),
+            }
+            for p in presets
+        ]})
+
+    if request.method == 'POST':
+        try:
+            data = _json.loads(request.body)
+        except Exception:
+            return JsonResponse({'error': 'bad json'}, status=400)
+        name = data.get('name', '').strip()
+        if not name:
+            return JsonResponse({'error': 'name required'}, status=400)
+        preset_id = data.get('id')
+        if preset_id:
+            try:
+                preset = MicroPreset.objects.get(id=preset_id, user=user)
+            except MicroPreset.DoesNotExist:
+                preset = MicroPreset(user=user)
+        else:
+            preset = MicroPreset(user=user)
+        preset.name = name
+        preset.wiki_slug = data.get('wiki_slug', '')
+        preset.col_configs = data.get('col_configs', {})
+        preset.save()
+        return JsonResponse({'ok': True, 'id': preset.id})
+
+    if request.method == 'DELETE':
+        preset_id = request.GET.get('id')
+        if not preset_id:
+            return JsonResponse({'error': 'id required'}, status=400)
+        deleted, _ = MicroPreset.objects.filter(id=preset_id, user=user).delete()
+        return JsonResponse({'ok': bool(deleted)})
+
+    return JsonResponse({'error': 'method not allowed'}, status=405)
+
+
+# ── Global chat planner ─────────────────────────────────────────────────────
+
+@site_login_required
+@csrf_exempt
+def db_excel_global_chat(request):
+    """
+    Planner for global table fill (all columns at once).
+
+    Request JSON: {message, columns, rows_sample, wiki_slug, history}
+    Response JSON:
+      {ready: true, plan: [{col, prompt, key_col}], summary: "..."}
+      {ready: false, question: "...", options: [...]}
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+    import json as _json
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'bad json'}, status=400)
+
+    message     = data.get('message', '').strip()
+    columns     = data.get('columns', [])[:30]
+    rows_sample = data.get('rows_sample', [])[:3]
+    wiki_slug   = data.get('wiki_slug', '').strip()
+    history     = data.get('history', [])
+
+    # message is optional — empty message means "auto-analyze"
+    auto_mode = not message
+    if auto_mode:
+        message = 'Проанализируй столбцы таблицы и определи, какие из них можно заполнить из БД Chemico.'
+
+    # Load DB schema for the planner (cached, full schema)
+    try:
+        from chemico_agent.knowledge import get_wiki_context_cached, BUILTIN_SCHEMA_DOCS
+        schema_context = get_wiki_context_cached() or BUILTIN_SCHEMA_DOCS
+    except Exception:
+        schema_context = ''
+
+    # Load extra wiki context if provided
+    wiki_context = ''
+    if wiki_slug:
+        try:
+            from wiki_kb.models import WikiArticle
+            art = WikiArticle.objects.get(slug=wiki_slug, is_deleted=False)
+            wiki_context = f'\nДополнительный контекст из вики «{art.title}»:\n{art.content[:1500]}\n'
+        except Exception:
+            pass
+
+    rows_preview = _json.dumps(rows_sample[:3], ensure_ascii=False)[:800] if rows_sample else ''
+    history_text = ''
+    if history:
+        history_text = '\nИстория диалога:\n' + '\n'.join(
+            f"{'Пользователь' if m['role']=='user' else 'Ассистент'}: {m['content']}"
+            for m in history[-6:]
+        ) + '\n'
+
+    cols_str = ', '.join(f'«{c}»' for c in columns)
+
+    planner_prompt = f"""Ты эксперт по базе данных Chemico (PostgreSQL) и помогаешь заполнять Excel-таблицы данными из неё.
+Ты понимаешь свободные описания пользователя и переводишь их в точные инструкции.
+
+{'=== СХЕМА БД Chemico ===' + chr(10) + schema_context if schema_context else ''}
+{wiki_context}
+=== EXCEL-ТАБЛИЦА ===
+Столбцы: {cols_str}
+{f'Пример строк (первые 3):{chr(10)}{rows_preview}' if rows_preview else ''}
+{history_text}
+=== ЗАДАЧА ===
+{message}
+
+По названиям столбцов Excel и примерам данных определи:
+1. Какой столбец является КЛЮЧОМ для соединения с БД (обычно: номер сделки, регистрационный номер, артикул)
+2. Какие остальные столбцы можно заполнить данными из БД (сопоставь по смыслу с полями таблиц Chemico)
+3. Для каждого заполняемого столбца — точная инструкция агенту
+
+Верни JSON (без markdown-блоков):
+{{"ready": true, "plan": [{{"col": "<имя столбца из Excel>", "prompt": "<точная инструкция: что достать, из какой таблицы, по какому полю сопоставить с ключом>", "key_col": "<имя ключевого столбца из Excel>"}}], "summary": "<1 предложение: что будет заполнено и по какому ключу>"}}
+
+Если нет ни одного столбца который можно заполнить — верни:
+{{"ready": false, "question": "<вопрос пользователю>", "options": ["вариант 1", "вариант 2"]}}
+
+ВАЖНО:
+- Не включай ключевой столбец сам в план (он используется только для JOIN)
+- Если столбец уже содержит данные (ID, имена введённые вручную) — пропусти
+- Отвечай ТОЛЬКО валидным JSON"""
+
+    try:
+        from chemico_agent.llm import get_langchain_llm
+        llm = get_langchain_llm(temperature=0)
+        resp = llm.invoke(planner_prompt)
+        content = resp.content.strip()
+        if content.startswith('```'):
+            lines = content.split('\n')
+            content = '\n'.join(lines[1:-1] if lines[-1] == '```' else lines[1:])
+        plan = _json.loads(content)
+        return JsonResponse(plan)
+    except Exception as e:
+        logger.exception('db_excel_global_chat planner failed')
+        return JsonResponse({'ready': True, 'plan': [], 'summary': 'Ошибка планировщика: ' + str(e)})
+
+
+# ── Global fill SSE (multi-column) ──────────────────────────────────────────
+
+@site_login_required
+@csrf_exempt
+def db_excel_global_fill_sse(request):
+    """
+    SSE multi-column fill. Executes fill for each column in the plan sequentially.
+
+    Request JSON: {rows, plan: [{col, prompt, key_col}]}
+    SSE events:
+      {type: 'col_start',    col, index, total_cols}
+      {type: 'col_progress', col, message}
+      {type: 'col_chunk',    col, start, values, total}
+      {type: 'col_done',     col, total}
+      {type: 'col_error',    col, message}
+      {type: 'done'}
+    """
+    if request.method != 'POST':
+        from django.http import HttpResponse
+        return HttpResponse('POST only', status=405)
+
+    import json as _json, pandas as pd, tempfile, os, math
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        from django.http import HttpResponse
+        return HttpResponse('bad json', status=400)
+
+    rows = data.get('rows', [])
+    plan = data.get('plan', [])  # [{col, prompt, key_col}]
+
+    def generate():
+        from chemico_agent.excel_input import enrich_excel_from_db
+        total_cols = len(plan)
+
+        for idx, item in enumerate(plan):
+            col_name = item.get('col', '').strip()
+            prompt   = item.get('prompt', '').strip()
+            key_col  = item.get('key_col', '').strip()
+            if not col_name or not prompt:
+                continue
+
+            yield 'data: ' + _json.dumps({'type': 'col_start', 'col': col_name, 'index': idx, 'total_cols': total_cols}) + '\n\n'
+            yield 'data: ' + _json.dumps({'type': 'col_progress', 'col': col_name, 'message': f'⏳ Заполняю «{col_name}»...'}) + '\n\n'
+
+            tmp_path = result_path = None
+            try:
+                df = pd.DataFrame(rows)
+                orig_cols = set(str(c) for c in df.columns)
+                if col_name in df.columns:
+                    df = df.drop(columns=[col_name])
+
+                tmp = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
+                tmp.close()
+                tmp_path = tmp.name
+                df.to_excel(tmp_path, index=False)
+
+                instruction = f'Добавь колонку «{col_name}»: {prompt}.'
+                if key_col:
+                    instruction += f' Для сопоставления строк используй поле «{key_col}».'
+                instruction += ' Сохрани все исходные строки, добавив только запрошенную колонку.'
+
+                result = enrich_excel_from_db(tmp_path, instruction)
+                result_path = result.get('excel_path')
+
+                if not result_path or not os.path.exists(str(result_path)):
+                    yield 'data: ' + _json.dumps({'type': 'col_error', 'col': col_name, 'message': result.get('text', 'Агент не вернул файл')}) + '\n\n'
+                    continue
+
+                df_result = pd.read_excel(result_path, engine='openpyxl')
+                target_col = next((c for c in df_result.columns if str(c) == col_name), None)
+                if not target_col:
+                    target_col = next((c for c in df_result.columns if str(c).lower() == col_name.lower()), None)
+                if not target_col:
+                    new_cols = [c for c in df_result.columns if str(c) not in orig_cols]
+                    target_col = new_cols[0] if new_cols else None
+
+                if not target_col:
+                    yield 'data: ' + _json.dumps({'type': 'col_error', 'col': col_name, 'message': 'Агент не создал нужный столбец'}) + '\n\n'
+                    continue
+
+                values = []
+                for v in df_result[target_col]:
+                    if v is None or (isinstance(v, float) and math.isnan(v)):
+                        values.append(None)
+                    elif hasattr(v, 'isoformat'):
+                        values.append(str(v))
+                    else:
+                        values.append(v)
+
+                # Stream in chunks
+                chunk_size = max(1, math.ceil(len(values) / 20))
+                for i in range(0, len(values), chunk_size):
+                    chunk = values[i:i + chunk_size]
+                    yield 'data: ' + _json.dumps({'type': 'col_chunk', 'col': col_name, 'start': i, 'values': chunk, 'total': len(values)}) + '\n\n'
+
+                yield 'data: ' + _json.dumps({'type': 'col_done', 'col': col_name, 'total': len(values)}) + '\n\n'
+
+                # Update rows in memory for subsequent columns (key_col match)
+                for i, v in enumerate(values):
+                    if i < len(rows):
+                        rows[i][col_name] = v
+
+            except Exception as e:
+                logger.exception(f'db_excel_global_fill_sse failed for col {col_name}')
+                yield 'data: ' + _json.dumps({'type': 'col_error', 'col': col_name, 'message': str(e)}) + '\n\n'
+            finally:
+                for p in [tmp_path, result_path]:
+                    if p:
+                        try:
+                            os.unlink(str(p))
+                        except Exception:
+                            pass
+
+        yield 'data: ' + _json.dumps({'type': 'done'}) + '\n\n'
+
+    from django.http import StreamingHttpResponse
+    resp = StreamingHttpResponse(generate(), content_type='text/event-stream')
+    resp['Cache-Control'] = 'no-cache'
+    resp['X-Accel-Buffering'] = 'no'
+    return resp
+
+
+# ── Space Chat (Supabase) ────────────────────────────────────────────────────
+
+@site_login_required
+def space_chat(request):
+    """Страница чата пространства."""
+    user = get_current_user(request)
+    from .supabase_chat import is_configured
+    return render(request, 'recordings/space_chat.html', {
+        'current_user': user,
+        'chat_configured': is_configured(),
+    })
+
+
+@site_login_required
+@csrf_exempt
+@require_http_methods(['POST'])
+def space_chat_send(request):
+    """Отправить сообщение."""
+    import json as _json
+    user = get_current_user(request)
+    if not user or not user.space:
+        return JsonResponse({'error': 'no space'}, status=403)
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'bad json'}, status=400)
+    message = (data.get('message') or '').strip()
+    if not message or len(message) > 4000:
+        return JsonResponse({'error': 'empty or too long'}, status=400)
+    from .supabase_chat import send_message
+    result = send_message(
+        space_slug=user.space.slug,
+        user_email=user.email,
+        display_name=user.display_name or user.email.split('@')[0],
+        tg_username=user.tg_username or '',
+        message=message,
+    )
+    if result is None:
+        return JsonResponse({'error': 'supabase error'}, status=500)
+    msg = result[0] if isinstance(result, list) else result
+    return JsonResponse({'ok': True, 'id': msg.get('id'), 'created_at': msg.get('created_at')})
+
+
+@site_login_required
+def space_chat_messages(request):
+    """JSON: список сообщений (polling)."""
+    user = get_current_user(request)
+    if not user or not user.space:
+        return JsonResponse({'messages': []})
+    after_id = int(request.GET.get('after', 0) or 0)
+    from .supabase_chat import fetch_messages
+    msgs = fetch_messages(user.space.slug, limit=80, after_id=after_id)
+    return JsonResponse({'messages': msgs})
+
+
+@site_login_required
+def space_chat_stream(request):
+    """SSE: real-time стрим новых сообщений (long-polling через SSE)."""
+    import time
+    user = get_current_user(request)
+    if not user or not user.space:
+        def empty():
+            yield 'data: {}\n\n'
+        from django.http import StreamingHttpResponse
+        return StreamingHttpResponse(empty(), content_type='text/event-stream')
+
+    space_slug = user.space.slug
+    last_id = int(request.GET.get('after', 0) or 0)
+
+    def generate():
+        nonlocal last_id
+        from .supabase_chat import fetch_messages
+        import json as _json
+        deadline = time.time() + 25  # 25s max connection
+        while time.time() < deadline:
+            msgs = fetch_messages(space_slug, limit=20, after_id=last_id)
+            if msgs:
+                for m in msgs:
+                    yield f'data: {_json.dumps(m, ensure_ascii=False)}\n\n'
+                    last_id = max(last_id, m.get('id', last_id))
+            else:
+                yield ': ping\n\n'
+            time.sleep(2)
+
+    from django.http import StreamingHttpResponse
+    resp = StreamingHttpResponse(generate(), content_type='text/event-stream')
+    resp['Cache-Control'] = 'no-cache'
+    resp['X-Accel-Buffering'] = 'no'
+    return resp
+
+
+# ── Direct Messages (тет-а-тет) ────────────────────────────────────────────
+
+@site_login_required
+def dms_index(request):
+    """Список участников пространства для переписки."""
+    me = get_current_user(request)
+    if not me or not me.space:
+        return render(request, 'recordings/dms_index.html', {'contacts': []})
+
+    contacts = SiteUser.objects.filter(space=me.space).exclude(pk=me.pk)
+    now = timezone.now()
+
+    from django.db.models import Q
+    import datetime as _dt
+
+    def _last_seen_str(ls):
+        if not ls:
+            return 'не был(а) в сети'
+        delta = now - ls
+        s = int(delta.total_seconds())
+        if s < 180:
+            return 'онлайн'
+        if s < 3600:
+            return f'был(а) {s // 60} мин назад'
+        if s < 86400:
+            return f'был(а) {s // 3600} ч назад'
+        if s < 172800:
+            return 'был(а) вчера'
+        return f'был(а) {ls.strftime("%-d %b")}'
+
+    contact_data = []
+    for c in contacts:
+        qs = DirectMessage.objects.filter(
+            Q(sender=me, recipient=c) | Q(sender=c, recipient=me)
+        )
+        last_msg = qs.order_by('-created_at').first()
+        total = qs.count()
+        unread = DirectMessage.objects.filter(sender=c, recipient=me, read_at__isnull=True).count()
+        is_online = bool(c.last_seen and (now - c.last_seen).total_seconds() < 180)
+        contact_data.append({
+            'user': c,
+            'last_msg': last_msg,
+            'total': total,
+            'unread': unread,
+            'online': is_online,
+            'last_seen_str': _last_seen_str(c.last_seen),
+        })
+
+    # Сортировка: сначала непрочитанные, затем по дате последнего сообщения
+    contact_data.sort(key=lambda x: (
+        0 if x['unread'] else 1,
+        -(x['last_msg'].created_at.timestamp() if x['last_msg'] else 0),
+    ))
+
+    return render(request, 'recordings/dms_index.html', {'contacts': contact_data})
+
+
+@site_login_required
+def dm_conversation(request, user_id):
+    """Переписка с конкретным участником."""
+    me = get_current_user(request)
+    other = get_object_or_404(SiteUser, pk=user_id)
+    if not me:
+        return redirect('recordings:login')
+
+    from django.db.models import Q
+    qs = DirectMessage.objects.filter(
+        Q(sender=me, recipient=other) | Q(sender=other, recipient=me)
+    )
+    msgs = qs.order_by('created_at')
+    total = qs.count()
+
+    DirectMessage.objects.filter(sender=other, recipient=me, read_at__isnull=True).update(read_at=timezone.now())
+
+    return render(request, 'recordings/dm_conversation.html', {
+        'other': other,
+        'chat_msgs': msgs,
+        'total': total,
+    })
+
+
+@site_login_required
+def dm_send(request, user_id):
+    if request.method != 'POST':
+        return JsonResponse({'ok': False}, status=405)
+    me = get_current_user(request)
+    other = get_object_or_404(SiteUser, pk=user_id)
+    if not me:
+        return JsonResponse({'ok': False, 'error': 'not auth'}, status=401)
+
+    try:
+        body = json.loads(request.body)
+        text = (body.get('text') or '').strip()
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'bad json'}, status=400)
+
+    if not text:
+        return JsonResponse({'ok': False, 'error': 'empty'})
+
+    msg = DirectMessage.objects.create(sender=me, recipient=other, space=me.space, text=text)
+
+    # Уведомление получателю в Telegram
+    if other.tg_chat_id:
+        try:
+            from .telegram_service import send_message as tg_send
+            site_url = getattr(settings, 'SITE_URL', 'https://baza.business-pad.com')
+            chat_link = f'{site_url}/dms/{me.pk}/'
+            sender_name = me.display_name or me.email.split('@')[0]
+            preview = text if len(text) <= 120 else text[:120] + '…'
+            tg_text = (
+                f'✉️ *{sender_name}* написал вам:\n'
+                f'{preview}\n\n'
+                f'[Открыть переписку]({chat_link})'
+            )
+            tg_send(other.tg_chat_id, tg_text)
+        except Exception:
+            pass
+
+    return JsonResponse({'ok': True, 'id': msg.pk, 'created_at': msg.created_at.isoformat()})
+
+
+@site_login_required
+def dm_messages(request, user_id):
+    me = get_current_user(request)
+    other = get_object_or_404(SiteUser, pk=user_id)
+    if not me:
+        return JsonResponse({'messages': []})
+
+    after_id = int(request.GET.get('after', 0) or 0)
+    from django.db.models import Q
+    qs = DirectMessage.objects.filter(
+        Q(sender=me, recipient=other) | Q(sender=other, recipient=me)
+    )
+    if after_id:
+        qs = qs.filter(pk__gt=after_id)
+    msgs = list(qs.order_by('created_at').values('id', 'sender_id', 'text', 'created_at'))
+
+    DirectMessage.objects.filter(
+        sender=other, recipient=me, read_at__isnull=True, pk__gt=after_id
+    ).update(read_at=timezone.now())
+
+    result = [{'id': m['id'], 'mine': m['sender_id'] == me.pk, 'text': m['text'], 'created_at': m['created_at'].isoformat()} for m in msgs]
+    return JsonResponse({'messages': result})
+
+
+@site_login_required
+def dm_stream(request, user_id):
+    me = get_current_user(request)
+    other = get_object_or_404(SiteUser, pk=user_id)
+    if not me:
+        def _empty():
+            yield 'data: {}\n\n'
+        return StreamingHttpResponse(_empty(), content_type='text/event-stream')
+
+    last_id = int(request.GET.get('after', 0) or 0)
+    me_pk = me.pk
+    other_pk = other.pk
+
+    last_read_id_seen = [0]  # track last read receipt we emitted
+
+    def generate():
+        nonlocal last_id
+        from django.db.models import Q
+        import json as _json
+        deadline = time.time() + 25
+        while time.time() < deadline:
+            sent_any = False
+            # New messages
+            qs = DirectMessage.objects.filter(
+                Q(sender_id=me_pk, recipient_id=other_pk) |
+                Q(sender_id=other_pk, recipient_id=me_pk)
+            ).filter(pk__gt=last_id).order_by('created_at')
+            msgs = list(qs.values('id', 'sender_id', 'text', 'created_at'))
+            for m in msgs:
+                payload = {'id': m['id'], 'mine': m['sender_id'] == me_pk, 'text': m['text'], 'created_at': m['created_at'].isoformat()}
+                yield f'data: {_json.dumps(payload, ensure_ascii=False)}\n\n'
+                last_id = max(last_id, m['id'])
+                sent_any = True
+            # Read receipts: check if recipient read my sent messages
+            read_row = DirectMessage.objects.filter(
+                sender_id=me_pk, recipient_id=other_pk, read_at__isnull=False
+            ).order_by('-id').values('id', 'read_at').first()
+            if read_row and read_row['id'] > last_read_id_seen[0]:
+                last_read_id_seen[0] = read_row['id']
+                receipt = {'type': 'read', 'last_read_id': read_row['id'], 'read_at': read_row['read_at'].isoformat()}
+                yield f'data: {_json.dumps(receipt)}\n\n'
+                sent_any = True
+            if not sent_any:
+                yield ': ping\n\n'
+            time.sleep(2)
+
+    resp = StreamingHttpResponse(generate(), content_type='text/event-stream')
+    resp['Cache-Control'] = 'no-cache'
+    resp['X-Accel-Buffering'] = 'no'
+    return resp
+
+
+@site_login_required
+def api_ping(request):
+    """Обновить last_seen текущего пользователя; вернуть статус другого."""
+    me = get_current_user(request)
+    if not me:
+        return JsonResponse({'ok': False})
+    SiteUser.objects.filter(pk=me.pk).update(last_seen=timezone.now())
+    other_id = request.GET.get('user')
+    result = {'ok': True}
+    if other_id:
+        try:
+            other = SiteUser.objects.filter(pk=int(other_id)).values('last_seen').first()
+            ls = other['last_seen'] if other else None
+            result['last_seen'] = ls.isoformat() if ls else None
+        except Exception:
+            pass
+    return JsonResponse(result)

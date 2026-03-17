@@ -25,3 +25,8 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f'Telegram webhook registered: {webhook_url}'))
         else:
             self.stdout.write(self.style.WARNING('Failed to register Telegram webhook (check token/SITE_URL)'))
+
+        # BP Chat bot webhook
+        from recordings.bp_chat_views import register_bp_webhook
+        register_bp_webhook()
+        self.stdout.write(self.style.SUCCESS('BP Chat webhook registered'))

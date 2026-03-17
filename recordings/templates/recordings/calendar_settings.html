@@ -1,0 +1,147 @@
+{% extends "recordings/base.html" %}
+{% block title %}Настройки календаря{% endblock %}
+{% block extra_css %}
+<style>
+.cs-card { background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:1.25rem;margin-bottom:1rem; }
+.cs-row { display:flex;align-items:flex-start;gap:0.75rem;padding:0.75rem 0;border-bottom:1px solid var(--border); }
+.cs-row:last-child { border-bottom:none; }
+.cs-info { flex:1;min-width:0; }
+.cs-title { font-weight:600;font-size:0.88rem; }
+.cs-date { font-size:0.75rem;color:var(--muted);margin-top:0.1rem; }
+.cs-controls { display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-top:0.4rem; }
+.cs-num { width:52px;border:1px solid var(--border);border-radius:6px;padding:0.2rem 0.3rem;text-align:center;background:var(--bg);color:var(--text);font-size:0.85rem; }
+.cs-num:disabled { opacity:0.4; }
+.cs-lbl { font-size:0.75rem;color:var(--muted); }
+.cs-no-notify { display:flex;align-items:center;gap:0.3rem;font-size:0.78rem;color:var(--muted);cursor:pointer; }
+.btn-cancel-att { background:none;border:1px solid #dc262633;border-radius:6px;padding:0.2rem 0.5rem;font-size:0.78rem;color:#dc2626;cursor:pointer; }
+.btn-cancel-att:hover { background:#fef2f2; }
+.cs-att-col { display:flex;flex-direction:column;align-items:center;gap:0.2rem;min-width:52px; }
+.cs-att-lbl { font-size:0.7rem;color:var(--muted); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-head" style="margin-bottom:1.5rem;">
+    <h1>Настройки календаря</h1>
+    <p class="breadcrumb"><a href="{% url 'recordings:meetings_page' %}">← Встречи</a></p>
+</div>
+
+<div style="max-width:620px;">
+<div class="cs-card">
+    <h2 style="font-size:1rem;font-weight:700;margin-bottom:0.25rem;">Мои встречи и уведомления</h2>
+    <p style="font-size:0.82rem;color:var(--muted);margin-bottom:1rem;">
+        Отметьте встречи, в которых участвуете. Бот напомнит за 15 минут до начала — один раз.
+    </p>
+
+    {% if meetings %}
+    <button onclick="attendAll()" style="margin-bottom:1rem;padding:0.4rem 1rem;border:1px solid var(--accent);border-radius:8px;background:none;color:var(--accent);font-size:0.85rem;cursor:pointer;">
+        ✅ Участвую во всех
+    </button>
+    {% endif %}
+
+    {% if not current_user.tg_chat_id %}
+    <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:0.75rem;font-size:0.85rem;margin-bottom:1rem;">
+        ⚠️ Telegram не привязан — уведомления не будут отправляться.
+        <a href="{% url 'recordings:cabinet' %}" style="color:var(--accent);">Привязать →</a>
+    </div>
+    {% endif %}
+
+    {% if meetings %}
+    <div id="meetings-list">
+    {% for m in meetings %}
+    <div class="cs-row" id="mrow-{{ m.pk }}">
+        <div class="cs-att-col">
+            <input type="checkbox" id="att-{{ m.pk }}"
+                {% if m.pk in attending_ids %}checked{% endif %}
+                onchange="toggleAttendance({{ m.pk }}, this.checked)">
+            <span class="cs-att-lbl">Участвую</span>
+        </div>
+
+        <div class="cs-info">
+            <div class="cs-title">{{ m.title }}</div>
+            <div class="cs-date">{% if m.scheduled_at %}{{ m.scheduled_at|date:"d.m.Y H:i" }}{% else %}{{ m.created_at|date:"d.m.Y" }}{% endif %}</div>
+
+            <div class="cs-controls" id="notify-cols-{{ m.pk }}"
+                style="{% if m.pk not in attending_ids %}opacity:0.4;pointer-events:none;{% endif %}">
+                <label class="cs-no-notify">
+                    <input type="checkbox" id="nonot-{{ m.pk }}"
+                        {% if m.notify_before == 0 %}checked{% endif %}
+                        onchange="toggleNoNotify({{ m.pk }}, this.checked)">
+                    Без уведомлений
+                </label>
+            </div>
+        </div>
+
+        <div>
+            {% if m.pk in attending_ids %}
+            <button class="btn-cancel-att" id="cancel-{{ m.pk }}"
+                onclick="cancelAttendance({{ m.pk }})">✕</button>
+            {% else %}
+            <button class="btn-cancel-att" id="cancel-{{ m.pk }}"
+                onclick="cancelAttendance({{ m.pk }})" style="visibility:hidden;">✕</button>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--muted);font-style:italic;font-size:0.88rem;">
+        Встреч нет. Создайте встречу с запланированным временем на <a href="{% url 'recordings:meetings_page' %}">странице встреч</a>.
+    </p>
+    {% endif %}
+</div>
+</div>
+
+<script>
+function getCsrf() { const m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ''; }
+
+async function toggleAttendance(meetingId, attending) {
+    const noNotify = document.getElementById('nonot-' + meetingId)?.checked;
+    const before = noNotify ? 0 : (parseInt(document.getElementById('before-' + meetingId)?.value) || 15);
+    const repeat = parseInt(document.getElementById('repeat-' + meetingId)?.value) || 1;
+    await saveAttendance(meetingId, attending, before, repeat);
+    const nc = document.getElementById('notify-cols-' + meetingId);
+    if (nc) { nc.style.opacity = attending ? '1' : '0.4'; nc.style.pointerEvents = attending ? '' : 'none'; }
+    const cancelBtn = document.getElementById('cancel-' + meetingId);
+    if (cancelBtn) cancelBtn.style.visibility = attending ? 'visible' : 'hidden';
+}
+
+async function cancelAttendance(meetingId) {
+    const cb = document.getElementById('att-' + meetingId);
+    if (cb) cb.checked = false;
+    await toggleAttendance(meetingId, false);
+}
+
+async function updateNotify(meetingId) {
+    const cb = document.getElementById('att-' + meetingId);
+    if (!cb?.checked) return;
+    const noNotify = document.getElementById('nonot-' + meetingId)?.checked;
+    const before = noNotify ? 0 : 15;
+    await saveAttendance(meetingId, true, before);
+}
+
+function toggleNoNotify(meetingId, noNotify) {
+    updateNotify(meetingId);
+}
+
+async function attendAll() {
+    const rows = document.querySelectorAll('[id^="att-"]');
+    for (const cb of rows) {
+        const mid = cb.id.replace('att-', '');
+        if (!cb.checked) {
+            cb.checked = true;
+            await toggleAttendance(parseInt(mid), true);
+        }
+    }
+}
+
+async function saveAttendance(meetingId, attending, before) {
+    try {
+        await fetch('/calendar-settings/', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+            body: JSON.stringify({meeting_id: meetingId, attending, notify_before_minutes: before, repeat_every_minutes: 1}),
+        });
+    } catch(e) { console.error(e); }
+}
+</script>
+{% endblock %}

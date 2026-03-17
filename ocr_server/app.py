@@ -25,11 +25,11 @@ app = FastAPI(title="OCR", version="0.2")
 _easyocr_reader = None
 
 
-def _get_easyocr_reader(gpu: bool):
+def _get_easyocr_reader(gpu: bool = False):
     global _easyocr_reader
     if _easyocr_reader is None:
         import easyocr
-        _easyocr_reader = easyocr.Reader(['ru', 'en'], gpu=gpu)
+        _easyocr_reader = easyocr.Reader(['ru', 'en'], gpu=False)
     return _easyocr_reader
 
 
@@ -37,11 +37,8 @@ _FLAG_PATH = os.path.join(os.environ.get('DATA_ROOT', '/app/data'), 'ocr_gpu_mod
 
 
 def _is_gpu_mode() -> bool:
-    """Читаем файл-флаг из shared volume (обновляется веб-сервером при смене настройки)."""
-    try:
-        return Path(_FLAG_PATH).read_text().strip() == '1'
-    except Exception:
-        return os.environ.get('OCR_USE_GPU', '0').strip() == '1'
+    """OCR всегда на CPU — GPU зарезервирован для транскрибации."""
+    return False
 
 WORKSPACE_BASE = Path(os.environ.get("OCR_WORKSPACE_BASE", "/tmp/ocr_workspace"))
 

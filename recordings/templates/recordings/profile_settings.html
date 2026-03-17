@@ -1,0 +1,92 @@
+{% extends "recordings/base.html" %}
+{% block title %}Профиль{% endblock %}
+{% block content %}
+<div class="page-head" style="margin-bottom:1.5rem;">
+    <h1>Профиль</h1>
+    <p class="breadcrumb"><a href="{% url 'recordings:index' %}">← Записи</a></p>
+</div>
+
+<div style="max-width:480px;">
+
+<!-- Аватар -->
+<div style="background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:1.25rem;margin-bottom:1rem;">
+    <h2 style="font-size:1rem;font-weight:700;margin-bottom:1rem;">Фото профиля</h2>
+    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;">
+        <div id="avatar-preview" style="width:72px;height:72px;border-radius:50%;background:var(--border);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+            {% if user.avatar_url %}
+            <img src="{{ user.avatar_url }}" style="width:100%;height:100%;object-fit:cover;" id="avatar-img">
+            {% else %}
+            <span style="font-size:2rem;color:var(--muted);" id="avatar-placeholder">👤</span>
+            {% endif %}
+        </div>
+        <div>
+            <label class="btn" style="cursor:pointer;display:inline-block;">
+                Загрузить фото
+                <input type="file" id="avatar-file" accept="image/*" style="display:none;" onchange="uploadAvatar(this)">
+            </label>
+            <div style="font-size:0.78rem;color:var(--muted);margin-top:0.3rem;">JPG, PNG, до 5 МБ</div>
+        </div>
+    </div>
+    <div id="avatar-status" style="font-size:0.82rem;display:none;"></div>
+</div>
+
+<!-- Имя + часовой пояс -->
+<form method="POST" style="background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:1.25rem;margin-bottom:1rem;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="profile">
+    <h2 style="font-size:1rem;font-weight:700;margin-bottom:1rem;">Отображаемое имя</h2>
+    <div style="margin-bottom:0.75rem;">
+        <input type="text" name="display_name" value="{{ user.display_name }}"
+               placeholder="Имя, которое видят при бронировании"
+               style="width:100%;border:1px solid var(--border);border-radius:8px;padding:0.5rem 0.75rem;font-size:0.95rem;background:var(--bg);color:var(--text);">
+        <div style="font-size:0.78rem;color:var(--muted);margin-top:0.3rem;">Показывается на странице бронирования вместо «BusinessPad»</div>
+    </div>
+    <h2 style="font-size:1rem;font-weight:700;margin-bottom:0.75rem;margin-top:1.25rem;">Часовой пояс</h2>
+    <div style="margin-bottom:0.75rem;">
+        <select name="timezone" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:0.5rem 0.75rem;font-size:0.95rem;background:var(--bg);color:var(--text);">
+            {% for tz_val, tz_label in timezones %}
+            <option value="{{ tz_val }}" {% if user.timezone == tz_val %}selected{% endif %}>{{ tz_label }}</option>
+            {% endfor %}
+        </select>
+        <div style="font-size:0.78rem;color:var(--muted);margin-top:0.3rem;">Используется для отображения времени встреч. Уведомления в Telegram всегда по МСК.</div>
+    </div>
+    <button type="submit" class="btn btn-primary">Сохранить</button>
+    {% if saved %}<span style="color:#16a34a;font-size:0.85rem;margin-left:0.75rem;">✓ Сохранено</span>{% endif %}
+</form>
+
+<p style="font-size:0.82rem;color:var(--muted);">Email: {{ user.email }}</p>
+
+</div>
+
+<script>
+async function uploadAvatar(input) {
+    if (!input.files.length) return;
+    const file = input.files[0];
+    if (file.size > 5 * 1024 * 1024) { showStatus('Файл слишком большой (макс 5 МБ)', 'err'); return; }
+    const fd = new FormData();
+    fd.append('action', 'avatar');
+    fd.append('avatar', file);
+    const csrf = document.cookie.match(/csrftoken=([^;]+)/);
+    showStatus('Загружаем…', 'info');
+    try {
+        const resp = await fetch('/profile/', { method: 'POST', headers: { 'X-CSRFToken': csrf ? csrf[1] : '' }, body: fd });
+        const data = await resp.json();
+        if (data.error) { showStatus(data.error, 'err'); return; }
+        // Update preview
+        const preview = document.getElementById('avatar-preview');
+        const ph = document.getElementById('avatar-placeholder');
+        if (ph) ph.remove();
+        let img = document.getElementById('avatar-img');
+        if (!img) { img = document.createElement('img'); img.id = 'avatar-img'; img.style = 'width:100%;height:100%;object-fit:cover;'; preview.appendChild(img); }
+        img.src = data.avatar_url;
+        showStatus('✓ Фото обновлено', 'ok');
+    } catch(e) { showStatus('Ошибка: ' + e.message, 'err'); }
+}
+function showStatus(msg, type) {
+    const el = document.getElementById('avatar-status');
+    el.textContent = msg;
+    el.style.color = type === 'ok' ? '#16a34a' : type === 'err' ? '#dc2626' : 'var(--muted)';
+    el.style.display = '';
+}
+</script>
+{% endblock %}

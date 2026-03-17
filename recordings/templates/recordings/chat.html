@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0d2a7a">
+<title>{{ bot.name|default:bot.username }} — AI Ассистент</title>
+<script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --accent: #0d2a7a;
+  --accent-light: #1e40af;
+  --bg: #fafbfc;
+  --bg-soft: #f1f5f9;
+  --surface: #ffffff;
+  --text: #0f172a;
+  --text-secondary: #334155;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --user-bubble: #0d2a7a;
+  --user-text: #ffffff;
+  --assistant-bubble: #f1f5f9;
+  --assistant-text: #0f172a;
+  --radius: 18px;
+  --radius-sm: 6px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.08);
+  --shadow-md: 0 4px 16px rgba(0,0,0,.10);
+}
+[data-theme="dark"] {
+  --bg: #0f172a;
+  --bg-soft: #1e293b;
+  --surface: #1e293b;
+  --text: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --muted: #94a3b8;
+  --border: #334155;
+  --assistant-bubble: #1e293b;
+  --assistant-text: #f1f5f9;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* ── Layout ─────────────────────────────────────────────────── */
+.chat-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+/* ── Header ─────────────────────────────────────────────────── */
+.chat-header {
+  background: var(--accent);
+  color: #fff;
+  padding: 0 16px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-md);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.chat-header-avatar {
+  width: 36px;
+  height: 36px;
+  background: rgba(255,255,255,.18);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.chat-header-info {
+  flex: 1;
+  min-width: 0;
+}
+.chat-header-name {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-header-powered {
+  font-size: 11px;
+  opacity: .65;
+  letter-spacing: .01em;
+}
+.chat-header-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.12);
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s;
+  font-size: 16px;
+}
+.icon-btn:hover { background: rgba(255,255,255,.22); }
+
+/* ── Messages area ───────────────────────────────────────────── */
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 16px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scroll-behavior: smooth;
+}
+.chat-messages::-webkit-scrollbar { width: 4px; }
+.chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── Message row ─────────────────────────────────────────────── */
+.msg-row {
+  display: flex;
+  gap: 8px;
+  max-width: 82%;
+  animation: fadeUp .2s ease;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.msg-row.user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+.msg-row.assistant {
+  align-self: flex-start;
+}
+
+/* ── Avatar ──────────────────────────────────────────────────── */
+.msg-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+
+/* ── Bubble ──────────────────────────────────────────────────── */
+.msg-bubble {
+  padding: 10px 14px;
+  max-width: 100%;
+  word-break: break-word;
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+.msg-row.user .msg-bubble {
+  background: var(--user-bubble);
+  color: var(--user-text);
+  border-radius: 18px 18px 4px 18px;
+  box-shadow: var(--shadow-sm);
+}
+.msg-row.assistant .msg-bubble {
+  background: var(--assistant-bubble);
+  color: var(--assistant-text);
+  border-radius: 18px 18px 18px 4px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+}
+
+/* Markdown inside assistant bubble */
+.msg-bubble p { margin: 0 0 .6em; }
+.msg-bubble p:last-child { margin-bottom: 0; }
+.msg-bubble ul, .msg-bubble ol { padding-left: 1.3em; margin: .4em 0; }
+.msg-bubble li { margin: .15em 0; }
+.msg-bubble h1,.msg-bubble h2,.msg-bubble h3 {
+  font-size: 1em; font-weight: 700; margin: .5em 0 .3em;
+}
+.msg-bubble code {
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: .86em;
+  background: rgba(0,0,0,.07);
+  padding: .1em .35em;
+  border-radius: 4px;
+}
+[data-theme="dark"] .msg-bubble code { background: rgba(255,255,255,.1); }
+.msg-bubble pre { background: rgba(0,0,0,.06); border-radius: 8px; padding: .7em 1em; overflow-x: auto; margin: .5em 0; }
+.msg-bubble pre code { background: none; padding: 0; }
+[data-theme="dark"] .msg-bubble pre { background: rgba(255,255,255,.05); }
+.msg-bubble a { color: var(--accent-light); text-decoration: underline; }
+.msg-row.user .msg-bubble a { color: #93c5fd; }
+.msg-bubble blockquote { border-left: 3px solid var(--border); margin: .4em 0; padding-left: .8em; color: var(--muted); }
+.msg-bubble table { border-collapse: collapse; font-size: .9em; margin: .5em 0; width: 100%; }
+.msg-bubble th, .msg-bubble td { border: 1px solid var(--border); padding: .3em .6em; }
+.msg-bubble th { background: var(--bg-soft); font-weight: 600; }
+
+/* Excel download link */
+.excel-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 7px 14px;
+  background: #16a34a;
+  color: #fff !important;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none !important;
+  transition: background .15s;
+}
+.excel-link:hover { background: #15803d; }
+
+/* OCR details */
+.ocr-details {
+  margin-top: 10px;
+  font-size: 12.5px;
+}
+.ocr-details summary {
+  cursor: pointer;
+  color: var(--muted);
+  user-select: none;
+  font-style: italic;
+}
+.ocr-details pre {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  margin-top: 6px;
+  color: var(--text);
+}
+
+/* ── Typing indicator ────────────────────────────────────────── */
+.typing-row {
+  display: flex;
+  gap: 8px;
+  align-self: flex-start;
+  max-width: 82%;
+}
+.typing-bubble {
+  background: var(--assistant-bubble);
+  border: 1px solid var(--border);
+  border-radius: 18px 18px 18px 4px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.typing-bubble span {
+  width: 7px; height: 7px;
+  background: var(--muted);
+  border-radius: 50%;
+  display: inline-block;
+  animation: blink 1.2s infinite;
+}
+.typing-bubble span:nth-child(2) { animation-delay: .2s; }
+.typing-bubble span:nth-child(3) { animation-delay: .4s; }
+@keyframes blink {
+  0%, 80%, 100% { opacity: .25; transform: scale(.9); }
+  40%           { opacity: 1;   transform: scale(1.1); }
+}
+
+/* ── File preview bar ────────────────────────────────────────── */
+.file-preview-bar {
+  display: none;
+  padding: 6px 16px 0;
+  background: var(--bg);
+}
+.file-preview-bar.visible { display: flex; align-items: center; gap: 8px; }
+.file-preview-name {
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+.file-preview-remove {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color .15s;
+}
+.file-preview-remove:hover { color: #ef4444; }
+
+/* ── Input bar ───────────────────────────────────────────────── */
+.chat-input-bar {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 10px 12px;
+  flex-shrink: 0;
+  box-shadow: 0 -2px 8px rgba(0,0,0,.04);
+}
+.chat-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.attach-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  transition: color .15s, border-color .15s;
+  align-self: flex-end;
+}
+.attach-btn:hover { color: var(--accent); border-color: var(--accent); }
+.attach-btn.has-file { color: var(--accent); border-color: var(--accent); background: #eff6ff; }
+[data-theme="dark"] .attach-btn.has-file { background: #1e3a6e; }
+
+textarea#chat-input {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-soft);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14.5px;
+  padding: 9px 14px;
+  resize: none;
+  min-height: 38px;
+  max-height: 120px;
+  overflow-y: auto;
+  outline: none;
+  transition: border-color .15s;
+  line-height: 1.5;
+}
+textarea#chat-input:focus { border-color: var(--accent-light); }
+textarea#chat-input::placeholder { color: var(--muted); }
+textarea#chat-input:disabled { opacity: .55; cursor: not-allowed; }
+
+.send-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  transition: background .15s, transform .1s;
+  align-self: flex-end;
+}
+.send-btn:hover:not(:disabled) { background: var(--accent-light); transform: scale(1.05); }
+.send-btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+/* ── Timestamp ───────────────────────────────────────────────── */
+.msg-meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+  padding: 0 4px;
+  align-self: flex-end;
+}
+.msg-row.user .msg-meta { text-align: right; }
+
+/* ── Scrollbar ───────────────────────────────────────────────── */
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .msg-row { max-width: 92%; }
+  .chat-messages { padding: 14px 10px 6px; gap: 10px; }
+  .chat-input-bar { padding: 8px 8px; }
+}
+</style>
+</head>
+<body>
+
+<div class="chat-layout">
+
+  <!-- Header -->
+  <header class="chat-header">
+    <div class="chat-header-avatar">🤖</div>
+    <div class="chat-header-info">
+      <div class="chat-header-name">{{ bot.name|default:bot.username }}</div>
+      <div class="chat-header-powered">Powered by BusinessPad</div>
+    </div>
+    <div class="chat-header-actions">
+      <button class="icon-btn" id="theme-toggle" title="Переключить тему" aria-label="Переключить тему">🌙</button>
+    </div>
+  </header>
+
+  <!-- Messages -->
+  <main class="chat-messages" id="chat-messages" role="log" aria-live="polite" aria-label="Сообщения">
+    <!-- Messages injected by JS -->
+  </main>
+
+  <!-- File preview -->
+  <div class="file-preview-bar" id="file-preview-bar">
+    <span class="file-preview-name" id="file-preview-name"></span>
+    <button class="file-preview-remove" id="file-remove-btn" title="Убрать файл" aria-label="Убрать файл">×</button>
+  </div>
+
+  <!-- Input bar -->
+  <footer class="chat-input-bar">
+    <div class="chat-input-row">
+      <button class="attach-btn" id="attach-btn" title="Прикрепить файл" aria-label="Прикрепить файл">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+        </svg>
+      </button>
+      <input type="file" id="file-input" accept=".jpg,.jpeg,.png,.webp,.xlsx,.xls,.csv" style="display:none" aria-label="Файл для загрузки">
+      <textarea
+        id="chat-input"
+        rows="1"
+        placeholder="Написать сообщение…"
+        aria-label="Введите сообщение"
+        autocomplete="off"
+        spellcheck="true"
+      ></textarea>
+      <button class="send-btn" id="send-btn" title="Отправить" aria-label="Отправить сообщение" disabled>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"/>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── Config ──────────────────────────────────────────────────────────────
+  const TOKEN = '{{ bot.public_chat_token }}';
+  const BASE   = `/chat/${TOKEN}`;
+
+  // ── DOM refs ─────────────────────────────────────────────────────────────
+  const messagesEl   = document.getElementById('chat-messages');
+  const inputEl      = document.getElementById('chat-input');
+  const sendBtn      = document.getElementById('send-btn');
+  const attachBtn    = document.getElementById('attach-btn');
+  const fileInput    = document.getElementById('file-input');
+  const previewBar   = document.getElementById('file-preview-bar');
+  const previewName  = document.getElementById('file-preview-name');
+  const fileRemove   = document.getElementById('file-remove-btn');
+  const themeToggle  = document.getElementById('theme-toggle');
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  let pendingFile = null;
+  let isWaiting   = false;
+  let typingRow   = null;
+
+  // ── Theme ────────────────────────────────────────────────────────────────
+  const html = document.documentElement;
+  const savedTheme = localStorage.getItem('chat_theme') || 'light';
+  html.setAttribute('data-theme', savedTheme);
+  themeToggle.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+
+  themeToggle.addEventListener('click', () => {
+    const current = html.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('chat_theme', next);
+    themeToggle.textContent = next === 'dark' ? '☀️' : '🌙';
+  });
+
+  // ── Marked config ────────────────────────────────────────────────────────
+  if (typeof marked !== 'undefined') {
+    marked.setOptions({
+      breaks: true,
+      gfm: true,
+    });
+  }
+
+  function renderMarkdown(text) {
+    if (typeof marked !== 'undefined') {
+      try { return marked.parse(text); } catch (e) { /* fallthrough */ }
+    }
+    return escapeHtml(text).replace(/\n/g, '<br>');
+  }
+
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ── Scroll ───────────────────────────────────────────────────────────────
+  function scrollBottom(smooth) {
+    messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: smooth ? 'smooth' : 'instant' });
+  }
+
+  // ── Format time ──────────────────────────────────────────────────────────
+  function fmtTime(isoOrDate) {
+    const d = isoOrDate ? new Date(isoOrDate) : new Date();
+    return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // ── Build message element ─────────────────────────────────────────────────
+  function buildMsgRow(role, content, extras, ts) {
+    const row = document.createElement('div');
+    row.className = `msg-row ${role}`;
+
+    if (role === 'assistant') {
+      const av = document.createElement('div');
+      av.className = 'msg-avatar';
+      av.textContent = '🤖';
+      row.appendChild(av);
+    }
+
+    const inner = document.createElement('div');
+
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+
+    if (role === 'assistant') {
+      bubble.innerHTML = renderMarkdown(content);
+
+      // Excel link
+      if (extras && extras.excel_url) {
+        const link = document.createElement('a');
+        link.href = extras.excel_url;
+        link.className = 'excel-link';
+        link.textContent = '📊 Скачать Excel';
+        link.target = '_blank';
+        link.rel = 'noopener';
+        bubble.appendChild(link);
+      }
+
+      // OCR text
+      if (extras && extras.ocr_text) {
+        const details = document.createElement('details');
+        details.className = 'ocr-details';
+        const summary = document.createElement('summary');
+        summary.textContent = 'Распознанный текст';
+        const pre = document.createElement('pre');
+        pre.textContent = extras.ocr_text;
+        details.appendChild(summary);
+        details.appendChild(pre);
+        bubble.appendChild(details);
+      }
+    } else {
+      bubble.textContent = content;
+    }
+
+    inner.appendChild(bubble);
+
+    const meta = document.createElement('div');
+    meta.className = 'msg-meta';
+    meta.textContent = fmtTime(ts);
+    inner.appendChild(meta);
+
+    row.appendChild(inner);
+    return row;
+  }
+
+  function appendMessage(role, content, extras, ts, scroll) {
+    const row = buildMsgRow(role, content, extras, ts);
+    messagesEl.appendChild(row);
+    if (scroll !== false) scrollBottom(true);
+    return row;
+  }
+
+  // ── Typing indicator ──────────────────────────────────────────────────────
+  function showTyping() {
+    if (typingRow) return;
+    typingRow = document.createElement('div');
+    typingRow.className = 'typing-row';
+
+    const av = document.createElement('div');
+    av.className = 'msg-avatar';
+    av.textContent = '🤖';
+
+    const bub = document.createElement('div');
+    bub.className = 'typing-bubble';
+    bub.innerHTML = '<span></span><span></span><span></span>';
+
+    typingRow.appendChild(av);
+    typingRow.appendChild(bub);
+    messagesEl.appendChild(typingRow);
+    scrollBottom(true);
+  }
+
+  function hideTyping() {
+    if (typingRow) {
+      typingRow.remove();
+      typingRow = null;
+    }
+  }
+
+  // ── Lock / unlock ─────────────────────────────────────────────────────────
+  function setWaiting(val) {
+    isWaiting = val;
+    inputEl.disabled = val;
+    sendBtn.disabled = val || !canSend();
+    attachBtn.disabled = val;
+    if (val) { showTyping(); } else { hideTyping(); }
+  }
+
+  function canSend() {
+    return inputEl.value.trim().length > 0 || pendingFile !== null;
+  }
+
+  // ── Load history ──────────────────────────────────────────────────────────
+  async function loadHistory() {
+    try {
+      const resp = await fetch(`${BASE}/messages/`, { credentials: 'same-origin' });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (!data.messages || data.messages.length === 0) {
+        showWelcome();
+        return;
+      }
+      for (const m of data.messages) {
+        appendMessage(m.role, m.content, null, m.created_at, false);
+      }
+      scrollBottom(false);
+    } catch (e) {
+      showWelcome();
+    }
+  }
+
+  function showWelcome() {
+    appendMessage(
+      'assistant',
+      'Привет! Я AI-ассистент. Задайте вопрос или загрузите файл (фото, Excel, CSV) для анализа.',
+      null, null, true
+    );
+  }
+
+  // ── Send text ─────────────────────────────────────────────────────────────
+  async function sendMessage(text) {
+    appendMessage('user', text, null, null, true);
+    setWaiting(true);
+    try {
+      const resp = await fetch(`${BASE}/send/`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      });
+      const data = await resp.json();
+      if (data.error) {
+        appendMessage('assistant', '⚠️ ' + data.error, null, null, true);
+      } else {
+        appendMessage('assistant', data.text || '', data, null, true);
+      }
+    } catch (e) {
+      appendMessage('assistant', '⚠️ Ошибка соединения. Попробуйте ещё раз.', null, null, true);
+    } finally {
+      setWaiting(false);
+    }
+  }
+
+  // ── Upload file ───────────────────────────────────────────────────────────
+  async function uploadFile(file, caption) {
+    const label = caption ? `📎 ${file.name} — ${caption}` : `📎 ${file.name}`;
+    appendMessage('user', label, null, null, true);
+    setWaiting(true);
+
+    const fd = new FormData();
+    fd.append('file', file);
+    if (caption) fd.append('caption', caption);
+
+    try {
+      const resp = await fetch(`${BASE}/upload/`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: fd,
+      });
+      const data = await resp.json();
+      if (data.error) {
+        appendMessage('assistant', '⚠️ ' + data.error, null, null, true);
+      } else {
+        appendMessage('assistant', data.text || '', data, null, true);
+      }
+    } catch (e) {
+      appendMessage('assistant', '⚠️ Ошибка загрузки. Попробуйте ещё раз.', null, null, true);
+    } finally {
+      setWaiting(false);
+    }
+  }
+
+  // ── Dispatch send ─────────────────────────────────────────────────────────
+  function dispatchSend() {
+    if (isWaiting) return;
+    const text = inputEl.value.trim();
+    const file = pendingFile;
+
+    if (!text && !file) return;
+
+    inputEl.value = '';
+    autoResizeTextarea();
+    clearFile();
+
+    if (file) {
+      uploadFile(file, text);
+    } else {
+      sendMessage(text);
+    }
+  }
+
+  // ── File handling ─────────────────────────────────────────────────────────
+  attachBtn.addEventListener('click', () => { fileInput.click(); });
+
+  fileInput.addEventListener('change', () => {
+    const f = fileInput.files[0];
+    if (!f) return;
+    pendingFile = f;
+    previewName.textContent = f.name;
+    previewBar.classList.add('visible');
+    attachBtn.classList.add('has-file');
+    updateSendBtn();
+    fileInput.value = '';
+  });
+
+  fileRemove.addEventListener('click', clearFile);
+
+  function clearFile() {
+    pendingFile = null;
+    previewBar.classList.remove('visible');
+    previewName.textContent = '';
+    attachBtn.classList.remove('has-file');
+    updateSendBtn();
+  }
+
+  // ── Input events ──────────────────────────────────────────────────────────
+  inputEl.addEventListener('input', () => {
+    autoResizeTextarea();
+    updateSendBtn();
+  });
+
+  inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!sendBtn.disabled) dispatchSend();
+    }
+  });
+
+  sendBtn.addEventListener('click', () => {
+    if (!sendBtn.disabled) dispatchSend();
+  });
+
+  function autoResizeTextarea() {
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+  }
+
+  function updateSendBtn() {
+    sendBtn.disabled = isWaiting || !canSend();
+  }
+
+  // ── Init ─────────────────────────────────────────────────────────────────
+  loadHistory();
+})();
+</script>
+
+</body>
+</html>

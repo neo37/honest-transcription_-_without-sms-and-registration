@@ -15,11 +15,18 @@ WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+# Re-pin PyTorch to CUDA 12.1 after requirements (whisperx/pyannote may upgrade it to cu128)
+RUN pip install --no-cache-dir --force-reinstall \
+    torch==2.3.1+cu121 \
+    torchaudio==2.3.1+cu121 \
+    --index-url https://download.pytorch.org/whl/cu121
 
 COPY manage.py ./
 COPY meetrec ./meetrec
 COPY recordings ./recordings
 COPY wiki_kb ./wiki_kb
+COPY mcp_server ./mcp_server
+COPY chemico_agent ./chemico_agent
 
 RUN python manage.py collectstatic --noinput 2>/dev/null || true
 

@@ -1,0 +1,257 @@
+{% extends "recordings/base.html" %}
+{% block title %}{{ other.display_name|default:other.email }}{% endblock %}
+
+{% block content %}
+<!-- Compact header: back + avatar + name + online -->
+<div id="conv-header" style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
+    <a href="{% url 'recordings:dms_index' %}" style="color:var(--muted);text-decoration:none;font-size:1.2rem;line-height:1;">←</a>
+    <div style="position:relative;flex-shrink:0;">
+        <div style="width:38px;height:38px;border-radius:50%;background:var(--accent);
+                    display:flex;align-items:center;justify-content:center;
+                    font-size:0.95rem;font-weight:700;color:#fff;">
+            {{ other.email|slice:":1"|upper }}
+        </div>
+        <span id="online-dot" style="display:none;position:absolute;bottom:1px;right:1px;
+              width:10px;height:10px;background:#22c55e;border-radius:50%;border:2px solid var(--card);"></span>
+    </div>
+    <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:0.95rem;display:flex;align-items:center;gap:0.4rem;">
+            {{ other.display_name|default:other.email }}
+            {% if total %}<span style="background:var(--bg-soft);color:var(--muted);border:1px solid var(--border);border-radius:99px;font-size:0.68rem;padding:0 0.38rem;">{{ total }}</span>{% endif %}
+        </div>
+        <div id="last-seen-txt" style="font-size:0.75rem;color:var(--muted);">…</div>
+    </div>
+</div>
+
+<div id="chat-wrap" style="
+    display:flex;flex-direction:column;
+    height:calc(100vh - 200px);min-height:300px;
+    background:var(--card);border:1px solid var(--border);
+    border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;">
+
+    <div id="chat-messages" style="flex:1;overflow-y:auto;padding:1rem;display:flex;flex-direction:column;gap:0.4rem;">
+        {% for m in chat_msgs %}
+        <div class="dm-msg {% if m.sender == current_user %}mine{% else %}theirs{% endif %}" data-id="{{ m.pk }}">
+            <div class="dm-text">{{ m.text }}</div>
+            <div class="dm-time">
+                {{ m.created_at|date:"H:i" }}
+                {% if m.sender == current_user %}
+                <span class="dm-tick" data-id="{{ m.pk }}">{% if m.read_at %}✓✓{% else %}✓{% endif %}</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div style="border-top:1px solid var(--border);padding:0.6rem 0.75rem;display:flex;gap:0.5rem;align-items:flex-end;background:var(--bg-soft);position:relative;">
+        <!-- Emoji button -->
+        <button id="emoji-btn" onclick="toggleEmoji()" type="button"
+            style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:1.25rem;padding:0.2rem;line-height:1;color:var(--muted);"
+            title="Смайлы">😊</button>
+        <!-- Emoji picker popup -->
+        <div id="emoji-picker" style="display:none;position:absolute;bottom:calc(100% + 6px);left:0;
+             background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+             padding:0.6rem;box-shadow:var(--shadow);z-index:100;
+             display:none;flex-wrap:wrap;gap:0.2rem;max-width:280px;">
+        </div>
+        <textarea id="dm-input"
+            placeholder="Сообщение…"
+            rows="1"
+            style="flex:1;resize:none;border:1px solid var(--border);border-radius:10px;
+                   padding:0.5rem 0.8rem;font-family:inherit;font-size:0.93rem;
+                   background:var(--card);color:var(--text);outline:none;
+                   max-height:120px;overflow-y:auto;line-height:1.5;
+                   transition:border-color 0.2s;"
+            onfocus="this.style.borderColor='var(--accent)'"
+            onblur="this.style.borderColor='var(--border)'"
+        ></textarea>
+        <button id="dm-send-btn" onclick="sendMsg()" type="button"
+            style="flex-shrink:0;padding:0.5rem 1rem;background:var(--accent);color:#fff;
+                   border:none;border-radius:10px;cursor:pointer;font-size:0.9rem;font-weight:600;
+                   transition:background 0.2s;align-self:flex-end;"
+            onmouseover="this.style.background='var(--accent-light)'"
+            onmouseout="this.style.background='var(--accent)'">➤</button>
+    </div>
+</div>
+
+<style>
+.dm-msg {
+    display:flex;flex-direction:column;gap:0.08rem;
+    padding:0.45rem 0.7rem;border-radius:12px;max-width:72%;
+    font-size:0.9rem;line-height:1.55;word-break:break-word;
+    animation: msgIn 0.22s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes msgIn {
+    from { opacity:0; transform:translateY(6px) scale(0.97); }
+    to   { opacity:1; transform:translateY(0) scale(1); }
+}
+.dm-msg.mine { background:var(--accent);color:#fff;align-self:flex-end;border-bottom-right-radius:3px; }
+.dm-msg.theirs { background:var(--bg-soft);color:var(--text);align-self:flex-start;border-bottom-left-radius:3px;border:1px solid var(--border); }
+.dm-text { white-space:pre-wrap; }
+.dm-time { font-size:0.68rem;opacity:0.65;align-self:flex-end;display:flex;gap:0.25rem;align-items:center; }
+.dm-tick { font-size:0.72rem; }
+.dm-tick.read { color:#fff; opacity:1; }
+.dm-msg.mine .dm-tick { color:rgba(255,255,255,0.8); }
+.dm-msg.mine .dm-tick.read { color:#fff; }
+#chat-messages::-webkit-scrollbar { width:4px; }
+#chat-messages::-webkit-scrollbar-thumb { background:var(--border);border-radius:2px; }
+.emoji-btn-item { background:none;border:none;cursor:pointer;font-size:1.3rem;padding:0.15rem;border-radius:4px;line-height:1; }
+.emoji-btn-item:hover { background:var(--bg-soft); }
+</style>
+
+<script>
+const OTHER_ID = {{ other.pk }};
+const msgsEl = document.getElementById('chat-messages');
+const inputEl = document.getElementById('dm-input');
+let lastId = {% with chat_msgs.last as lm %}{% if lm %}{{ lm.pk }}{% else %}0{% endif %}{% endwith %};
+let isAtBottom = true;
+let sseSource = null;
+
+const EMOJIS = ['😀','😂','😍','🥰','😎','🤔','😢','😡','🤣','🥺','😊','😭','🤯','🥳','🤝','👍','👎','❤️','🔥','💯','✅','❌','🎉','👏','🙏','💪','💡','📌','🤦','🤷'];
+
+// Build emoji picker
+const picker = document.getElementById('emoji-picker');
+EMOJIS.forEach(e => {
+    const btn = document.createElement('button');
+    btn.className = 'emoji-btn-item';
+    btn.textContent = e;
+    btn.type = 'button';
+    btn.onclick = () => { insertEmoji(e); };
+    picker.appendChild(btn);
+});
+
+function toggleEmoji() {
+    picker.style.display = picker.style.display === 'flex' ? 'none' : 'flex';
+}
+function insertEmoji(e) {
+    const pos = inputEl.selectionStart;
+    const val = inputEl.value;
+    inputEl.value = val.slice(0, pos) + e + val.slice(pos);
+    inputEl.selectionStart = inputEl.selectionEnd = pos + e.length;
+    inputEl.focus();
+    picker.style.display = 'none';
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+}
+document.addEventListener('click', e => {
+    if (!e.target.closest('#emoji-btn') && !e.target.closest('#emoji-picker')) {
+        picker.style.display = 'none';
+    }
+});
+
+inputEl.addEventListener('input', () => {
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+});
+inputEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+});
+msgsEl.addEventListener('scroll', () => {
+    isAtBottom = msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight < 60;
+});
+
+function scrollToBottom(force) {
+    if (force || isAtBottom) msgsEl.scrollTop = msgsEl.scrollHeight;
+}
+
+function appendMsg(m) {
+    const div = document.createElement('div');
+    div.className = 'dm-msg ' + (m.mine ? 'mine' : 'theirs');
+    div.dataset.id = m.id;
+    const d = new Date(m.created_at);
+    const t = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+    const tick = m.mine ? `<span class="dm-tick" data-id="${m.id}">✓</span>` : '';
+    div.innerHTML = `<div class="dm-text">${esc(m.text)}</div><div class="dm-time">${t}${tick}</div>`;
+    msgsEl.appendChild(div);
+}
+
+function applyReadReceipt(lastReadId) {
+    msgsEl.querySelectorAll('.dm-tick').forEach(el => {
+        const id = parseInt(el.dataset.id || 0);
+        if (id <= lastReadId) {
+            el.textContent = '✓✓';
+            el.classList.add('read');
+        }
+    });
+}
+
+function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function startSSE() {
+    if (sseSource) sseSource.close();
+    sseSource = new EventSource(`/dms/${OTHER_ID}/stream/?after=${lastId}`);
+    sseSource.onmessage = e => {
+        if (!e.data || e.data === '{}') return;
+        try {
+            const m = JSON.parse(e.data);
+            if (m.type === 'read') {
+                applyReadReceipt(m.last_read_id);
+                return;
+            }
+            if (m.id && m.id > lastId) {
+                appendMsg(m);
+                lastId = m.id;
+                scrollToBottom(m.mine);
+            }
+        } catch(_) {}
+    };
+    sseSource.onerror = () => { sseSource.close(); setTimeout(startSSE, 3000); };
+}
+
+async function sendMsg() {
+    const text = inputEl.value.trim();
+    if (!text) return;
+    const btn = document.getElementById('dm-send-btn');
+    btn.disabled = true;
+    inputEl.value = '';
+    inputEl.style.height = 'auto';
+    try {
+        const resp = await fetch(`/dms/${OTHER_ID}/send/`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json','X-CSRFToken': getCsrf()},
+            body: JSON.stringify({text}),
+        });
+        const data = await resp.json();
+        if (!data.ok) { inputEl.value = text; alert('Ошибка: ' + (data.error || '?')); }
+    } catch(e) { inputEl.value = text; alert('Ошибка отправки'); }
+    finally { btn.disabled = false; inputEl.focus(); }
+}
+
+function getCsrf() {
+    return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='))?.split('=')[1] || '';
+}
+
+// Online status / last seen ping
+function updateOnlineStatus(lastSeenIso) {
+    const dot = document.getElementById('online-dot');
+    const txt = document.getElementById('last-seen-txt');
+    if (!lastSeenIso) { txt.textContent = 'не был(а) в сети'; dot.style.display = 'none'; return; }
+    const delta = (Date.now() - new Date(lastSeenIso)) / 1000;
+    if (delta < 180) {
+        dot.style.display = 'block';
+        txt.textContent = 'онлайн';
+    } else {
+        dot.style.display = 'none';
+        if (delta < 3600) txt.textContent = `был(а) ${Math.floor(delta/60)} мин назад`;
+        else if (delta < 86400) txt.textContent = `был(а) ${Math.floor(delta/3600)} ч назад`;
+        else if (delta < 172800) txt.textContent = 'был(а) вчера';
+        else txt.textContent = `был(а) ${new Date(lastSeenIso).toLocaleDateString('ru-RU',{day:'numeric',month:'short'})}`;
+    }
+}
+
+async function ping() {
+    try {
+        const r = await fetch(`/api/ping/?user=${OTHER_ID}`);
+        const d = await r.json();
+        updateOnlineStatus(d.last_seen);
+    } catch(_) {}
+}
+
+scrollToBottom(true);
+ping();
+setInterval(ping, 20000);
+startSSE();
+</script>
+{% endblock %}

@@ -1437,55 +1437,115 @@
         </button>
       </div>
 
-      <!-- LOGIN PANEL -->
+      <!-- LOGIN PANEL (multi-step) -->
       <div class="auth-panel active" id="panel-login">
-        <h2 style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;margin-bottom:8px;letter-spacing:-0.4px;">
-          <span data-lang="ru" class="lang-active inline-lang">Вход в платформу</span>
-          <span data-lang="en" class="inline-lang">Sign in to platform</span>
-          <span data-lang="sr" class="inline-lang">Prijava na platformu</span>
-        </h2>
-        <p style="font-size:14px;color:var(--muted);margin-bottom:28px;line-height:1.6;">
-          <span data-lang="ru" class="lang-active">Введите email и пароль для доступа к платформе SpaceCode.</span>
-          <span data-lang="en" class="inline-lang">Enter your email and password to access SpaceCode.</span>
-          <span data-lang="sr" class="inline-lang">Unesite email i lozinku za pristup SpaceCode.</span>
-        </p>
 
-        {% if error %}
-        <div class="login-error">{{ error }}</div>
-        {% endif %}
-
-        <form method="post" action="{% url 'recordings:smarty_login' %}">
-          {% csrf_token %}
-          {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+        <!-- Step 1: Email -->
+        <div id="sl-step-email">
+          <h2 style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;margin-bottom:8px;letter-spacing:-0.4px;">
+            <span data-lang="ru" class="lang-active inline-lang">Вход в платформу</span>
+            <span data-lang="en" class="inline-lang">Sign in to platform</span>
+            <span data-lang="sr" class="inline-lang">Prijava na platformu</span>
+          </h2>
+          <p style="font-size:14px;color:var(--muted);margin-bottom:28px;line-height:1.6;">
+            <span data-lang="ru" class="lang-active">Введите ваш email для входа в SpaceCode.</span>
+            <span data-lang="en" class="inline-lang">Enter your email to sign in to SpaceCode.</span>
+            <span data-lang="sr" class="inline-lang">Unesite email za prijavu na SpaceCode.</span>
+          </p>
           <div class="form-group">
             <label>Email</label>
-            <input type="email" name="email" placeholder="you@example.com" required autofocus>
+            <input type="email" id="sl-email-input" placeholder="you@example.com" autocomplete="username" autofocus>
           </div>
-          <div class="form-group">
-            <label>
-              <span data-lang="ru" class="lang-active inline-lang">Пароль</span>
-              <span data-lang="en" class="inline-lang">Password</span>
-              <span data-lang="sr" class="inline-lang">Lozinka</span>
-            </label>
-            <input type="password" name="password" placeholder="••••••••" required>
+          <div class="login-error" id="sl-step1-error" style="display:none;margin-bottom:16px;"></div>
+          <button class="btn-login" id="sl-btn-continue">
+            <span data-lang="ru" class="lang-active inline-lang">Продолжить →</span>
+            <span data-lang="en" class="inline-lang">Continue →</span>
+            <span data-lang="sr" class="inline-lang">Nastavi →</span>
+          </button>
+        </div>
+
+        <!-- Step 2: Password -->
+        <div id="sl-step-password" style="display:none;">
+          <h2 style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;margin-bottom:6px;letter-spacing:-0.4px;" id="sl-pwd-title"></h2>
+          <p style="font-size:13px;color:var(--cyan);margin-bottom:20px;font-weight:600;word-break:break-all;" id="sl-pwd-email"></p>
+
+          <!-- Existing user -->
+          <div id="sl-fields-existing">
+            <div class="form-group">
+              <label>
+                <span data-lang="ru" class="lang-active inline-lang">Пароль</span>
+                <span data-lang="en" class="inline-lang">Password</span>
+                <span data-lang="sr" class="inline-lang">Lozinka</span>
+              </label>
+              <input type="password" id="sl-pwd-existing" placeholder="••••••••" autocomplete="current-password">
+            </div>
           </div>
-          <button type="submit" class="btn-login">
+
+          <!-- First login: set new password -->
+          <div id="sl-fields-first" style="display:none;">
+            <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5;">
+              <span data-lang="ru" class="lang-active inline-lang">Первый вход — придумайте постоянный пароль.</span>
+              <span data-lang="en" class="inline-lang">First sign-in — set a permanent password.</span>
+              <span data-lang="sr" class="inline-lang">Prva prijava — postavite stalnu lozinku.</span>
+            </p>
+            <div class="form-group">
+              <label>
+                <span data-lang="ru" class="lang-active inline-lang">Придумайте пароль</span>
+                <span data-lang="en" class="inline-lang">Create password</span>
+                <span data-lang="sr" class="inline-lang">Kreirajte lozinku</span>
+              </label>
+              <input type="password" id="sl-pwd1" placeholder="Не менее 6 символов" autocomplete="new-password">
+            </div>
+            <div class="form-group">
+              <label>
+                <span data-lang="ru" class="lang-active inline-lang">Повторите пароль</span>
+                <span data-lang="en" class="inline-lang">Repeat password</span>
+                <span data-lang="sr" class="inline-lang">Ponovite lozinku</span>
+              </label>
+              <input type="password" id="sl-pwd2" placeholder="••••••••" autocomplete="new-password">
+            </div>
+          </div>
+
+          <div class="login-error" id="sl-step2-error" style="display:none;margin-bottom:16px;"></div>
+          <button class="btn-login" id="sl-btn-login">
             <span data-lang="ru" class="lang-active inline-lang">Войти →</span>
             <span data-lang="en" class="inline-lang">Sign In →</span>
             <span data-lang="sr" class="inline-lang">Prijavite se →</span>
           </button>
-        </form>
+          <button type="button" id="sl-btn-back" style="width:100%;margin-top:10px;background:transparent;border:1px solid var(--glass-border);color:var(--muted);padding:13px;border-radius:12px;font-size:14px;cursor:pointer;font-family:'Inter',sans-serif;">
+            ← <span data-lang="ru" class="lang-active inline-lang">Назад</span><span data-lang="en" class="inline-lang">Back</span><span data-lang="sr" class="inline-lang">Nazad</span>
+          </button>
+        </div>
 
-        <p style="margin-top:20px;font-size:13px;color:var(--muted);text-align:center;">
-          <span data-lang="ru" class="lang-active inline-lang">Нет аккаунта?</span>
-          <span data-lang="en" class="inline-lang">No account?</span>
-          <span data-lang="sr" class="inline-lang">Nemate nalog?</span>
-          <a href="#" onclick="switchTab('register');return false;" style="color:var(--cyan);margin-left:4px;text-decoration:none;font-weight:600;">
-            <span data-lang="ru" class="lang-active inline-lang">Зарегистрироваться</span>
-            <span data-lang="en" class="inline-lang">Register</span>
-            <span data-lang="sr" class="inline-lang">Registrujte se</span>
-          </a>
-        </p>
+        <!-- Hidden submit form -->
+        <form method="post" action="{% url 'recordings:smarty_login' %}" id="sl-form" style="display:none;">
+          {% csrf_token %}
+          {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+          <input type="hidden" name="email" id="sl-form-email">
+          <input type="hidden" name="password" id="sl-form-password">
+          <input type="hidden" name="password2" id="sl-form-password2">
+        </form>
+      </div>
+
+      <!-- Confirm modal -->
+      <div id="sl-modal-confirm" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(3,6,14,0.85);backdrop-filter:blur(10px);align-items:center;justify-content:center;padding:20px;">
+        <div style="background:#080f1a;border:1px solid rgba(6,200,240,0.25);border-radius:22px;padding:36px 28px;max-width:340px;width:100%;text-align:center;box-shadow:0 40px 80px rgba(0,0,0,0.6);">
+          <div style="font-size:36px;margin-bottom:14px;">👤</div>
+          <h3 style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;margin-bottom:8px;">
+            <span data-lang="ru" class="lang-active inline-lang">Это точно вы?</span>
+            <span data-lang="en" class="inline-lang">Is this you?</span>
+            <span data-lang="sr" class="inline-lang">Jeste li to vi?</span>
+          </h3>
+          <p style="color:var(--cyan);font-weight:700;font-size:14px;margin-bottom:24px;word-break:break-all;" id="sl-modal-email-display"></p>
+          <button class="btn-login" id="sl-modal-yes" style="margin-bottom:10px;">
+            <span data-lang="ru" class="lang-active inline-lang">Да, это я →</span>
+            <span data-lang="en" class="inline-lang">Yes, that's me →</span>
+            <span data-lang="sr" class="inline-lang">Da, to sam ja →</span>
+          </button>
+          <button type="button" onclick="slCloseModal()" style="width:100%;background:transparent;border:1px solid var(--glass-border);color:var(--muted);padding:12px;border-radius:12px;font-size:14px;cursor:pointer;font-family:'Inter',sans-serif;">
+            ← <span data-lang="ru" class="lang-active inline-lang">Другой email</span><span data-lang="en" class="inline-lang">Different email</span><span data-lang="sr" class="inline-lang">Drugi email</span>
+          </button>
+        </div>
       </div>
 
       <!-- REGISTER PANEL -->
@@ -1781,94 +1841,95 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════
-// MAIN CANVAS — particle network
+// MAIN CANVAS — particle network (mobile-optimised)
 // ═══════════════════════════════════════════════════════════
 (function() {
+  const isMobile = window.innerWidth < 768;
   const canvas = document.getElementById('three-canvas');
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: !isMobile });
+  renderer.setPixelRatio(1); // always 1 — prevents GPU overload on mobile
   renderer.setSize(window.innerWidth, window.innerHeight);
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
   camera.position.z = 120;
 
-  // Particles
-  const N = 280;
-  const positions = new Float32Array(N * 3);
-  const colors = new Float32Array(N * 3);
+  // Fewer particles on mobile
+  const N = isMobile ? 80 : 220;
+  const positions  = new Float32Array(N * 3);
+  const colors     = new Float32Array(N * 3);
   const velocities = [];
   const palette = [
-    new THREE.Color('#06c8f0'),
-    new THREE.Color('#3b82f6'),
-    new THREE.Color('#8b5cf6'),
-    new THREE.Color('#10d98a'),
+    new THREE.Color('#06c8f0'), new THREE.Color('#3b82f6'),
+    new THREE.Color('#8b5cf6'), new THREE.Color('#10d98a'),
   ];
-
   for (let i = 0; i < N; i++) {
     const r = 90;
-    positions[i*3]   = (Math.random() - 0.5) * r * 2;
-    positions[i*3+1] = (Math.random() - 0.5) * r * 1.5;
-    positions[i*3+2] = (Math.random() - 0.5) * r;
+    positions[i*3]   = (Math.random()-0.5)*r*2;
+    positions[i*3+1] = (Math.random()-0.5)*r*1.5;
+    positions[i*3+2] = (Math.random()-0.5)*r;
     velocities.push(new THREE.Vector3(
-      (Math.random() - 0.5) * 0.04,
-      (Math.random() - 0.5) * 0.04,
-      (Math.random() - 0.5) * 0.02
+      (Math.random()-0.5)*0.04, (Math.random()-0.5)*0.04, (Math.random()-0.5)*0.02
     ));
-    const c = palette[Math.floor(Math.random() * palette.length)];
-    colors[i*3] = c.r; colors[i*3+1] = c.g; colors[i*3+2] = c.b;
+    const c = palette[i % palette.length];
+    colors[i*3]=c.r; colors[i*3+1]=c.g; colors[i*3+2]=c.b;
   }
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.setAttribute('color',    new THREE.BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({ size: isMobile ? 2 : 2.5, vertexColors: true, transparent: true, opacity: 0.7 });
+  scene.add(new THREE.Points(geo, mat));
 
-  const mat = new THREE.PointsMaterial({ size: 2.5, vertexColors: true, transparent: true, opacity: 0.7 });
-  const points = new THREE.Points(geo, mat);
-  scene.add(points);
+  // Pre-allocate line buffers (no new geometry per frame → no memory leak)
+  const MAX_LINES = isMobile ? 200 : 800;
+  const lineBuf  = new Float32Array(MAX_LINES * 6); // 2 verts * 3 coords
+  const lineGeo  = new THREE.BufferGeometry();
+  const linePosAttr = new THREE.BufferAttribute(lineBuf, 3);
+  linePosAttr.setUsage(THREE.DynamicDrawUsage);
+  lineGeo.setAttribute('position', linePosAttr);
+  lineGeo.setDrawRange(0, 0);
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x06c8f0, transparent: true, opacity: 0.1 });
+  scene.add(new THREE.LineSegments(lineGeo, lineMat));
 
-  // Lines between nearby particles
-  const lineMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.12 });
-  let lineGeo = null;
-  let lineObj = null;
-
-  function buildLines() {
-    const lpos = [], lcol = [];
+  const CONNECT_DIST = isMobile ? 22 : 28;
+  function updateLines() {
     const pos = geo.attributes.position.array;
-    for (let i = 0; i < N; i++) {
-      const ax = pos[i*3], ay = pos[i*3+1], az = pos[i*3+2];
-      for (let j = i+1; j < N; j++) {
-        const dx = ax - pos[j*3], dy = ay - pos[j*3+1], dz = az - pos[j*3+2];
-        const d = Math.sqrt(dx*dx + dy*dy + dz*dz);
-        if (d < 28) {
-          lpos.push(ax, ay, az, pos[j*3], pos[j*3+1], pos[j*3+2]);
-          const alpha = 1 - d / 28;
-          lcol.push(0.024, 0.5*alpha, 0.94, 0.024, 0.5*alpha, 0.94);
+    let count = 0;
+    for (let i = 0; i < N && count < MAX_LINES; i++) {
+      const ax=pos[i*3], ay=pos[i*3+1], az=pos[i*3+2];
+      for (let j=i+1; j<N && count<MAX_LINES; j++) {
+        const dx=ax-pos[j*3], dy=ay-pos[j*3+1], dz=az-pos[j*3+2];
+        if (dx*dx+dy*dy+dz*dz < CONNECT_DIST*CONNECT_DIST) {
+          const b = count*6;
+          lineBuf[b]=ax;   lineBuf[b+1]=ay;   lineBuf[b+2]=az;
+          lineBuf[b+3]=pos[j*3]; lineBuf[b+4]=pos[j*3+1]; lineBuf[b+5]=pos[j*3+2];
+          count++;
         }
       }
     }
-    if (lineObj) scene.remove(lineObj);
-    if (lpos.length) {
-      lineGeo = new THREE.BufferGeometry();
-      lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(lpos), 3));
-      lineGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(lcol), 3));
-      lineObj = new THREE.LineSegments(lineGeo, lineMat);
-      scene.add(lineObj);
-    }
+    linePosAttr.needsUpdate = true;
+    lineGeo.setDrawRange(0, count*2);
   }
 
   let mouseX = 0, mouseY = 0;
-  document.addEventListener('mousemove', e => {
-    mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
-    mouseY = -(e.clientY / window.innerHeight - 0.5) * 2;
-  });
+  if (!isMobile) {
+    document.addEventListener('mousemove', e => {
+      mouseX = (e.clientX/window.innerWidth - 0.5)*2;
+      mouseY = -(e.clientY/window.innerHeight - 0.5)*2;
+    });
+  }
 
-  let frame = 0;
-  function animate() {
+  // Throttle: mobile renders at ~30fps, desktop at 60fps
+  let frame = 0, lastTime = 0;
+  const TARGET_MS = isMobile ? 33 : 16;
+  function animate(now) {
     requestAnimationFrame(animate);
+    if (now - lastTime < TARGET_MS) return;
+    lastTime = now;
     frame++;
     const pos = geo.attributes.position.array;
-    for (let i = 0; i < N; i++) {
+    for (let i=0; i<N; i++) {
       pos[i*3]   += velocities[i].x;
       pos[i*3+1] += velocities[i].y;
       pos[i*3+2] += velocities[i].z;
@@ -1877,15 +1938,12 @@
       if (Math.abs(pos[i*3+2]) > 60)  velocities[i].z *= -1;
     }
     geo.attributes.position.needsUpdate = true;
-    if (frame % 3 === 0) buildLines();
-
-    scene.rotation.y = mouseX * 0.06 + Math.sin(frame * 0.003) * 0.05;
-    scene.rotation.x = mouseY * 0.04 + Math.cos(frame * 0.002) * 0.03;
-
+    if (frame % (isMobile ? 6 : 3) === 0) updateLines();
+    scene.rotation.y = mouseX*0.06 + Math.sin(frame*0.003)*0.05;
+    scene.rotation.x = mouseY*0.04 + Math.cos(frame*0.002)*0.03;
     renderer.render(scene, camera);
   }
-  animate();
-  buildLines();
+  requestAnimationFrame(animate);
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -1895,84 +1953,57 @@
 })();
 
 // ═══════════════════════════════════════════════════════════
-// SHOWCASE CANVAS — rotating torus knot
+// SHOWCASE CANVAS — rotating torus knot (mobile-optimised)
 // ═══════════════════════════════════════════════════════════
 (function() {
   const canvas = document.getElementById('three-showcase');
   if (!canvas) return;
+  const isMobile = window.innerWidth < 768;
+  // On mobile skip showcase to save GPU budget
+  if (isMobile) { canvas.style.display = 'none'; return; }
+
   const w = canvas.parentElement.offsetWidth || 480;
   const h = 380;
   canvas.width = w; canvas.height = h;
 
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false });
+  renderer.setPixelRatio(1);
   renderer.setSize(w, h);
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 500);
+  const camera = new THREE.PerspectiveCamera(50, w/h, 0.1, 500);
   camera.position.set(0, 0, 5);
 
-  // Torus knot
-  const geo = new THREE.TorusKnotGeometry(1.3, 0.38, 180, 20, 3, 7);
-  const mat = new THREE.MeshStandardMaterial({
-    color: 0x06c8f0,
-    metalness: 0.85,
-    roughness: 0.1,
-    wireframe: false,
-    emissive: new THREE.Color(0x0a2a40),
-  });
+  const geo = new THREE.TorusKnotGeometry(1.3, 0.38, 120, 16, 3, 7);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x06c8f0, metalness: 0.85, roughness: 0.1, emissive: new THREE.Color(0x0a2a40) });
   const knot = new THREE.Mesh(geo, mat);
   scene.add(knot);
-
-  // Wireframe overlay
   const wmat = new THREE.MeshBasicMaterial({ color: 0x8b5cf6, wireframe: true, opacity: 0.18, transparent: true });
-  const wknot = new THREE.Mesh(geo, wmat);
-  scene.add(wknot);
+  scene.add(new THREE.Mesh(geo, wmat));
 
-  // Floating spheres
   for (let i = 0; i < 6; i++) {
-    const sg = new THREE.SphereGeometry(0.06 + Math.random()*0.06, 12, 12);
-    const sm = new THREE.MeshStandardMaterial({
-      color: [0x06c8f0, 0x3b82f6, 0x8b5cf6, 0x10d98a][i % 4],
-      emissive: [0x06c8f0, 0x3b82f6, 0x8b5cf6, 0x10d98a][i % 4],
-      emissiveIntensity: 0.6,
-    });
+    const sg = new THREE.SphereGeometry(0.07, 8, 8);
+    const sm = new THREE.MeshStandardMaterial({ color: [0x06c8f0,0x3b82f6,0x8b5cf6,0x10d98a][i%4], emissive: [0x06c8f0,0x3b82f6,0x8b5cf6,0x10d98a][i%4], emissiveIntensity: 0.6 });
     const s = new THREE.Mesh(sg, sm);
-    const angle = (i / 6) * Math.PI * 2;
-    s.position.set(Math.cos(angle) * 2.4, Math.sin(angle) * 2.2, (Math.random()-0.5));
-    s.userData = { angle, speed: 0.004 + Math.random()*0.004, r: 2.2 + Math.random()*0.4 };
+    s.userData = { angle: (i/6)*Math.PI*2, speed: 0.005+Math.random()*0.004, r: 2.3 };
     scene.add(s);
   }
 
-  // Lights
   scene.add(new THREE.AmbientLight(0x111122, 2));
-  const pl1 = new THREE.PointLight(0x06c8f0, 6, 20);
-  pl1.position.set(3, 3, 3);
-  scene.add(pl1);
-  const pl2 = new THREE.PointLight(0x8b5cf6, 4, 20);
-  pl2.position.set(-3, -2, -2);
-  scene.add(pl2);
+  const pl1 = new THREE.PointLight(0x06c8f0, 6, 20); pl1.position.set(3,3,3); scene.add(pl1);
+  scene.add(Object.assign(new THREE.PointLight(0x8b5cf6, 4, 20), {position: new THREE.Vector3(-3,-2,-2)}));
 
-  let f = 0;
-  function animate() {
+  let f = 0, lastT = 0;
+  function animate(now) {
     requestAnimationFrame(animate);
-    f++;
-    knot.rotation.x += 0.005;
-    knot.rotation.y += 0.008;
-    wknot.rotation.x = knot.rotation.x;
-    wknot.rotation.y = knot.rotation.y;
-    pl1.position.x = Math.sin(f * 0.02) * 4;
-    pl1.position.y = Math.cos(f * 0.015) * 3;
-    scene.children.forEach(obj => {
-      if (obj.userData && obj.userData.angle !== undefined) {
-        obj.userData.angle += obj.userData.speed;
-        obj.position.x = Math.cos(obj.userData.angle) * obj.userData.r;
-        obj.position.y = Math.sin(obj.userData.angle) * (obj.userData.r * 0.9);
-      }
-    });
+    if (now - lastT < 20) return; lastT = now; f++;
+    knot.rotation.x += 0.005; knot.rotation.y += 0.008;
+    scene.children[1].rotation.x = knot.rotation.x; scene.children[1].rotation.y = knot.rotation.y;
+    pl1.position.x = Math.sin(f*0.02)*4; pl1.position.y = Math.cos(f*0.015)*3;
+    scene.children.forEach(o => { if (o.userData.angle !== undefined) { o.userData.angle += o.userData.speed; o.position.x = Math.cos(o.userData.angle)*o.userData.r; o.position.y = Math.sin(o.userData.angle)*o.userData.r*0.9; } });
     renderer.render(scene, camera);
   }
-  animate();
+  requestAnimationFrame(animate);
 })();
 
 // ═══════════════════════════════════════════════════════════
@@ -2020,6 +2051,130 @@ function switchTab(tab) {
     document.getElementById('panel-' + t).classList.toggle('active', t === tab);
   });
 }
+
+// ═══════════════════════════════════════════════════════════
+// MULTI-STEP LOGIN
+// ═══════════════════════════════════════════════════════════
+(function() {
+  var checkedEmail = '';
+  var isFirstLogin = false;
+
+  var stepEmail    = document.getElementById('sl-step-email');
+  var stepPassword = document.getElementById('sl-step-password');
+  var emailInput   = document.getElementById('sl-email-input');
+  var btnContinue  = document.getElementById('sl-btn-continue');
+  var btnLogin     = document.getElementById('sl-btn-login');
+  var btnBack      = document.getElementById('sl-btn-back');
+  var step1Err     = document.getElementById('sl-step1-error');
+  var step2Err     = document.getElementById('sl-step2-error');
+  var pwdTitle     = document.getElementById('sl-pwd-title');
+  var pwdEmail     = document.getElementById('sl-pwd-email');
+  var fieldsExist  = document.getElementById('sl-fields-existing');
+  var fieldsFirst  = document.getElementById('sl-fields-first');
+  var pwdExist     = document.getElementById('sl-pwd-existing');
+  var pwd1         = document.getElementById('sl-pwd1');
+  var pwd2         = document.getElementById('sl-pwd2');
+  var modal        = document.getElementById('sl-modal-confirm');
+  var modalEmail   = document.getElementById('sl-modal-email-display');
+  var modalYes     = document.getElementById('sl-modal-yes');
+  var slForm       = document.getElementById('sl-form');
+  var formEmail    = document.getElementById('sl-form-email');
+  var formPwd      = document.getElementById('sl-form-password');
+  var formPwd2     = document.getElementById('sl-form-password2');
+
+  function showErr1(msg) { step1Err.textContent = msg; step1Err.style.display = ''; }
+  function clearErr1()   { step1Err.style.display = 'none'; }
+  function showErr2(msg) { step2Err.textContent = msg; step2Err.style.display = ''; }
+  function clearErr2()   { step2Err.style.display = 'none'; }
+
+  window.slCloseModal = function() { modal.style.display = 'none'; };
+
+  // Step 1: Continue
+  btnContinue.addEventListener('click', function() {
+    clearErr1();
+    var email = emailInput.value.trim().toLowerCase();
+    if (!email) { showErr1('Введите email.'); return; }
+
+    btnContinue.disabled = true;
+    btnContinue.style.opacity = '0.7';
+
+    fetch('/api/check-smarty-email/?email=' + encodeURIComponent(email))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        btnContinue.disabled = false;
+        btnContinue.style.opacity = '';
+        if (!data.ok) {
+          showErr1('Пользователь не найден. Зарегистрируйтесь ниже.');
+          return;
+        }
+        checkedEmail = email;
+        isFirstLogin = data.first_login;
+        modalEmail.textContent = email;
+        modal.style.display = 'flex';
+      })
+      .catch(function() {
+        btnContinue.disabled = false;
+        btnContinue.style.opacity = '';
+        showErr1('Ошибка соединения.');
+      });
+  });
+  emailInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); btnContinue.click(); } });
+
+  // Modal: Yes
+  modalYes.addEventListener('click', function() {
+    modal.style.display = 'none';
+    stepEmail.style.display = 'none';
+    stepPassword.style.display = '';
+    clearErr2();
+
+    if (isFirstLogin) {
+      pwdTitle.innerHTML = '<span data-lang="ru" class="lang-active inline-lang">Первый вход</span><span data-lang="en" class="inline-lang">First sign-in</span><span data-lang="sr" class="inline-lang">Prva prijava</span>';
+      fieldsExist.style.display = 'none';
+      fieldsFirst.style.display = '';
+      setTimeout(function() { pwd1.focus(); }, 50);
+    } else {
+      pwdTitle.innerHTML = '<span data-lang="ru" class="lang-active inline-lang">Введите пароль</span><span data-lang="en" class="inline-lang">Enter password</span><span data-lang="sr" class="inline-lang">Unesite lozinku</span>';
+      fieldsExist.style.display = '';
+      fieldsFirst.style.display = 'none';
+      setTimeout(function() { pwdExist.focus(); }, 50);
+    }
+    pwdEmail.textContent = checkedEmail;
+    // re-apply lang to new nodes
+    var lang = localStorage.getItem('sc_lang') || 'ru';
+    document.querySelectorAll('#sl-step-password [data-lang]').forEach(function(el) {
+      el.classList.toggle('lang-active', el.dataset.lang === lang);
+    });
+  });
+
+  // Back
+  btnBack.addEventListener('click', function() {
+    stepPassword.style.display = 'none';
+    stepEmail.style.display = '';
+    clearErr2();
+    setTimeout(function() { emailInput.focus(); }, 50);
+  });
+
+  // Login
+  btnLogin.addEventListener('click', function() {
+    clearErr2();
+    if (isFirstLogin) {
+      var p1 = pwd1.value, p2 = pwd2.value;
+      if (!p1) { showErr2('Введите пароль.'); pwd1.focus(); return; }
+      if (p1.length < 6) { showErr2('Не менее 6 символов.'); pwd1.focus(); return; }
+      if (p1 !== p2) { showErr2('Пароли не совпадают.'); pwd2.focus(); return; }
+      formEmail.value = checkedEmail; formPwd.value = p1; formPwd2.value = p2;
+    } else {
+      var p = pwdExist.value;
+      if (!p) { showErr2('Введите пароль.'); pwdExist.focus(); return; }
+      formEmail.value = checkedEmail; formPwd.value = p; formPwd2.value = '';
+    }
+    slForm.submit();
+  });
+
+  pwd1.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); pwd2.focus(); } });
+  pwd2.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); btnLogin.click(); } });
+  pwdExist.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); btnLogin.click(); } });
+})();
 
 // ═══════════════════════════════════════════════════════════
 // REGISTER SUBMIT
@@ -2155,86 +2310,104 @@ window.addEventListener('load', () => {
 });
 
 // ═══════════════════════════════════════════════════════════
-// 3D ICON CANVASES — one mini Three.js scene per service card
+// 3D ICON CANVASES — shared renderer, mobile fallback
 // ═══════════════════════════════════════════════════════════
 (function() {
-  // shape factories
+  const isMobile = window.innerWidth < 768;
+  const canvases = document.querySelectorAll('canvas.icon3d');
+
+  // On mobile: replace each canvas with a CSS-only glowing dot (saves 6 WebGL contexts)
+  if (isMobile) {
+    canvases.forEach(canvas => {
+      const color = canvas.dataset.color || '#06c8f0';
+      const wrap = canvas.parentElement;
+      canvas.remove();
+      wrap.style.background = `radial-gradient(circle at 40% 35%, ${color}44 0%, transparent 70%)`;
+      const dot = document.createElement('div');
+      dot.style.cssText = `width:28px;height:28px;border-radius:50%;background:${color};opacity:0.85;box-shadow:0 0 16px ${color};animation:pulse 2.5s infinite;`;
+      wrap.appendChild(dot);
+    });
+    return;
+  }
+
+  // Desktop: one shared offscreen renderer, render each icon to its own canvas via copyFramebuffer
   function makeGeometry(shape) {
     switch(shape) {
-      case 'torus':       return new THREE.TorusGeometry(0.55, 0.22, 14, 36);
+      case 'torus':       return new THREE.TorusGeometry(0.55, 0.22, 12, 32);
       case 'octahedron':  return new THREE.OctahedronGeometry(0.62, 0);
       case 'box':         return new THREE.BoxGeometry(0.8, 0.8, 0.8);
       case 'icosahedron': return new THREE.IcosahedronGeometry(0.65, 0);
       case 'tetra':       return new THREE.TetrahedronGeometry(0.72, 0);
-      case 'brain':       return new THREE.SphereGeometry(0.58, 7, 6); // low-poly sphere → AI/brain feel
+      case 'brain':       return new THREE.SphereGeometry(0.58, 6, 5);
       default:            return new THREE.SphereGeometry(0.58, 8, 8);
     }
   }
 
-  document.querySelectorAll('canvas.icon3d').forEach(canvas => {
-    const shape = canvas.dataset.shape;
+  const icons = [];
+  canvases.forEach(canvas => {
     const colorHex = canvas.dataset.color || '#06c8f0';
     const color = new THREE.Color(colorHex);
-
-    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(64, 64);
-
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 50);
     camera.position.z = 2.6;
 
-    // solid mesh
-    const geo = makeGeometry(shape);
-    const mat = new THREE.MeshStandardMaterial({
-      color,
-      metalness: 0.7,
-      roughness: 0.2,
-      emissive: color,
-      emissiveIntensity: 0.18,
-    });
+    const geo = makeGeometry(canvas.dataset.shape);
+    const mat = new THREE.MeshStandardMaterial({ color, metalness: 0.7, roughness: 0.2, emissive: color, emissiveIntensity: 0.2 });
     const mesh = new THREE.Mesh(geo, mat);
     scene.add(mesh);
+    const wmat = new THREE.MeshBasicMaterial({ color, wireframe: true, transparent: true, opacity: 0.22 });
+    scene.add(new THREE.Mesh(geo, wmat));
+    scene.add(new THREE.AmbientLight(0x111122, 2));
+    const pl = new THREE.PointLight(0xffffff, 3, 10); pl.position.set(2,2,3); scene.add(pl);
+    const pl2 = new THREE.PointLight(colorHex, 4, 8); pl2.position.set(-2,-1,1); scene.add(pl2);
 
-    // wireframe overlay for extra detail
-    const wmat = new THREE.MeshBasicMaterial({
-      color,
-      wireframe: true,
-      transparent: true,
-      opacity: 0.25,
+    // Each icon gets its own 2D canvas for display
+    const display = document.createElement('canvas');
+    display.width = display.height = 64;
+    display.style.display = 'block';
+    canvas.parentElement.replaceChild(display, canvas);
+
+    icons.push({
+      scene, camera, mesh,
+      wmesh: scene.children[1],
+      display,
+      rx: 0.007 + Math.random()*0.006,
+      ry: 0.010 + Math.random()*0.008,
+      visible: false,
     });
-    const wmesh = new THREE.Mesh(geo, wmat);
-    scene.add(wmesh);
 
-    // lights
-    const amb = new THREE.AmbientLight(0x111122, 2);
-    scene.add(amb);
-    const pl = new THREE.PointLight(0xffffff, 3, 10);
-    pl.position.set(2, 2, 3);
-    scene.add(pl);
-    const pl2 = new THREE.PointLight(colorHex, 4, 8);
-    pl2.position.set(-2, -1, 1);
-    scene.add(pl2);
-
-    // random rotation speed per icon
-    const rx = 0.007 + Math.random() * 0.006;
-    const ry = 0.010 + Math.random() * 0.008;
-
-    // animate only when visible in viewport
-    let visible = false;
-    const visObs = new IntersectionObserver(([e]) => { visible = e.isIntersecting; }, { threshold: 0 });
-    visObs.observe(canvas);
-
-    (function animate() {
-      requestAnimationFrame(animate);
-      if (!visible) return;
-      mesh.rotation.x += rx;
-      mesh.rotation.y += ry;
-      wmesh.rotation.x = mesh.rotation.x;
-      wmesh.rotation.y = mesh.rotation.y;
-      renderer.render(scene, camera);
-    })();
+    const obs = new IntersectionObserver(([e]) => { icons[icons.length-1].visible = e.isIntersecting; }, { threshold: 0 });
+    obs.observe(display);
   });
+
+  if (!icons.length) return;
+
+  // Single shared offscreen WebGL renderer
+  const offscreen = document.createElement('canvas');
+  offscreen.width = offscreen.height = 64;
+  const renderer = new THREE.WebGLRenderer({ canvas: offscreen, alpha: true, antialias: false });
+  renderer.setPixelRatio(1);
+  renderer.setSize(64, 64);
+  renderer.autoClear = true;
+
+  let lastT = 0;
+  function animate(now) {
+    requestAnimationFrame(animate);
+    if (now - lastT < 24) return; lastT = now; // ~40fps for icons
+    icons.forEach(ic => {
+      if (!ic.visible) return;
+      ic.mesh.rotation.x += ic.rx;
+      ic.mesh.rotation.y += ic.ry;
+      ic.wmesh.rotation.x = ic.mesh.rotation.x;
+      ic.wmesh.rotation.y = ic.mesh.rotation.y;
+      renderer.render(ic.scene, ic.camera);
+      // Copy rendered frame to the display canvas
+      const ctx = ic.display.getContext('2d');
+      ctx.clearRect(0, 0, 64, 64);
+      ctx.drawImage(offscreen, 0, 0);
+    });
+  }
+  requestAnimationFrame(animate);
 })();
 </script>
 </body>

@@ -1,0 +1,262 @@
+{% extends "recordings/base.html" %}
+{% block title %}Чат пространства{% endblock %}
+
+{% block content %}
+{% if not chat_configured %}
+<div style="background:var(--error-soft);border:1px solid var(--error);border-radius:var(--radius);padding:1.5rem;text-align:center;color:var(--error);">
+    <strong>Чат не настроен.</strong><br>
+    <span style="font-size:0.85rem;">Добавьте <code>SUPABASE_URL</code> и <code>SUPABASE_ANON_KEY</code> в настройки.</span>
+</div>
+{% else %}
+
+<div id="chat-wrap" style="
+    display:flex;flex-direction:column;
+    height:calc(100vh - 200px);min-height:400px;
+    background:var(--card);border:1px solid var(--border);
+    border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;">
+
+    <!-- Messages -->
+    <div id="chat-messages" style="
+        flex:1;overflow-y:auto;padding:1rem;
+        display:flex;flex-direction:column;gap:0.5rem;">
+        <div id="chat-loading" style="text-align:center;color:var(--muted);padding:2rem;font-size:0.85rem;">
+            Загрузка...
+        </div>
+    </div>
+
+    <!-- Input -->
+    <div style="border-top:1px solid var(--border);padding:0.75rem 1rem;display:flex;gap:0.6rem;background:var(--bg-soft);">
+        <textarea id="chat-input"
+            placeholder="Напишите сообщение… (Enter — отправить, Shift+Enter — новая строка)"
+            rows="1"
+            style="flex:1;resize:none;border:1px solid var(--border);border-radius:10px;
+                   padding:0.6rem 0.9rem;font-family:inherit;font-size:0.93rem;
+                   background:var(--card);color:var(--text);outline:none;
+                   max-height:120px;overflow-y:auto;line-height:1.5;
+                   transition:border-color 0.2s;"
+            onfocus="this.style.borderColor='var(--accent)'"
+            onblur="this.style.borderColor='var(--border)'"
+        ></textarea>
+        <button id="chat-send-btn" onclick="sendMsg()"
+            style="flex-shrink:0;padding:0.6rem 1.1rem;background:var(--accent);color:#fff;
+                   border:none;border-radius:10px;cursor:pointer;font-size:0.9rem;font-weight:600;
+                   transition:background 0.2s;align-self:flex-end;"
+            onmouseover="this.style.background='var(--accent-light)'"
+            onmouseout="this.style.background='var(--accent)'">
+            ➤
+        </button>
+    </div>
+</div>
+
+<style>
+.chat-msg {
+    display:flex;flex-direction:column;gap:0.15rem;
+    padding:0.55rem 0.8rem;border-radius:12px;max-width:78%;
+    font-size:0.9rem;line-height:1.55;word-break:break-word;
+    animation: msgIn 0.25s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes msgIn {
+    from { opacity:0; transform:translateY(8px) scale(0.97); }
+    to   { opacity:1; transform:translateY(0) scale(1); }
+}
+.chat-msg.mine {
+    background:var(--accent);color:#fff;align-self:flex-end;border-bottom-right-radius:3px;
+}
+.chat-msg.theirs {
+    background:var(--bg-soft);color:var(--text);align-self:flex-start;border-bottom-left-radius:3px;
+    border:1px solid var(--border);
+}
+.chat-msg-meta {
+    font-size:0.72rem;opacity:0.7;display:flex;gap:0.4rem;align-items:center;
+}
+.chat-msg.mine .chat-msg-meta { justify-content:flex-end; }
+.chat-msg-text { white-space:pre-wrap; }
+.chat-day-sep {
+    text-align:center;color:var(--muted);font-size:0.75rem;
+    padding:0.5rem 0;position:relative;
+}
+.chat-day-sep::before, .chat-day-sep::after {
+    content:'';display:inline-block;height:1px;background:var(--border);
+    vertical-align:middle;width:30%;margin:0 0.5rem;
+}
+#chat-messages::-webkit-scrollbar { width:4px; }
+#chat-messages::-webkit-scrollbar-thumb { background:var(--border);border-radius:2px; }
+</style>
+
+<script>
+const MY_EMAIL = '{{ current_user.email|escapejs }}';
+let lastId = 0;
+let sseSource = null;
+let isAtBottom = true;
+
+const msgsEl = document.getElementById('chat-messages');
+const inputEl = document.getElementById('chat-input');
+
+// Auto-resize textarea
+inputEl.addEventListener('input', () => {
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+});
+
+// Enter = send, Shift+Enter = newline
+inputEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMsg();
+    }
+});
+
+// Track if user is at bottom
+msgsEl.addEventListener('scroll', () => {
+    isAtBottom = msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight < 60;
+});
+
+function scrollToBottom(force) {
+    if (force || isAtBottom) {
+        msgsEl.scrollTop = msgsEl.scrollHeight;
+    }
+}
+
+function formatTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const h = String(d.getHours()).padStart(2,'0');
+    const m = String(d.getMinutes()).padStart(2,'0');
+    return `${h}:${m}`;
+}
+
+function formatDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) return 'Сегодня';
+    const yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
+    if (d.toDateString() === yesterday.toDateString()) return 'Вчера';
+    return d.toLocaleDateString('ru-RU', {day:'numeric', month:'long'});
+}
+
+let lastDateStr = '';
+
+function renderMsg(m, prepend) {
+    const mine = m.user_email === MY_EMAIL;
+    const dateStr = formatDate(m.created_at);
+
+    // Day separator
+    if (!prepend && dateStr !== lastDateStr) {
+        lastDateStr = dateStr;
+        const sep = document.createElement('div');
+        sep.className = 'chat-day-sep';
+        sep.textContent = dateStr;
+        msgsEl.appendChild(sep);
+    }
+
+    const div = document.createElement('div');
+    div.className = 'chat-msg ' + (mine ? 'mine' : 'theirs');
+    div.dataset.id = m.id;
+
+    const name = mine ? 'Вы' : (m.display_name || m.user_email.split('@')[0]);
+    const tg = m.tg_username ? ` · @${m.tg_username}` : '';
+
+    div.innerHTML = `
+        <div class="chat-msg-meta">
+            <strong>${esc(name)}</strong>${esc(tg)}
+            <span>${formatTime(m.created_at)}</span>
+        </div>
+        <div class="chat-msg-text">${esc(m.message)}</div>
+    `;
+
+    if (prepend) {
+        msgsEl.insertBefore(div, msgsEl.firstChild);
+    } else {
+        msgsEl.appendChild(div);
+    }
+}
+
+function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function loadInitial() {
+    try {
+        const resp = await fetch('/space-chat/messages/?after=0');
+        const data = await resp.json();
+        document.getElementById('chat-loading').remove();
+        if (data.messages && data.messages.length) {
+            for (const m of data.messages) {
+                renderMsg(m);
+                lastId = Math.max(lastId, m.id || 0);
+            }
+            scrollToBottom(true);
+        } else {
+            const hint = document.createElement('div');
+            hint.style.cssText = 'text-align:center;color:var(--muted);font-size:0.85rem;padding:2rem;';
+            hint.textContent = 'Пока нет сообщений. Напишите первым!';
+            msgsEl.appendChild(hint);
+        }
+    } catch(e) {
+        document.getElementById('chat-loading').textContent = 'Ошибка загрузки';
+    }
+    startSSE();
+}
+
+function startSSE() {
+    if (sseSource) sseSource.close();
+    const url = `/space-chat/stream/?after=${lastId}`;
+    sseSource = new EventSource(url);
+    sseSource.onmessage = e => {
+        if (!e.data || e.data === '{}') return;
+        try {
+            const m = JSON.parse(e.data);
+            if (m.id && m.id > lastId) {
+                // Remove "no messages" hint if present
+                const hint = msgsEl.querySelector('div[style*="Пока нет"]');
+                if (hint) hint.remove();
+                renderMsg(m);
+                lastId = m.id;
+                scrollToBottom(m.user_email === MY_EMAIL);
+            }
+        } catch(_) {}
+    };
+    sseSource.onerror = () => {
+        sseSource.close();
+        // Reconnect after 3s
+        setTimeout(startSSE, 3000);
+    };
+}
+
+async function sendMsg() {
+    const text = inputEl.value.trim();
+    if (!text) return;
+    const btn = document.getElementById('chat-send-btn');
+    btn.disabled = true;
+    inputEl.value = '';
+    inputEl.style.height = 'auto';
+
+    try {
+        const resp = await fetch('/space-chat/send/', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json','X-CSRFToken': getCsrf()},
+            body: JSON.stringify({message: text}),
+        });
+        const data = await resp.json();
+        if (!data.ok) {
+            inputEl.value = text;
+            alert('Ошибка: ' + (data.error || 'неизвестно'));
+        }
+    } catch(e) {
+        inputEl.value = text;
+        alert('Ошибка отправки');
+    } finally {
+        btn.disabled = false;
+        inputEl.focus();
+    }
+}
+
+function getCsrf() {
+    return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='))?.split('=')[1] || '';
+}
+
+loadInitial();
+</script>
+{% endif %}
+{% endblock %}

@@ -185,6 +185,11 @@ LIVEKIT_API_SECRET = env('LIVEKIT_API_SECRET', default='')
 import hashlib as _hashlib
 TELEGRAM_WEBHOOK_SECRET = _hashlib.sha256(SECRET_KEY.encode()).hexdigest()[:32]
 
+# BP Group Chat Bot
+BP_CHAT_BOT_TOKEN = env('BP_CHAT_BOT_TOKEN', default='')
+BP_CHAT_GROUP_ID  = env.int('BP_CHAT_GROUP_ID', default=0)
+BP_CHAT_WEBHOOK_SECRET = _hashlib.sha256(f'bp_chat_{SECRET_KEY}'.encode()).hexdigest()[:24]
+
 # Poll interval seconds
 POLL_INTERVAL_SECONDS = env.int('POLL_INTERVAL_SECONDS', default=300)  # 5 min
 STABLE_SIZE_SECONDS = env.int('STABLE_SIZE_SECONDS', default=300)  # 5 min unchanged = ready to transcribe
@@ -253,3 +258,10 @@ LOGGING = {
 }
 
 # Local folder for downloading MP3 before transcription (MEDIA_ROOT set above)
+
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+
+# Supabase Chat
+SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
+SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', '')

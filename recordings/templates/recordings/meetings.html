@@ -8,28 +8,66 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: 1rem;
-    flex-wrap: wrap;
     gap: 0.5rem;
 }
 .meetings-header h1 { margin: 0; font-size: 1.4rem; }
+.header-actions { display: flex; gap: 0.4rem; align-items: center; flex-wrap: nowrap; }
+@media (max-width: 500px) {
+    .meetings-header h1 { font-size: 1.15rem; }
+    .header-actions { gap: 0.25rem; }
+    .btn-label-full { display: none; }
+    .btn-label-short { display: inline; }
+}
+@media (min-width: 501px) {
+    .btn-label-short { display: none; }
+}
+
+/* ── Overflow menu ── */
+.more-menu-wrap { position: relative; }
+.more-btn {
+    background: none; border: 1px solid var(--border); border-radius: 8px;
+    padding: 0.3rem 0.6rem; font-size: 1.1rem; cursor: pointer; color: var(--muted);
+    display: flex; align-items: center; line-height: 1;
+}
+.more-btn:hover { background: var(--bg-soft); }
+.more-dropdown {
+    display: none; position: absolute; right: 0; top: calc(100% + 4px);
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12); min-width: 180px; z-index: 500;
+    overflow: hidden;
+}
+.more-dropdown.open { display: block; }
+.more-dropdown a, .more-dropdown button, .more-dropdown label {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.6rem 0.9rem; font-size: 0.88rem;
+    color: var(--text); text-decoration: none;
+    background: none; border: none; width: 100%; text-align: left; cursor: pointer;
+}
+.more-dropdown a:hover, .more-dropdown button:hover, .more-dropdown label:hover { background: var(--bg-soft); }
 
 /* ── Табы ── */
 .tab-nav {
     display: flex;
     border-bottom: 2px solid var(--border);
     margin-bottom: 1.25rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
 }
+.tab-nav::-webkit-scrollbar { display: none; }
 .tab-btn {
     background: none;
     border: none;
     border-bottom: 2px solid transparent;
     margin-bottom: -2px;
-    padding: 0.55rem 1.25rem;
-    font-size: 0.9rem;
+    padding: 0.55rem 1rem;
+    font-size: 0.88rem;
     font-weight: 600;
     cursor: pointer;
     color: var(--muted);
     transition: color 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 .tab-btn:hover:not(.active) { color: var(--text); }
@@ -39,7 +77,7 @@
     background: none;
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 0.3rem 0.8rem;
+    padding: 0.3rem 0.6rem;
     font-size: 0.82rem;
     cursor: pointer;
     color: var(--muted);
@@ -50,6 +88,8 @@
 .refresh-btn:hover { background: var(--bg-soft); }
 .refresh-btn.spinning svg { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+/* Hide text label on narrow screens */
+@media (max-width: 500px) { .refresh-label { display: none; } }
 
 /* ── Карточки встреч ── */
 .meeting-card { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 0.75rem; transition: border-color 0.15s; }
@@ -76,6 +116,13 @@
 .btn-sm-act.danger:hover { background:#fef2f2; }
 .empty-msg { color:var(--muted); padding:2rem; text-align:center; }
 #lk-error { color:#dc2626; font-size:0.85rem; margin-bottom:0.75rem; display:none; }
+@media (max-width: 500px) {
+    .meeting-card { padding: 0.85rem 1rem; }
+    .card-top .meeting-title { font-size: 0.95rem; }
+    .card-actions { gap: 0.4rem; }
+    .btn-enter { padding: 0.45rem 0.9rem; font-size: 0.82rem; }
+    .btn-sm-act { padding: 0.35rem 0.65rem; font-size: 0.8rem; }
+}
 
 /* ── Модальное окно деталей события ── */
 .event-modal-backdrop {
@@ -172,6 +219,53 @@
 .invite-section label { font-size:0.82rem; font-weight:600; color:var(--muted); display:block; margin-bottom:0.4rem; }
 .invite-user-row { display:flex; align-items:center; gap:0.5rem; margin-bottom:0.35rem; font-size:0.85rem; }
 .invite-join-link { display:block; margin-top:0.75rem; word-break:break-all; font-size:0.82rem; color:var(--accent); }
+
+/* ── Поделиться днём ── */
+.day-share-modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    z-index: 3500; display: none; align-items: flex-end; justify-content: center;
+}
+.day-share-modal.visible { display: flex; }
+@media (min-width: 600px) { .day-share-modal { align-items: center; } }
+.day-share-box {
+    background: var(--bg); border-radius: 16px 16px 0 0;
+    padding: 1.25rem 1.25rem 2rem; width: 100%;
+    max-height: 85vh; overflow-y: auto;
+    box-shadow: 0 -8px 32px rgba(0,0,0,0.15);
+}
+@media (min-width: 600px) { .day-share-box { border-radius: 16px; max-width: 460px; max-height: 80vh; padding: 1.5rem; } }
+.day-share-drag { width: 40px; height: 4px; background: var(--border); border-radius: 4px; margin: 0 auto 1rem; }
+@media (min-width: 600px) { .day-share-drag { display: none; } }
+.day-share-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 0.1rem; }
+.day-share-sub { font-size: 0.82rem; color: var(--muted); margin-bottom: 1rem; }
+.share-meetings-list { margin-bottom: 1rem; }
+.share-meeting-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
+.share-meeting-row:last-child { border-bottom: none; }
+.share-time { color: var(--muted); font-size: 0.78rem; white-space: nowrap; min-width: 80px; }
+.share-config { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; margin-bottom: 1rem; }
+.share-config-item label { display: block; font-size: 0.72rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
+.share-config-item input, .share-config-item select {
+    width: 100%; border: 1px solid var(--border); border-radius: 6px;
+    padding: 0.35rem 0.5rem; font-size: 0.85rem;
+    background: var(--bg-soft); color: var(--text);
+}
+.share-link-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.75rem; }
+.share-link-input { flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem 0.6rem; font-size: 0.8rem; background: var(--bg-soft); color: var(--text); }
+.btn-copy { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem 0.75rem; font-size: 0.82rem; cursor: pointer; white-space: nowrap; }
+.btn-copy:hover { background: var(--border); }
+.empty-day { color: var(--muted); font-size: 0.85rem; font-style: italic; padding: 0.5rem 0; }
+
+/* ── Легенда календаря ── */
+.cal-legend {
+    display: flex; gap: 0.75rem; align-items: center;
+    font-size: 0.75rem; color: var(--muted);
+    margin-left: auto; flex-wrap: wrap;
+}
+.cal-legend-item { display: flex; align-items: center; gap: 0.25rem; white-space: nowrap; }
+.cal-legend-item span { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+@media (max-width: 500px) {
+    .cal-legend { margin-left: 0; width: 100%; gap: 0.6rem; }
+}
 
 /* ── FullCalendar: базовые переменные (светлая тема) ── */
 #calendar {
@@ -292,27 +386,81 @@
 .fc-col-header { background: var(--bg-soft); }
 .fc-timegrid-now-indicator-line { border-color: #e03e3e !important; }
 .fc-timegrid-now-indicator-arrow { border-color: #e03e3e !important; }
+
+/* ── FullCalendar адаптив ── */
+@media (max-width: 500px) {
+    .fc-toolbar-title { font-size: 0.9rem !important; }
+    .fc-button, .fc-button-primary {
+        font-size: 0.72rem !important;
+        padding: 0.25rem 0.5rem !important;
+    }
+    .fc-toolbar.fc-header-toolbar { gap: 0.25rem; flex-wrap: wrap; }
+    .fc-toolbar-chunk { display: flex; gap: 0.25rem; align-items: center; }
+    .fc-list-event-title a { font-size: 0.83rem !important; }
+    .fc-list-day-cushion { padding: 4px 8px !important; }
+}
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="meetings-header">
     <h1>Встречи</h1>
-    <div style="display:flex;gap:0.5rem;align-items:center;">
+    <div class="header-actions">
         <button class="refresh-btn" id="refresh-btn" onclick="loadRooms()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <path d="M23 4v6h-6M1 20v-6h6"/>
                 <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
             </svg>
-            Обновить
+            <span class="refresh-label">Обновить</span>
         </button>
-        <button class="btn btn-primary" onclick="openMeetingModal()">+ Новая встреча</button>
+        <!-- Overflow menu -->
+        <div class="more-menu-wrap" id="more-menu-wrap">
+            <button class="more-btn" onclick="toggleMoreMenu()" title="Ещё">⋯</button>
+            <div class="more-dropdown" id="more-dropdown">
+                <button onclick="openDayShareToday();closeMoreMenu()">📅 Поделиться днём</button>
+                <div style="border-top:1px solid var(--border);margin:0.2rem 0;"></div>
+                <a href="/meetings/export-csv/">↓ Скачать встречи CSV</a>
+                <label style="cursor:pointer;">
+                    ↑ Импорт встреч CSV
+                    <input type="file" accept=".csv" style="display:none;" onchange="importCsv(this);closeMoreMenu()">
+                </label>
+                <a href="/meetings/csv-sample/" style="color:var(--muted);font-size:0.82rem;padding-left:1.5rem;">📎 Скачать пример CSV</a>
+                <div style="border-top:1px solid var(--border);margin:0.2rem 0;"></div>
+                <a href="/calendar-settings/">⚙️ Настройки календаря</a>
+                <div style="border-top:1px solid var(--border);margin:0.2rem 0;"></div>
+                <button onclick="importFromGoogle();closeMoreMenu()">📅 Импорт из Google Calendar</button>
+            </div>
+        </div>
+        <button class="btn" onclick="openSchedModal()" style="white-space:nowrap;">
+            <span class="btn-label-full">📅 Запланировать</span>
+            <span class="btn-label-short">📅</span>
+        </button>
+        <button class="btn btn-primary" onclick="openMeetingModal()" style="white-space:nowrap;">
+            <span class="btn-label-full">+ Сейчас</span>
+            <span class="btn-label-short">+</span>
+        </button>
     </div>
 </div>
+
+<div id="gcal-banner" style="display:none;padding:0.5rem 0.75rem;border-radius:8px;margin-bottom:0.75rem;font-size:0.85rem;"></div>
+<script>
+(function(){
+    const p = new URLSearchParams(location.search);
+    const b = document.getElementById('gcal-banner');
+    if (p.get('gcal_ok')) {
+        b.style.cssText = 'display:block;background:#dcfce7;color:#16a34a;border:1px solid #16a34a44;padding:0.5rem 0.75rem;border-radius:8px;margin-bottom:0.75rem;font-size:0.85rem;';
+        b.textContent = '✅ Google Calendar подключён! Нажмите ⋯ → Импорт из Google Calendar';
+    } else if (p.get('gcal_error')) {
+        b.style.cssText = 'display:block;background:#fef2f2;color:#dc2626;border:1px solid #dc262644;padding:0.5rem 0.75rem;border-radius:8px;margin-bottom:0.75rem;font-size:0.85rem;';
+        b.textContent = '❌ Ошибка подключения Google Calendar: ' + p.get('gcal_error');
+    }
+})();
+</script>
 
 <div class="tab-nav">
     <button class="tab-btn active" id="tab-btn-active" onclick="showTab('active')">Активные</button>
     <button class="tab-btn" id="tab-btn-calendar" onclick="showTab('calendar')">Календарь</button>
+    <button class="tab-btn" id="tab-btn-busy" onclick="showTab('busy')">Занятое время</button>
 </div>
 
 <!-- Таб: активные встречи -->
@@ -323,7 +471,77 @@
 
 <!-- Таб: календарь -->
 <div id="tab-calendar" style="display:none;">
+    <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.75rem;">
+        <button class="btn" id="mine-filter-btn" onclick="toggleMineFilter()"
+            style="font-size:0.82rem;padding:0.3rem 0.75rem;flex-shrink:0;">
+            👤 Только мои
+        </button>
+        <span style="font-size:0.78rem;color:var(--muted);flex-shrink:0;" id="mine-filter-label"></span>
+        <span class="cal-legend">
+            <span class="cal-legend-item"><span style="background:#16a34a;"></span>Активна</span>
+            <span class="cal-legend-item"><span style="background:#7c3aed;"></span>Участвую</span>
+            <span class="cal-legend-item"><span style="background:#2563eb;"></span>Завершена</span>
+        </span>
+    </div>
     <div id="calendar"></div>
+</div>
+
+<!-- Таб: занятое время -->
+<div id="tab-busy" style="display:none;">
+    <div style="max-width:520px;">
+        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1rem;">
+            Повторяющиеся события автоматически блокируют слоты на странице бронирования вашей ссылки.
+        </p>
+
+        <!-- Форма добавления -->
+        <div class="card" style="margin-bottom:1.25rem;">
+            <p class="section-title" style="margin-bottom:0.75rem;">Добавить событие</p>
+            <div style="display:flex;flex-direction:column;gap:0.6rem;">
+                <input id="busy-title" type="text" placeholder="Название (напр. Обед)"
+                    style="padding:0.5rem 0.7rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-soft);color:var(--text);font-size:0.9rem;">
+                <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;">
+                    <div>
+                        <label style="font-size:0.78rem;color:var(--muted);">С</label>
+                        <input id="busy-start" type="time" value="12:00"
+                            style="margin-left:0.3rem;padding:0.4rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-soft);color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="font-size:0.78rem;color:var(--muted);">До</label>
+                        <input id="busy-end" type="time" value="13:00"
+                            style="margin-left:0.3rem;padding:0.4rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-soft);color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="font-size:0.78rem;color:var(--muted);">Повтор</label>
+                        <select id="busy-repeat"
+                            style="margin-left:0.3rem;padding:0.4rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-soft);color:var(--text);">
+                            <option value="daily">Ежедневно</option>
+                            <option value="weekdays">По будням (пн–пт)</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="btn" onclick="addBusyTime()" style="align-self:flex-start;">Добавить</button>
+            </div>
+        </div>
+
+        <!-- Список существующих -->
+        <div id="busy-list">
+            {% if recurring_busy %}
+            {% for b in recurring_busy %}
+            <div class="card" id="busy-item-{{ b.pk }}" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;padding:0.6rem 0.9rem;margin-bottom:0.5rem;">
+                <div>
+                    <span style="font-weight:600;">{{ b.title }}</span>
+                    <span style="color:var(--muted);font-size:0.85rem;margin-left:0.5rem;">{{ b.start_time|time:"H:i" }}–{{ b.end_time|time:"H:i" }}</span>
+                    <span style="color:var(--muted);font-size:0.78rem;margin-left:0.4rem;">· {{ b.get_repeat_display }}</span>
+                </div>
+                <button onclick="deleteBusyTime({{ b.pk }})"
+                    style="background:none;border:none;color:var(--error);cursor:pointer;font-size:1rem;padding:0.2rem 0.4rem;">✕</button>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p id="busy-empty" style="color:var(--muted);font-size:0.85rem;font-style:italic;">Нет повторяющихся событий.</p>
+            {% endif %}
+        </div>
+    </div>
 </div>
 
 <!-- Модальное окно деталей события (bottom sheet на мобиле) -->
@@ -336,16 +554,141 @@
         </div>
         <div class="event-modal-time" id="ev-time"></div>
         <div id="ev-body"></div>
+        <div id="ev-actions" style="display:none;margin-top:0.75rem;gap:0.4rem;flex-wrap:wrap;"></div>
+        <!-- Панель приглашения -->
+        <div id="ev-invite-panel" style="display:none;margin-top:0.75rem;border-top:1px solid var(--border);padding-top:0.75rem;">
+            <div style="font-size:0.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:0.5rem;">Пригласить участников</div>
+            <div id="ev-invite-join-link-row" style="margin-bottom:0.6rem;display:none;">
+                <div style="font-size:0.78rem;color:var(--muted);margin-bottom:0.2rem;">Ссылка на встречу:</div>
+                <a id="ev-invite-join-link" href="#" target="_blank" style="font-size:0.82rem;word-break:break-all;color:var(--accent);"></a>
+            </div>
+            <div id="ev-invite-list" style="max-height:160px;overflow-y:auto;"></div>
+            <textarea id="ev-invite-comment" rows="2" placeholder="Комментарий (необязательно) — придёт в Telegram"
+                style="width:100%;margin-top:0.6rem;border:1px solid var(--border);border-radius:8px;padding:0.4rem 0.6rem;font-size:0.83rem;background:var(--bg-soft);color:var(--text);resize:vertical;box-sizing:border-box;"></textarea>
+            <div style="display:flex;gap:0.4rem;margin-top:0.5rem;">
+                <button class="btn btn-primary" style="font-size:0.82rem;padding:0.3rem 0.8rem;" onclick="sendCalInvites()">Отправить</button>
+                <button class="btn" style="font-size:0.82rem;padding:0.3rem 0.8rem;" onclick="document.getElementById('ev-invite-panel').style.display='none'">Отмена</button>
+            </div>
+            <div id="ev-invite-msg" style="font-size:0.8rem;margin-top:0.35rem;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Модалка редактирования встречи -->
+<div class="modal-backdrop" id="edit-meeting-modal">
+    <div class="modal-box">
+        <h2>Редактировать встречу</h2>
+        <input type="hidden" id="edit-room-name">
+        <div class="modal-field">
+            <label>Название</label>
+            <input type="text" id="edit-title" placeholder="Название встречи…" autocomplete="off">
+        </div>
+        <div class="modal-field">
+            <label>Дата и время</label>
+            <input type="datetime-local" id="edit-scheduled" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:0.45rem 0.75rem;font-size:0.9rem;background:var(--bg-soft);color:var(--text);">
+            <div style="font-size:0.75rem;color:var(--muted);margin-top:0.25rem;">Время по МСК (UTC+3). Оставьте пустым если встреча без расписания</div>
+        </div>
+        <div class="modal-field">
+            <label>Ссылка на встречу <span style="font-weight:400;color:var(--muted);">(необязательно)</span></label>
+            <input type="url" id="edit-join-url" placeholder="https://…" autocomplete="off" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:0.45rem 0.75rem;font-size:0.9rem;background:var(--bg-soft);color:var(--text);box-sizing:border-box;">
+        </div>
+        <div class="modal-field">
+            <label>Повтор</label>
+            <select id="edit-repeat" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:0.45rem 0.75rem;font-size:0.9rem;background:var(--bg-soft);color:var(--text);">
+                <option value="">Не повторяется</option>
+                <option value="weekly">Еженедельно (раз в неделю)</option>
+            </select>
+        </div>
+        <div class="modal-error" id="edit-modal-error"></div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeEditModal()">Отмена</button>
+            <button class="btn btn-primary" id="edit-save-btn" onclick="saveEditMeeting()">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модалка "Поделиться днём" -->
+<div class="day-share-modal" id="day-share-modal" onclick="closeDayShare(event)">
+    <div class="day-share-box">
+        <div class="day-share-drag"></div>
+        <div style="display:flex;align-items:flex-start;gap:0.5rem;margin-bottom:1rem;">
+            <div style="flex:1;">
+                <div class="day-share-title" style="margin-bottom:0.4rem;">Поделиться днём</div>
+                <input type="date" id="ds-date-input"
+                    style="border:1px solid var(--border);border-radius:8px;padding:0.35rem 0.6rem;font-size:0.95rem;background:var(--bg-soft);color:var(--text);width:100%;"
+                    onchange="onDsDateChange(this.value)">
+            </div>
+            <button style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted);padding:0;margin-top:0.15rem;" onclick="closeDayShareDirect()">×</button>
+        </div>
+
+        <div style="font-size:0.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem;">
+            Отметьте встречи, в которых участвуете
+        </div>
+        <div class="share-meetings-list" id="ds-meetings-list">
+            <div class="empty-day">Загрузка…</div>
+        </div>
+
+        <div class="share-config">
+            <div class="share-config-item">
+                <label>Начало дня</label>
+                <input type="time" id="ds-start" value="09:00">
+            </div>
+            <div class="share-config-item">
+                <label>Конец дня</label>
+                <input type="time" id="ds-end" value="18:00">
+            </div>
+            <div class="share-config-item">
+                <label>Слот (мин)</label>
+                <select id="ds-slot">
+                    <option value="15">15</option>
+                    <option value="30" selected>30</option>
+                    <option value="45">45</option>
+                    <option value="60">60</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;">
+            <button class="btn btn-primary" style="flex:1;" onclick="generateShareLink(false)">🔗 Ссылка на день</button>
+            <button class="btn" style="flex:1;" onclick="generateShareLink(true)" title="Ссылка которая всегда показывает завтрашний день">🔁 Постоянная (завтра)</button>
+        </div>
+        <div class="share-link-row" id="ds-link-row" style="display:none;">
+            <input type="text" readonly class="share-link-input" id="ds-link-input">
+            <button class="btn-copy" onclick="copyShareLink()">Копировать</button>
+        </div>
+        <div id="ds-permanent-note" style="font-size:0.78rem;color:#2563eb;margin-top:0.3rem;display:none;">
+            🔁 Постоянная ссылка — при открытии всегда показывает <b>завтра</b>
+        </div>
+        <div id="ds-error" style="color:#dc2626;font-size:0.82rem;margin-top:0.5rem;display:none;"></div>
     </div>
 </div>
 
 <!-- Модалка создания встречи -->
 <div class="modal-backdrop" id="meeting-modal">
     <div class="modal-box">
-        <h2>Новая встреча</h2>
+        <h2 id="meeting-modal-title">Новая встреча</h2>
         <div class="modal-field">
             <label>Название встречи</label>
             <input type="text" id="modal-title" placeholder="Название…" autocomplete="off">
+        </div>
+        <div class="toggle-row" id="modal-now-row">
+            <label>📅 Прямо сейчас</label>
+            <label class="toggle">
+                <input type="checkbox" id="modal-now" checked onchange="toggleModalNow(this.checked)">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+        <div id="modal-datetime-row" style="display:none;">
+            <div class="modal-field" style="margin-bottom:0.5rem;">
+                <label>Начало <span style="font-weight:400;color:var(--muted);">(МСК)</span></label>
+                <input type="datetime-local" id="modal-scheduled"
+                    style="width:100%;border:1px solid var(--border);border-radius:8px;padding:0.45rem 0.75rem;font-size:0.9rem;background:var(--bg-soft);color:var(--text);">
+            </div>
+            <div class="modal-field">
+                <label>Конец <span style="font-weight:400;color:var(--muted);">(необязательно)</span></label>
+                <input type="datetime-local" id="modal-ended"
+                    style="width:100%;border:1px solid var(--border);border-radius:8px;padding:0.45rem 0.75rem;font-size:0.9rem;background:var(--bg-soft);color:var(--text);">
+            </div>
         </div>
         <div class="toggle-row">
             <label>🤖 Маскот (AI-ассистент)</label>
@@ -372,8 +715,42 @@
     </div>
 </div>
 
+<!-- Модалка запланировать встречу -->
+<div class="modal-backdrop" id="sched-modal">
+    <div class="modal-box">
+        <h2>📅 Запланировать встречу</h2>
+        <div class="modal-field">
+            <label>Название</label>
+            <input type="text" id="sched-title" placeholder="Название…" autocomplete="off">
+        </div>
+        <div class="modal-field">
+            <label>Начало <span style="font-weight:400;color:var(--muted);">(МСК)</span></label>
+            <input type="datetime-local" id="sched-start"
+                style="width:100%;border:1px solid var(--border);border-radius:8px;padding:0.45rem 0.75rem;font-size:0.9rem;background:var(--bg-soft);color:var(--text);">
+        </div>
+        <div class="modal-field">
+            <label>Конец <span style="font-weight:400;color:var(--muted);">(необязательно)</span></label>
+            <input type="datetime-local" id="sched-end"
+                style="width:100%;border:1px solid var(--border);border-radius:8px;padding:0.45rem 0.75rem;font-size:0.9rem;background:var(--bg-soft);color:var(--text);">
+        </div>
+        <div class="toggle-row">
+            <label>🤖 Маскот (AI-ассистент)</label>
+            <label class="toggle">
+                <input type="checkbox" id="sched-mascot">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+        <div class="modal-error" id="sched-error"></div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeSchedModal()">Отмена</button>
+            <button class="btn btn-primary" id="sched-save-btn" onclick="createSchedMeeting()">Запланировать</button>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 <script>
+const USER_TZ = "{{ user_tz|default:'Europe/Moscow' }}";
 // ─── Утилиты ──────────────────────────────────────────────────────────────────
 function getCsrf() {
     const m = document.cookie.match(/csrftoken=([^;]+)/);
@@ -389,32 +766,99 @@ function fmtDuration(sec) {
 }
 function fmtDateRange(start, end) {
     if (!start) return '';
-    const opts = {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'};
+    const tz = USER_TZ || 'Europe/Moscow';
+    const opts = {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', timeZone: tz};
     const s = new Date(start).toLocaleString('ru-RU', opts);
     if (!end) return s;
     const endD = new Date(end);
     const startD = new Date(start);
-    const sameDay = startD.toDateString() === endD.toDateString();
+    const sameDay = startD.toLocaleDateString('ru-RU', {timeZone: tz}) === endD.toLocaleDateString('ru-RU', {timeZone: tz});
     if (sameDay) {
-        return `${s} – ${endD.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'})}`;
+        return `${s} – ${endD.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit', timeZone: tz})}`;
     }
     return `${s} – ${endD.toLocaleString('ru-RU', opts)}`;
 }
 function statusDotClass(s) {
     return {done:'dot-done', failed:'dot-failed'}[s] || 'dot-pending';
 }
-function isMobile() {
-    return window.innerWidth < 600;
+function isMobile() { return window.innerWidth < 520; }
+
+// ─── Overflow menu ────────────────────────────────────────────────────────────
+function toggleMoreMenu() {
+    document.getElementById('more-dropdown').classList.toggle('open');
 }
+function closeMoreMenu() {
+    document.getElementById('more-dropdown').classList.remove('open');
+}
+document.addEventListener('click', function(e) {
+    const wrap = document.getElementById('more-menu-wrap');
+    if (wrap && !wrap.contains(e.target)) closeMoreMenu();
+});
 
 // ─── Табы ─────────────────────────────────────────────────────────────────────
 let calendarInitialized = false;
 function showTab(name) {
     document.getElementById('tab-active').style.display = name === 'active' ? '' : 'none';
     document.getElementById('tab-calendar').style.display = name === 'calendar' ? '' : 'none';
+    document.getElementById('tab-busy').style.display = name === 'busy' ? '' : 'none';
     document.getElementById('tab-btn-active').classList.toggle('active', name === 'active');
     document.getElementById('tab-btn-calendar').classList.toggle('active', name === 'calendar');
+    document.getElementById('tab-btn-busy').classList.toggle('active', name === 'busy');
     if (name === 'calendar' && !calendarInitialized) initCalendar();
+}
+
+// ─── Занятое время ─────────────────────────────────────────────────────────────
+async function addBusyTime() {
+    const title = document.getElementById('busy-title').value.trim();
+    const start = document.getElementById('busy-start').value;
+    const end = document.getElementById('busy-end').value;
+    const repeat = document.getElementById('busy-repeat').value;
+    if (!title || !start || !end) { alert('Заполните название и время'); return; }
+    const res = await fetch('{% url "recordings:recurring_busy_times" %}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken()},
+        body: JSON.stringify({title, start_time: start, end_time: end, repeat}),
+    });
+    const data = await res.json();
+    if (!data.ok) { alert('Ошибка: ' + (data.error || 'неизвестно')); return; }
+    // Вставляем в список
+    const empty = document.getElementById('busy-empty');
+    if (empty) empty.remove();
+    const list = document.getElementById('busy-list');
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.id = 'busy-item-' + data.id;
+    div.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:0.5rem;padding:0.6rem 0.9rem;margin-bottom:0.5rem;';
+    div.innerHTML = `<div>
+        <span style="font-weight:600;">${esc(data.title)}</span>
+        <span style="color:var(--muted);font-size:0.85rem;margin-left:0.5rem;">${esc(data.start_time)}–${esc(data.end_time)}</span>
+        <span style="color:var(--muted);font-size:0.78rem;margin-left:0.4rem;">· ${esc(data.repeat_label)}</span>
+    </div>
+    <button onclick="deleteBusyTime(${data.id})" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:1rem;padding:0.2rem 0.4rem;">✕</button>`;
+    list.appendChild(div);
+    document.getElementById('busy-title').value = '';
+}
+
+async function deleteBusyTime(pk) {
+    if (!confirm('Удалить событие?')) return;
+    const res = await fetch(`{% url "recordings:delete_recurring_busy_time" pk=0 %}`.replace('/0/', `/${pk}/`), {
+        method: 'POST',
+        headers: {'X-CSRFToken': csrfToken()},
+    });
+    const data = await res.json();
+    if (data.ok) {
+        const el = document.getElementById('busy-item-' + pk);
+        if (el) el.remove();
+        if (!document.querySelector('#busy-list [id^="busy-item-"]')) {
+            document.getElementById('busy-list').innerHTML = '<p id="busy-empty" style="color:var(--muted);font-size:0.85rem;font-style:italic;">Нет повторяющихся событий.</p>';
+        }
+    }
+}
+function csrfToken() {
+    return document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+}
+function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 // ─── Список активных встреч ────────────────────────────────────────────────────
@@ -431,6 +875,7 @@ function renderRooms(rooms) {
         const joinUrl = `https://meet.business-pad.com/rooms/${r.name}`;
         let badges = isLive ? '<span class="badge badge-live">● Идёт</span>' : '<span class="badge badge-empty">Пусто</span>';
         if (db.with_mascot) badges += '<span class="badge badge-mascot">🤖 Маскот</span>';
+        if (db.repeat === 'weekly') badges += '<span class="badge" style="background:#0ea5e9;color:#fff;">🔁 Еженедельно</span>';
         if (r.active_recording) badges += '<span class="badge badge-recording">⏺ Запись</span>';
         const metaParts = [
             r.duration_sec ? `Идёт ${fmtDuration(r.duration_sec)}` : '',
@@ -445,15 +890,19 @@ function renderRooms(rooms) {
             ).join('') + '</div>';
         }
         const mascotBtn = !db.with_mascot
-            ? `<button class="btn-sm-act" id="mascot-btn-${r.name}" onclick="inviteMascot('${r.name}')">🤖 Позвать маскота</button>` : '';
+            ? `<button class="btn-sm-act" id="mascot-btn-${r.name}" onclick="inviteMascot('${r.name}')">🤖 Маскот</button>` : '';
         const endBtn = db && db.id
             ? `<button class="btn-sm-act danger" onclick="endMeeting('${r.name}', ${JSON.stringify(title)})">Завершить</button>` : '';
+        const editBtn = db && db.id
+            ? `<button class="btn-sm-act" onclick="openEditModal('${r.name}', ${JSON.stringify(title)}, ${JSON.stringify(db.scheduled_at||'')}, ${JSON.stringify(db.join_url||'')}, ${JSON.stringify(db.repeat||'')})">✏️ Изменить</button>` : '';
+        const delBtn = db && db.id
+            ? `<button class="btn-sm-act danger" onclick="deleteMeeting('${r.name}', ${JSON.stringify(title)})">🗑 Удалить</button>` : '';
         return `<div class="meeting-card ${isLive ? 'live' : 'live-unknown'}" id="card-${r.name}">
     <div class="card-top"><div class="meeting-title">${escHtml(title)}</div>${badges}</div>
     <div class="card-meta">${meta}</div>${chips}
     <div class="card-actions">
         <a href="${joinUrl}" target="_blank" class="btn-enter">Войти →</a>
-        ${mascotBtn}${endBtn}
+        ${mascotBtn}${editBtn}${endBtn}${delBtn}
         <span style="font-size:0.75rem;color:var(--muted);margin-left:auto;">${r.name}</span>
     </div>
 </div>`;
@@ -494,9 +943,35 @@ async function inviteMascot(roomName) {
 }
 
 // ─── Модалка деталей события ───────────────────────────────────────────────────
-function openEventModal(title, timeStr, recordings, roomUrl, isActive) {
+let _evRoomName = null;
+let _evTitle = null;
+let _evScheduledAt = null;
+let _evJoinUrl = null;
+
+let _evRepeat = null;
+function openEventModal(title, timeStr, recordings, roomUrl, isActive, roomName, scheduledAt, joinUrl, repeat) {
+    _evRoomName = roomName || null;
+    _evTitle = title;
+    _evScheduledAt = scheduledAt || null;
+    _evJoinUrl = joinUrl || null;
+    _evRepeat = repeat || null;
     document.getElementById('ev-title').textContent = title;
     document.getElementById('ev-time').textContent = timeStr;
+    document.getElementById('ev-invite-panel').style.display = 'none';
+
+    // Action buttons
+    const actDiv = document.getElementById('ev-actions');
+    if (roomName) {
+        actDiv.style.display = 'flex';
+        actDiv.innerHTML = `
+            <button class="btn" style="font-size:0.8rem;padding:0.25rem 0.65rem;" onclick="openEditModal(_evRoomName,_evTitle,_evScheduledAt,_evJoinUrl,_evRepeat)">✏️ Изменить</button>
+            <button class="btn" style="font-size:0.8rem;padding:0.25rem 0.65rem;" onclick="openCalInvite(_evRoomName)">👥 Пригласить</button>
+            <button class="btn" style="font-size:0.8rem;padding:0.25rem 0.65rem;color:#dc2626;border-color:#dc2626;" onclick="deleteMeetingFromCal(_evRoomName)">🗑</button>
+        `;
+    } else {
+        actDiv.style.display = 'none';
+        actDiv.innerHTML = '';
+    }
 
     let body = '';
 
@@ -541,38 +1016,58 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { document.g
 // ─── Календарь ────────────────────────────────────────────────────────────────
 let calendar = null;
 
+function getCalView() {
+    const w = window.innerWidth;
+    if (w < 520) return 'listMonth';
+    if (w < 800) return 'timeGridWeek';
+    return 'dayGridMonth';
+}
+
 function initCalendar() {
     calendarInitialized = true;
     const el = document.getElementById('calendar');
-    const mobile = isMobile();
 
+    const isMobile = window.innerWidth < 520;
     calendar = new FullCalendar.Calendar(el, {
-        initialView: mobile ? 'listMonth' : 'dayGridMonth',
+        initialView: getCalView(),
         locale: 'ru',
+        timeZone: 'local',
         height: 'auto',
-        headerToolbar: mobile ? {
+        firstDay: 1,
+        headerToolbar: isMobile ? {
             left: 'prev,next',
             center: 'title',
-            right: 'today',
+            right: 'listMonth,dayGridMonth',
         } : {
             left: 'prev,next today',
             center: 'title',
             right: 'dayGridMonth,timeGridWeek,listMonth',
         },
         buttonText: {
-            today: 'Сегодня',
-            month: 'Месяц',
-            week: 'Неделя',
+            today: 'Сег.',
+            month: 'Мес.',
+            week: 'Нед.',
             list: 'Список',
         },
-        windowResize: function(view) {
-            if (isMobile() && calendar.view.type !== 'listMonth') {
-                calendar.changeView('listMonth');
-            } else if (!isMobile() && calendar.view.type === 'listMonth') {
-                calendar.changeView('dayGridMonth');
-            }
+        windowResize: function() {
+            const v = getCalView();
+            if (calendar.view.type !== v) calendar.changeView(v);
         },
         noEventsContent: 'Встреч нет',
+        dateClick: function(info) {
+            // Собираем события на кликнутый день
+            const dateStr = info.dateStr; // YYYY-MM-DD
+            const dayEvents = (calendar.getEvents() || []).filter(ev => {
+                if (!ev.start) return false;
+                const d = ev.start.toISOString().slice(0, 10);
+                return d === dateStr;
+            }).map(ev => ({
+                title: ev.title,
+                start: ev.start ? ev.start.toISOString() : null,
+                end: ev.end ? ev.end.toISOString() : null,
+            }));
+            openDayShare(dateStr, dayEvents, true);
+        },
         eventClick: function(info) {
             info.jsEvent.preventDefault();
             const ev = info.event;
@@ -581,20 +1076,24 @@ function initCalendar() {
                 ev.start ? ev.start.toISOString() : null,
                 ev.end ? ev.end.toISOString() : null,
             );
-            openEventModal(ev.title, timeStr, props.recordings, props.room_url, props.is_active);
+            openEventModal(ev.title, timeStr, props.recordings, props.room_url, props.is_active, props.room_name,
+                props.scheduled_at || null, props.join_url || '', props.repeat || '');
         },
         events: function(fetchInfo, successCallback, failureCallback) {
-            fetch('/api/calendar-events/')
+            const url = '/api/calendar-events/' + (_mineFilter ? '?mine=1' : '');
+            fetch(url)
                 .then(r => r.json())
-                .then(data => successCallback(data.events || []))
+                .then(data => { _allCalEvents = data.events || []; successCallback(data.events || []); })
                 .catch(failureCallback);
         },
         eventContent: function(info) {
             const recs = info.event.extendedProps.recordings || [];
+            const isMine = info.event.extendedProps.is_mine;
             const badge = recs.length ? `<span style="font-size:0.7rem;opacity:0.85;margin-left:3px;">[${recs.length}]</span>` : '';
+            const myDot = isMine ? `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#fff;opacity:0.9;margin-right:3px;flex-shrink:0;"></span>` : '';
             return {
-                html: `<div style="padding:1px 4px;overflow:hidden;">
-                    <span style="font-weight:600;font-size:0.77rem;">${escHtml(info.event.title)}</span>${badge}
+                html: `<div style="padding:1px 4px;overflow:hidden;display:flex;align-items:center;">
+                    ${myDot}<span style="font-weight:600;font-size:0.77rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(info.event.title)}</span>${badge}
                 </div>`,
             };
         },
@@ -606,20 +1105,105 @@ function initCalendar() {
 let _createdRoomName = null;
 let _tgUsers = [];
 
-function openMeetingModal() {
+function toggleModalNow(isNow) {
+    document.getElementById('modal-datetime-row').style.display = isNow ? 'none' : '';
+}
+
+// ─── Модалка «Запланировать» ───────────────────────────────────────────────────
+function openSchedModal(prefillDate) {
+    document.getElementById('sched-title').value = '';
+    document.getElementById('sched-mascot').checked = false;
+    document.getElementById('sched-error').style.display = 'none';
+    document.getElementById('sched-save-btn').disabled = false;
+    document.getElementById('sched-save-btn').textContent = 'Запланировать';
+    const pad = n => String(n).padStart(2, '0');
+    if (prefillDate) {
+        document.getElementById('sched-start').value = prefillDate + 'T09:00';
+        document.getElementById('sched-end').value = prefillDate + 'T10:00';
+    } else {
+        const base = toMskDatetimeLocal(new Date(Date.now() + 3600000).toISOString()).slice(0, 14) + '00';
+        document.getElementById('sched-start').value = base;
+        document.getElementById('sched-end').value = '';
+    }
+    document.getElementById('sched-modal').classList.add('visible');
+    setTimeout(() => document.getElementById('sched-title').focus(), 50);
+}
+function closeSchedModal() {
+    document.getElementById('sched-modal').classList.remove('visible');
+}
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('sched-modal').addEventListener('click', function(e) {
+        if (e.target === this) closeSchedModal();
+    });
+    document.getElementById('sched-title').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') createSchedMeeting();
+    });
+});
+async function createSchedMeeting() {
+    const title = document.getElementById('sched-title').value.trim();
+    if (!title) {
+        const err = document.getElementById('sched-error');
+        err.textContent = 'Введите название'; err.style.display = '';
+        return;
+    }
+    const scheduledAt = document.getElementById('sched-start').value || '';
+    const endedAt = document.getElementById('sched-end').value || '';
+    const withMascot = document.getElementById('sched-mascot').checked;
+    const btn = document.getElementById('sched-save-btn');
+    btn.disabled = true; btn.textContent = 'Создаём…';
+    document.getElementById('sched-error').style.display = 'none';
+    try {
+        const resp = await fetch('/meetings/create/', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json','X-CSRFToken':getCsrf()},
+            body: JSON.stringify({title, with_mascot: withMascot, scheduled_at: scheduledAt, ended_at: endedAt}),
+        });
+        const data = await resp.json();
+        if (data.error) {
+            const err = document.getElementById('sched-error');
+            err.textContent = data.error; err.style.display = '';
+            btn.disabled = false; btn.textContent = 'Запланировать';
+            return;
+        }
+        closeSchedModal();
+        loadRooms();
+        if (calendarInitialized && calendar) calendar.refetchEvents();
+    } catch(e) {
+        const err = document.getElementById('sched-error');
+        err.textContent = 'Ошибка: ' + e.message; err.style.display = '';
+        btn.disabled = false; btn.textContent = 'Запланировать';
+    }
+}
+
+function openMeetingModal(scheduleMode) {
     _createdRoomName = null;
     _tgUsers = [];
     document.getElementById('modal-title').value = '';
     document.getElementById('modal-mascot').checked = false;
+    document.getElementById('modal-scheduled').value = '';
+    document.getElementById('modal-ended').value = '';
     document.getElementById('modal-error').style.display = 'none';
     document.getElementById('invite-section').style.display = 'none';
     document.getElementById('invite-users-wrap').style.display = 'none';
     document.getElementById('modal-create-btn').style.display = '';
     document.getElementById('modal-join-btn').style.display = 'none';
     document.getElementById('modal-cancel-btn').textContent = 'Отмена';
+    if (scheduleMode) {
+        document.getElementById('modal-now').checked = false;
+        document.getElementById('modal-now-row').style.display = 'none';
+        document.getElementById('modal-datetime-row').style.display = '';
+        // Prefill scheduled to next round hour in MSK
+        document.getElementById('modal-scheduled').value = toMskDatetimeLocal(new Date(Date.now() + 3600000).toISOString()).slice(0, 14) + '00';
+    } else {
+        document.getElementById('modal-now').checked = true;
+        document.getElementById('modal-now-row').style.display = '';
+        document.getElementById('modal-datetime-row').style.display = 'none';
+    }
+    document.getElementById('meeting-modal-title').textContent = scheduleMode ? 'Запланировать встречу' : 'Новая встреча';
     document.getElementById('meeting-modal').classList.add('visible');
     setTimeout(() => document.getElementById('modal-title').focus(), 50);
 }
+function openScheduleMeetingModal() { openMeetingModal(true); }
 function closeMeetingModal() {
     document.getElementById('meeting-modal').classList.remove('visible');
     if (_createdRoomName) {
@@ -634,6 +1218,9 @@ async function createMeeting() {
     const title = document.getElementById('modal-title').value.trim();
     if (!title) { showModalError('Введите название встречи'); return; }
     const withMascot = document.getElementById('modal-mascot').checked;
+    const isNow = document.getElementById('modal-now').checked;
+    const scheduledAt = isNow ? '' : (document.getElementById('modal-scheduled').value || '');
+    const endedAt = isNow ? '' : (document.getElementById('modal-ended').value || '');
     const btn = document.getElementById('modal-create-btn');
     btn.disabled = true; btn.textContent = 'Создаём…';
     document.getElementById('modal-error').style.display = 'none';
@@ -641,7 +1228,7 @@ async function createMeeting() {
         const resp = await fetch('/meetings/create/', {
             method: 'POST',
             headers: {'Content-Type':'application/json', 'X-CSRFToken':getCsrf()},
-            body: JSON.stringify({title, with_mascot: withMascot}),
+            body: JSON.stringify({title, with_mascot: withMascot, scheduled_at: scheduledAt, ended_at: endedAt}),
         });
         const data = await resp.json();
         if (data.error) { showModalError(data.error); btn.disabled = false; btn.textContent = 'Создать'; return; }
@@ -681,6 +1268,363 @@ async function sendInvites() {
     const data = await resp.json();
     if (data.ok) {
         document.getElementById('invite-users-wrap').innerHTML = `<p style="color:#16a34a;font-size:0.85rem;">✓ Отправлено (${data.sent})</p>`;
+    }
+}
+
+// ─── CSV импорт ───────────────────────────────────────────────────────────────
+async function importCsv(input) {
+    if (!input.files.length) return;
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    input.value = '';
+    try {
+        const resp = await fetch('/meetings/import-csv/', {
+            method: 'POST', headers: {'X-CSRFToken': getCsrf()}, body: fd,
+        });
+        const data = await resp.json();
+        if (data.error) { alert('Ошибка: ' + data.error); return; }
+        alert(`Импортировано: ${data.created}, пропущено: ${data.skipped}`);
+        loadRooms();
+        if (calendarInitialized && calendar) calendar.refetchEvents();
+    } catch(e) { alert('Ошибка: ' + e.message); }
+}
+
+// ─── Поделиться днём ──────────────────────────────────────────────────────────
+let _dsDate = null;         // ISO date string YYYY-MM-DD
+let _allCalEvents = null;   // кэш событий из API
+
+async function _loadCalEvents() {
+    if (_allCalEvents) return _allCalEvents;
+    try {
+        const r = await fetch('/api/calendar-events/');
+        const d = await r.json();
+        _allCalEvents = d.events || [];
+    } catch(e) { _allCalEvents = []; }
+    return _allCalEvents;
+}
+
+function _eventsForDate(dateStr) {
+    const src = (calendarInitialized && calendar)
+        ? (calendar.getEvents() || []).map(ev => ({
+              title: ev.title,
+              start: ev.start ? ev.start.toISOString() : null,
+              end: ev.end ? ev.end.toISOString() : null,
+          }))
+        : (_allCalEvents || []);
+    return src.filter(ev => ev.start && ev.start.slice(0, 10) === dateStr);
+}
+
+async function openDayShareToday() {
+    await _loadCalEvents();
+    const today = new Date().toISOString().slice(0, 10);
+    openDayShare(today, _eventsForDate(today), true);
+}
+
+function openDayShare(dateStr, events, show) {
+    _dsDate = dateStr;
+    document.getElementById('ds-date-input').value = dateStr;
+    document.getElementById('ds-link-row').style.display = 'none';
+    document.getElementById('ds-error').style.display = 'none';
+    _renderDsMeetings(events || []);
+    if (show) {
+        document.getElementById('day-share-modal').classList.add('visible');
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function _renderDsMeetings(events) {
+    const list = document.getElementById('ds-meetings-list');
+    if (!events.length) {
+        list.innerHTML = '<div class="empty-day">Встреч на этот день нет</div>';
+    } else {
+        list.innerHTML = events.map((ev, i) => {
+            const sTime = ev.start ? new Date(ev.start).toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit', timeZone:'Europe/Moscow'}) : '';
+            const eTime = ev.end   ? new Date(ev.end).toLocaleTimeString('ru-RU',   {hour:'2-digit', minute:'2-digit', timeZone:'Europe/Moscow'}) : '';
+            return `<label class="share-meeting-row">
+                <input type="checkbox" name="ds-meeting" value="${i}" checked
+                    data-start="${sTime}" data-end="${eTime}" data-title="${escHtml(ev.title)}">
+                <span class="share-time">${sTime}–${eTime}</span>
+                <span style="flex:1;">${escHtml(ev.title)}</span>
+            </label>`;
+        }).join('');
+    }
+}
+
+async function onDsDateChange(dateStr) {
+    if (!dateStr) return;
+    _dsDate = dateStr;
+    document.getElementById('ds-link-row').style.display = 'none';
+    document.getElementById('ds-error').style.display = 'none';
+    document.getElementById('ds-meetings-list').innerHTML = '<div class="empty-day">Загрузка…</div>';
+    await _loadCalEvents();
+    _renderDsMeetings(_eventsForDate(dateStr));
+}
+
+function closeDayShare(e) {
+    if (e && e.target !== document.getElementById('day-share-modal')) return;
+    closeDayShareDirect();
+}
+function closeDayShareDirect() {
+    document.getElementById('day-share-modal').classList.remove('visible');
+    document.body.style.overflow = '';
+}
+
+async function generateShareLink(isPermanent) {
+    document.getElementById('ds-error').style.display = 'none';
+    document.getElementById('ds-permanent-note').style.display = 'none';
+    // Собираем занятые слоты из отмеченных встреч
+    const busy_slots = [];
+    document.querySelectorAll('input[name="ds-meeting"]:checked').forEach(cb => {
+        busy_slots.push({ start: cb.dataset.start, end: cb.dataset.end, title: cb.dataset.title });
+    });
+    const payload = {
+        date: isPermanent ? null : _dsDate,
+        is_permanent: !!isPermanent,
+        busy_slots,
+        slot_duration_minutes: parseInt(document.getElementById('ds-slot').value),
+        day_start: document.getElementById('ds-start').value,
+        day_end: document.getElementById('ds-end').value,
+    };
+    try {
+        const resp = await fetch('/meetings/share-day/', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
+            body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        if (data.error) { showDsError(data.error); return; }
+        document.getElementById('ds-link-input').value = data.url;
+        document.getElementById('ds-link-row').style.display = 'flex';
+        document.getElementById('ds-permanent-note').style.display = isPermanent ? '' : 'none';
+    } catch(e) {
+        showDsError('Ошибка: ' + e.message);
+    }
+}
+
+function copyShareLink() {
+    const inp = document.getElementById('ds-link-input');
+    inp.select();
+    document.execCommand('copy');
+    const btn = inp.nextElementSibling;
+    btn.textContent = 'Скопировано!';
+    setTimeout(() => btn.textContent = 'Копировать', 1800);
+}
+
+function showDsError(msg) {
+    const el = document.getElementById('ds-error');
+    el.textContent = msg; el.style.display = '';
+}
+
+// ─── Редактирование и удаление встречи ───────────────────────────────────────
+function toMskDatetimeLocal(isoStr) {
+    if (!isoStr) return '';
+    try {
+        const d = new Date(isoStr);
+        const parts = new Intl.DateTimeFormat('sv-SE', {
+            timeZone: 'Europe/Moscow',
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit'
+        }).formatToParts(d);
+        const get = t => parts.find(p => p.type === t).value;
+        return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+    } catch(e) { return ''; }
+}
+function openEditModal(roomName, title, scheduledAt, joinUrl, repeat) {
+    document.getElementById('edit-room-name').value = roomName;
+    document.getElementById('edit-title').value = title;
+    document.getElementById('edit-scheduled').value = toMskDatetimeLocal(scheduledAt);
+    document.getElementById('edit-join-url').value = joinUrl || '';
+    document.getElementById('edit-repeat').value = repeat || '';
+    document.getElementById('edit-modal-error').style.display = 'none';
+    document.getElementById('edit-save-btn').disabled = false;
+    document.getElementById('edit-save-btn').textContent = 'Сохранить';
+    document.getElementById('edit-meeting-modal').classList.add('visible');
+    setTimeout(() => document.getElementById('edit-title').focus(), 50);
+}
+function closeEditModal() {
+    document.getElementById('edit-meeting-modal').classList.remove('visible');
+}
+document.getElementById('edit-meeting-modal').addEventListener('click', function(e) { if (e.target === this) closeEditModal(); });
+
+async function saveEditMeeting() {
+    const roomName = document.getElementById('edit-room-name').value;
+    const title = document.getElementById('edit-title').value.trim();
+    const scheduledAt = document.getElementById('edit-scheduled').value || '';
+    if (!title) {
+        const errEl = document.getElementById('edit-modal-error');
+        errEl.textContent = 'Введите название'; errEl.style.display = '';
+        return;
+    }
+    const btn = document.getElementById('edit-save-btn');
+    btn.disabled = true; btn.textContent = 'Сохраняем…';
+    try {
+        const resp = await fetch(`/meetings/${roomName}/edit/`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
+            body: JSON.stringify({title, scheduled_at: scheduledAt, join_url: document.getElementById('edit-join-url').value.trim(), repeat: document.getElementById('edit-repeat').value}),
+        });
+        const data = await resp.json();
+        if (data.error) {
+            const errEl = document.getElementById('edit-modal-error');
+            errEl.textContent = data.error; errEl.style.display = '';
+            btn.disabled = false; btn.textContent = 'Сохранить';
+            return;
+        }
+        closeEditModal();
+        loadRooms();
+        if (calendarInitialized && calendar) calendar.refetchEvents();
+    } catch(e) {
+        const errEl = document.getElementById('edit-modal-error');
+        errEl.textContent = 'Ошибка: ' + e.message; errEl.style.display = '';
+        btn.disabled = false; btn.textContent = 'Сохранить';
+    }
+}
+
+async function _doDeleteMeeting(roomName, afterFn) {
+    try {
+        const resp = await fetch(`/meetings/${roomName}/delete/`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            afterFn();
+            loadRooms();
+            if (calendarInitialized && calendar) calendar.refetchEvents();
+        } else {
+            alert('Ошибка: ' + (data.error || 'не удалось удалить'));
+        }
+    } catch(e) { alert('Ошибка: ' + e.message); }
+}
+
+let _deletingRoomName = null;
+let _deleteCardActionsOrig = null;
+
+function deleteMeeting(roomName, title) {
+    _deletingRoomName = roomName;
+    const card = document.getElementById('card-' + roomName);
+    if (!card) { _doDeleteMeeting(roomName, () => {}); return; }
+    const actions = card.querySelector('.card-actions');
+    _deleteCardActionsOrig = actions.innerHTML;
+    actions.innerHTML = `<span style="font-size:0.85rem;color:#dc2626;flex:1;">Удалить «${escHtml(title)}»?</span>
+        <button class="btn-sm-act danger" onclick="_doDeleteMeeting('${roomName}', ()=>{})">Да, удалить</button>
+        <button class="btn-sm-act" onclick="cancelDeleteCard('${roomName}')">Отмена</button>`;
+}
+function cancelDeleteCard(roomName) {
+    const card = document.getElementById('card-' + roomName);
+    if (card && _deleteCardActionsOrig) {
+        card.querySelector('.card-actions').innerHTML = _deleteCardActionsOrig;
+        _deleteCardActionsOrig = null;
+    }
+}
+
+function deleteMeetingFromCal(roomName) {
+    const actDiv = document.getElementById('ev-actions');
+    actDiv.innerHTML = `<span style="font-size:0.82rem;color:#dc2626;">Удалить встречу?</span>
+        <button class="btn" style="font-size:0.8rem;padding:0.25rem 0.65rem;color:#dc2626;border-color:#dc2626;"
+            onclick="_doDeleteMeeting(_evRoomName, closeEventModal)">Да, удалить</button>
+        <button class="btn" style="font-size:0.8rem;padding:0.25rem 0.65rem;"
+            onclick="openEventModal(_evTitle,'',null,null,false,_evRoomName,_evScheduledAt)">Отмена</button>`;
+}
+
+async function openCalInvite(roomName) {
+    const panel = document.getElementById('ev-invite-panel');
+    const list = document.getElementById('ev-invite-list');
+    const msg = document.getElementById('ev-invite-msg');
+    msg.textContent = '';
+    list.innerHTML = '<span style="font-size:0.82rem;color:var(--muted);">Загрузка…</span>';
+    // Show join link
+    const joinLinkRow = document.getElementById('ev-invite-join-link-row');
+    const joinLinkEl = document.getElementById('ev-invite-join-link');
+    const effectiveJoinUrl = _evJoinUrl || `https://meet.business-pad.com/rooms/${roomName}`;
+    joinLinkEl.href = effectiveJoinUrl;
+    joinLinkEl.textContent = effectiveJoinUrl;
+    joinLinkRow.style.display = '';
+    panel.style.display = '';
+    try {
+        const resp = await fetch(`/api/space-members/?room=${encodeURIComponent(roomName)}`);
+        const data = await resp.json();
+        const members = data.members || [];
+        if (!members.length) {
+            list.innerHTML = '<span style="font-size:0.82rem;color:var(--muted);">Нет других участников пространства</span>';
+            return;
+        }
+        list.innerHTML = members.map(m => `
+            <label style="display:flex;align-items:center;gap:0.4rem;padding:0.25rem 0;font-size:0.85rem;cursor:pointer;">
+                <input type="checkbox" value="${m.id}" ${m.invited ? 'checked' : ''}>
+                <span>${escHtml(m.name)}</span>
+                ${m.invited ? '<span style="font-size:0.72rem;color:#7c3aed;margin-left:auto;">✓ участвует</span>' : ''}
+                ${!m.has_tg && !m.invited ? '<span style="font-size:0.72rem;color:var(--muted);margin-left:auto;">без TG</span>' : ''}
+            </label>`).join('');
+    } catch(e) {
+        list.innerHTML = `<span style="font-size:0.82rem;color:#dc2626;">Ошибка: ${e.message}</span>`;
+    }
+}
+
+async function sendCalInvites() {
+    if (!_evRoomName) return;
+    const ids = Array.from(document.querySelectorAll('#ev-invite-list input:checked')).map(c => parseInt(c.value));
+    if (!ids.length) { document.getElementById('ev-invite-msg').textContent = 'Выберите участников'; return; }
+    const comment = document.getElementById('ev-invite-comment').value.trim();
+    const msg = document.getElementById('ev-invite-msg');
+    msg.textContent = 'Отправляем…';
+    try {
+        const resp = await fetch(`/meetings/${_evRoomName}/invite/`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json', 'X-CSRFToken': getCsrf()},
+            body: JSON.stringify({user_ids: ids, comment}),
+        });
+        const data = await resp.json();
+        msg.style.color = '#16a34a';
+        msg.textContent = `✓ Приглашено: ${data.sent || 0}, встреча добавлена в их календарь`;
+        if (calendarInitialized && calendar) calendar.refetchEvents();
+    } catch(e) {
+        msg.style.color = '#dc2626';
+        msg.textContent = 'Ошибка: ' + e.message;
+    }
+}
+
+// ─── Фильтр "только мои" ─────────────────────────────────────────────────────
+let _mineFilter = false;
+function toggleMineFilter() {
+    _mineFilter = !_mineFilter;
+    const btn = document.getElementById('mine-filter-btn');
+    const lbl = document.getElementById('mine-filter-label');
+    if (_mineFilter) {
+        btn.style.background = 'var(--accent)'; btn.style.color = '#fff'; btn.style.borderColor = 'var(--accent)';
+        if (lbl) lbl.textContent = 'Показаны только встречи, где вы участвуете';
+    } else {
+        btn.style.background = ''; btn.style.color = ''; btn.style.borderColor = '';
+        if (lbl) lbl.textContent = '';
+    }
+    if (calendarInitialized && calendar) calendar.refetchEvents();
+}
+
+// ─── Google Calendar Import ───────────────────────────────────────────────────
+async function importFromGoogle() {
+    // Check if connected first
+    const btn = event.currentTarget;
+    const resp = await fetch('/meetings/google-import/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': getCsrf(), 'Content-Type': 'application/json'},
+        body: '{}',
+    });
+    if (resp.status === 400) {
+        const d = await resp.json();
+        if (d.error === 'not_connected') {
+            if (confirm('Подключить Google Calendar? Вы будете перенаправлены на страницу авторизации Google.')) {
+                window.location.href = '/meetings/google-auth/';
+            }
+            return;
+        }
+    }
+    const data = await resp.json();
+    if (data.ok) {
+        alert(`Импортировано: ${data.created} встреч, пропущено: ${data.skipped}`);
+        loadRooms();
+        if (calendarInitialized && calendar) calendar.refetchEvents();
+    } else {
+        alert('Ошибка: ' + (data.error || 'неизвестно'));
     }
 }
 

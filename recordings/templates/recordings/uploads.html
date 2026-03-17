@@ -14,6 +14,12 @@
         <div style="margin-bottom: 1rem;">
             <input type="file" name="video" accept="video/*,audio/*,.mp3,.mp4,.webm,.m4a,.wav,.ogg" required>
         </div>
+        <label style="display:inline-flex;align-items:center;gap:0.5rem;margin-bottom:1.25rem;cursor:pointer;font-size:0.9rem;user-select:none;">
+            <input type="checkbox" name="is_personal" value="1" id="cb-personal"
+                   style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">
+            <span>🔒 Только моё <span style="color:var(--muted);font-size:0.8rem;">(личная запись — видна только вам)</span></span>
+        </label>
+        <br>
         <button type="submit" class="btn btn-create">Загрузить и поставить в очередь</button>
     </form>
     <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border);">

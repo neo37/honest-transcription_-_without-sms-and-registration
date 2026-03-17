@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-ru="Записаться — {{ link.owner.display_name|default:link.owner.email }}" data-en="Book a meeting — {{ link.owner.display_name|default:link.owner.email }}">Записаться — {{ link.owner.display_name|default:link.owner.email }}</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+    --bg: #f5f0e8;
+    --card: #fff;
+    --border: #111;
+    --border-w: 3px;
+    --shadow: 5px 5px 0 #111;
+    --shadow-lg: 8px 8px 0 #111;
+    --text: #111;
+    --muted: #555;
+    --accent: #f5c542;
+    --accent2: #ff5c5c;
+    --accent3: #5cffa3;
+    --accent4: #5c9fff;
+    --radius: 4px;
+    --font: 'Arial Black', 'Arial Bold', Arial, sans-serif;
+}
+body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 1.5rem 1rem 3rem;
+    position: relative;
+    overflow-x: hidden;
+}
+#three-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.18;
+}
+.wrap {
+    max-width: 520px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+}
+
+/* Header */
+.owner-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    background: var(--card);
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 0.85rem 1rem;
+}
+.owner-avatar {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--border);
+    flex-shrink: 0;
+}
+.owner-name { font-size: 1rem; font-weight: 900; letter-spacing: -0.02em; }
+.owner-sub { font-size: 0.78rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+
+h1 {
+    font-size: 2rem;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    text-transform: uppercase;
+    margin-bottom: 0.2rem;
+    line-height: 1;
+}
+.subtitle {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--muted);
+    margin-bottom: 1.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.perm-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    background: var(--accent);
+    color: #111;
+    border: 2px solid #111;
+    border-radius: 3px;
+    padding: 0.1rem 0.45rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    vertical-align: middle;
+    box-shadow: 2px 2px 0 #111;
+}
+
+/* Section label */
+.section-label {
+    font-size: 0.7rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 0.6rem;
+    border-left: 4px solid var(--accent);
+    padding-left: 0.4rem;
+}
+
+/* Slots */
+.slots-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 0.55rem;
+    margin-bottom: 1.5rem;
+}
+.slot-btn {
+    border: var(--border-w) solid var(--border);
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 0.6rem 0.4rem;
+    text-align: center;
+    font-size: 0.9rem;
+    font-weight: 900;
+    cursor: pointer;
+    color: var(--text);
+    transition: transform 0.08s, box-shadow 0.08s;
+    box-shadow: 3px 3px 0 #111;
+    font-family: var(--font);
+}
+.slot-btn:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 5px 5px 0 #111;
+    background: var(--accent);
+}
+.slot-btn.selected {
+    background: var(--accent);
+    box-shadow: 5px 5px 0 #111;
+    transform: translate(-2px, -2px);
+}
+
+/* Form */
+.form-card {
+    background: var(--card);
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    padding: 1.25rem 1.1rem 1.1rem;
+    margin-bottom: 1rem;
+}
+.form-group { margin-bottom: 0.9rem; }
+.form-group label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.3rem;
+    color: var(--text);
+}
+.form-group label .req { color: var(--accent2); }
+.form-group input, .form-group textarea {
+    width: 100%;
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.6rem 0.75rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    background: #fffef5;
+    color: var(--text);
+    font-family: var(--font);
+    box-shadow: 3px 3px 0 #111;
+    outline: none;
+    transition: transform 0.08s, box-shadow 0.08s;
+}
+.form-group input:focus, .form-group textarea:focus {
+    transform: translate(-2px, -2px);
+    box-shadow: 5px 5px 0 #111;
+    background: #fff;
+}
+.form-group textarea { resize: vertical; min-height: 72px; }
+
+/* Country checkbox */
+.country-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.9rem;
+    background: var(--accent3);
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.55rem 0.75rem;
+    box-shadow: 3px 3px 0 #111;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.08s, box-shadow 0.08s;
+}
+.country-row:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0 #111;
+}
+.country-row input[type=checkbox] {
+    width: 20px; height: 20px;
+    accent-color: #111;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.country-row span {
+    font-size: 0.88rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #111;
+}
+
+/* Mascot checkbox */
+.mascot-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.9rem;
+    background: var(--accent4);
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.75rem;
+    box-shadow: 3px 3px 0 #111;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.08s, box-shadow 0.08s;
+    color: #fff;
+}
+.mascot-row:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0 #111;
+}
+.mascot-row input[type=checkbox] {
+    width: 18px; height: 18px;
+    accent-color: #fff;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.mascot-row span {
+    font-size: 0.85rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* Button */
+.btn-book {
+    width: 100%;
+    padding: 0.85rem;
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--radius);
+    background: var(--accent2);
+    color: #fff;
+    font-size: 1.05rem;
+    font-weight: 900;
+    cursor: pointer;
+    font-family: var(--font);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    box-shadow: var(--shadow);
+    transition: transform 0.08s, box-shadow 0.08s, opacity 0.1s;
+}
+.btn-book:hover:not(:disabled) {
+    transform: translate(-2px, -2px);
+    box-shadow: 7px 7px 0 #111;
+}
+.btn-book:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Error */
+.msg-err {
+    background: #ffe5e5;
+    border: var(--border-w) solid var(--accent2);
+    border-radius: var(--radius);
+    padding: 0.7rem 0.9rem;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #c00;
+    margin-top: 0.6rem;
+    display: none;
+    box-shadow: 3px 3px 0 #c00;
+}
+
+.empty-slots {
+    background: var(--card);
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--radius);
+    padding: 2rem 1rem;
+    text-align: center;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    box-shadow: var(--shadow);
+}
+
+/* Result */
+#result-block { display: none; }
+.result-header {
+    text-align: center;
+    margin-bottom: 1.25rem;
+}
+.result-header .big-check {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 0.4rem;
+}
+.result-header h2 {
+    font-size: 1.6rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: -0.03em;
+}
+.result-card {
+    background: var(--card);
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    padding: 1rem 1.1rem;
+    margin-bottom: 1rem;
+}
+.result-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    font-size: 0.88rem;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid #eee;
+}
+.result-row:last-child { border-bottom: none; }
+.result-label {
+    font-weight: 900;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    min-width: 70px;
+    padding-top: 0.05rem;
+}
+.join-btn {
+    display: block;
+    padding: 0.85rem;
+    background: var(--accent3);
+    color: #111;
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--radius);
+    font-weight: 900;
+    font-size: 1rem;
+    text-decoration: none;
+    text-align: center;
+    box-shadow: var(--shadow);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-family: var(--font);
+    transition: transform 0.08s, box-shadow 0.08s;
+    margin-bottom: 0;
+}
+.join-btn:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 7px 7px 0 #111;
+}
+
+/* Rate-limit modal */
+.rl-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.rl-overlay.show { display: flex; }
+.rl-modal {
+    background: #fff;
+    border: 4px solid #111;
+    border-radius: 4px;
+    box-shadow: 10px 10px 0 #111;
+    padding: 2rem 1.5rem 1.5rem;
+    max-width: 380px;
+    width: 100%;
+    text-align: center;
+}
+.rl-modal .rl-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+.rl-modal h3 {
+    font-size: 1.3rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.6rem;
+}
+.rl-modal p {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #555;
+    margin-bottom: 1.25rem;
+    line-height: 1.5;
+}
+.rl-close {
+    padding: 0.65rem 1.5rem;
+    border: 3px solid #111;
+    border-radius: 4px;
+    background: #f5c542;
+    color: #111;
+    font-weight: 900;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: 4px 4px 0 #111;
+    font-family: var(--font);
+    transition: transform 0.08s, box-shadow 0.08s;
+}
+.rl-close:hover {
+    transform: translate(-1px,-1px);
+    box-shadow: 6px 6px 0 #111;
+}
+
+/* Telegram block */
+.tg-block {
+    margin-top: 1rem;
+    background: var(--card);
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.1rem;
+    box-shadow: var(--shadow);
+    display: none;
+}
+.tg-block-title {
+    font-weight: 900;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.35rem;
+}
+.tg-block p {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--muted);
+    margin-bottom: 0.7rem;
+}
+.tg-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1rem;
+    background: #229ED9;
+    color: #fff;
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--radius);
+    font-weight: 900;
+    font-size: 0.9rem;
+    text-decoration: none;
+    text-transform: uppercase;
+    box-shadow: 3px 3px 0 #111;
+    font-family: var(--font);
+    transition: transform 0.08s, box-shadow 0.08s;
+}
+.tg-btn:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 5px 5px 0 #111;
+}
+</style>
+</head>
+<body>
+<canvas id="three-canvas"></canvas>
+
+<div class="wrap">
+    <div class="owner-header">
+        {% if link.owner.avatar_url %}
+        <img src="{{ link.owner.avatar_url }}" alt="" class="owner-avatar">
+        {% endif %}
+        <div>
+            <div class="owner-name">{{ link.owner.display_name|default:link.owner.email }}</div>
+            <div class="owner-sub" data-ru="Назначить встречу" data-en="Schedule a meeting">Назначить встречу</div>
+        </div>
+    </div>
+
+    <h1 data-ru="Выберите время" data-en="Pick a time">Выберите время</h1>
+    <div class="subtitle">
+        {{ display_date|date:"j E Y" }}{% if link.is_permanent %} <span class="perm-badge" data-ru="завтра" data-en="tomorrow">завтра</span>{% endif %}
+    </div>
+
+    <div id="booking-form">
+        {% if free_slots %}
+        <div class="section-label" data-ru="Доступное время" data-en="Available times">Доступное время</div>
+        <div class="slots-grid" id="slots-grid">
+            {% for slot in free_slots %}
+            <button class="slot-btn" data-start="{{ slot.start }}" data-end="{{ slot.end }}"
+                    onclick="selectSlot(this)">
+                {{ slot.start }}<br><span style="font-size:0.75rem;font-weight:700;opacity:0.65;">– {{ slot.end }}</span>
+            </button>
+            {% endfor %}
+        </div>
+
+        <div class="form-card">
+            <div class="form-group">
+                <label data-ru="Ваше имя" data-en="Your name">Ваше имя</label>
+                <input type="text" id="guest-name" data-ru-placeholder="Имя (необязательно)" data-en-placeholder="Name (optional)" placeholder="Имя (необязательно)" autocomplete="name">
+            </div>
+            <div class="form-group">
+                <label><span data-ru="Телефон" data-en="Phone">Телефон</span> <span class="req">*</span></label>
+                <input type="tel" id="guest-phone" data-ru-placeholder="+7 (999) 123-45-67" data-en-placeholder="+1 (555) 000-0000" placeholder="+7 (999) 123-45-67" autocomplete="tel" required>
+            </div>
+
+            <label class="country-row" id="country-row" onclick="toggleLang(event)">
+                <input type="checkbox" id="is-foreign" onchange="applyLang()">
+                <span data-ru="📞 Другой телефон — не говорю по-русски" data-en="📞 Another phone — non-Russian speaker">📞 Другой телефон — не говорю по-русски</span>
+            </label>
+
+            <div class="form-group">
+                <label><span data-ru="Повестка встречи" data-en="Meeting agenda">Повестка встречи</span> <span class="req">*</span></label>
+                <textarea id="guest-agenda" data-ru-placeholder="О чём будет встреча?" data-en-placeholder="What's this meeting about?" placeholder="О чём будет встреча?" required></textarea>
+            </div>
+
+            <label class="mascot-row" onclick="document.getElementById('with-mascot').click();event.preventDefault();">
+                <input type="checkbox" id="with-mascot" onclick="event.stopPropagation()">
+                <span data-ru="🤖 Пригласить голосового агента" data-en="🤖 Invite voice agent">🤖 Пригласить голосового агента</span>
+            </label>
+        </div>
+
+        <button class="btn-book" id="book-btn" disabled onclick="bookSlot()">
+            <span data-ru="Назначить встречу" data-en="Book meeting">Назначить встречу</span>
+        </button>
+        <div class="msg-err" id="msg-err"></div>
+
+        {% else %}
+        <div class="empty-slots">
+            <span data-ru="На этот день нет свободных слотов" data-en="No available slots for this day">На этот день нет свободных слотов</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <div id="result-block">
+        <div class="result-header">
+            <span class="big-check">✅</span>
+            <h2 data-ru="Встреча назначена!" data-en="Meeting booked!">Встреча назначена!</h2>
+        </div>
+        <div class="result-card" id="result-info"></div>
+        <a id="join-link" class="join-btn" href="#" target="_blank">
+            <span data-ru="Войти на встречу →" data-en="Join meeting →">Войти на встречу →</span>
+        </a>
+        <div class="tg-block" id="tg-connect-block">
+            <div class="tg-block-title">📲 <span data-ru="Подключите Telegram" data-en="Connect Telegram">Подключите Telegram</span></div>
+            <p data-ru="Получите напоминание за 15 минут до встречи прямо в Telegram." data-en="Get a reminder 15 minutes before the meeting in Telegram.">Получите напоминание за 15 минут до встречи прямо в Telegram.</p>
+            <a id="tg-connect-link" class="tg-btn" href="#" target="_blank">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.16 13.48l-2.963-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.99.079z"/></svg>
+                <span data-ru="Подключить Telegram" data-en="Connect Telegram">Подключить Telegram</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Rate-limit modal -->
+<div class="rl-overlay" id="rl-overlay" onclick="closeRlModal(event)">
+    <div class="rl-modal">
+        <div class="rl-icon">🚫</div>
+        <h3 id="rl-title">Слишком много попыток</h3>
+        <p id="rl-text">Вы уже бронировали встречу недавно. Попробуйте снова через 3 часа.</p>
+        <button class="rl-close" onclick="document.getElementById('rl-overlay').classList.remove('show')">OK</button>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ── Three.js background ──────────────────────────────────────────
+(function() {
+    const canvas = document.getElementById('three-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.z = 20;
+
+    const shapes = [];
+    const geometries = [
+        new THREE.BoxGeometry(1.5, 1.5, 1.5),
+        new THREE.OctahedronGeometry(1),
+        new THREE.TetrahedronGeometry(1.2),
+        new THREE.TorusGeometry(0.8, 0.3, 8, 16),
+    ];
+    const colors = [0xf5c542, 0xff5c5c, 0x5cffa3, 0x5c9fff, 0xff9f43, 0xa29bfe];
+
+    for (let i = 0; i < 28; i++) {
+        const geo = geometries[i % geometries.length];
+        const mat = new THREE.MeshBasicMaterial({
+            color: colors[i % colors.length],
+            wireframe: i % 3 !== 0,
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(
+            (Math.random() - 0.5) * 40,
+            (Math.random() - 0.5) * 30,
+            (Math.random() - 0.5) * 10
+        );
+        mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+        const s = 0.5 + Math.random() * 1.2;
+        mesh.scale.setScalar(s);
+        shapes.push({
+            mesh,
+            rx: (Math.random() - 0.5) * 0.008,
+            ry: (Math.random() - 0.5) * 0.012,
+            vy: (Math.random() - 0.5) * 0.008,
+        });
+        scene.add(mesh);
+    }
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    function animate() {
+        requestAnimationFrame(animate);
+        shapes.forEach(s => {
+            s.mesh.rotation.x += s.rx;
+            s.mesh.rotation.y += s.ry;
+            s.mesh.position.y += s.vy;
+            if (s.mesh.position.y > 18) s.mesh.position.y = -18;
+            if (s.mesh.position.y < -18) s.mesh.position.y = 18;
+        });
+        renderer.render(scene, camera);
+    }
+    animate();
+})();
+
+// ── i18n ─────────────────────────────────────────────────────────
+const TOKEN = '{{ link.share_token }}';
+let isEn = false;
+let selectedSlot = null;
+
+function toggleLang(e) {
+    // Prevent double-trigger from label click
+    if (e.target.tagName === 'INPUT') return;
+    const cb = document.getElementById('is-foreign');
+    cb.checked = !cb.checked;
+    applyLang();
+}
+
+function applyLang() {
+    isEn = document.getElementById('is-foreign').checked;
+    const lang = isEn ? 'en' : 'ru';
+
+    // All elements with data-ru / data-en text
+    document.querySelectorAll('[data-ru][data-en]').forEach(el => {
+        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') return;
+        el.textContent = el.getAttribute('data-' + lang);
+    });
+
+    // Placeholders
+    document.querySelectorAll('[data-ru-placeholder]').forEach(el => {
+        el.placeholder = el.getAttribute('data-' + lang + '-placeholder');
+    });
+
+    // Page title
+    const titleEl = document.querySelector('title');
+    titleEl.textContent = titleEl.getAttribute('data-' + lang);
+
+    // html lang
+    document.documentElement.lang = isEn ? 'en' : 'ru';
+}
+
+// ── Slot selection ────────────────────────────────────────────────
+function selectSlot(btn) {
+    document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedSlot = { start: btn.dataset.start, end: btn.dataset.end };
+    document.getElementById('book-btn').disabled = false;
+}
+
+// ── Booking ───────────────────────────────────────────────────────
+async function bookSlot() {
+    const phone = document.getElementById('guest-phone').value.trim();
+    const agenda = document.getElementById('guest-agenda').value.trim();
+    if (!selectedSlot) { showErr(isEn ? 'Please select a time slot' : 'Выберите слот'); return; }
+    if (!phone) { showErr(isEn ? 'Please enter your phone number' : 'Укажите номер телефона'); return; }
+    if (!agenda) { showErr(isEn ? 'Please describe the meeting agenda' : 'Укажите повестку встречи'); return; }
+
+    const btn = document.getElementById('book-btn');
+    btn.disabled = true;
+    btn.querySelector('span').textContent = isEn ? 'Creating…' : 'Создаём…';
+    hideErr();
+
+    try {
+        const resp = await fetch(`/meetings/book/${TOKEN}/book/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                slot_start: selectedSlot.start,
+                slot_end: selectedSlot.end,
+                guest_name: document.getElementById('guest-name').value.trim() || '',
+                guest_phone: phone,
+                agenda: agenda,
+                with_mascot: document.getElementById('with-mascot')?.checked || false,
+                resolution: window.screen.width + 'x' + window.screen.height,
+                lang: isEn ? 'en' : 'ru',
+            }),
+        });
+        const data = await resp.json();
+        if (resp.status === 429 || data.rate_limited) {
+            showRlModal(data.error);
+            btn.disabled = false;
+            btn.querySelector('span').textContent = isEn ? 'Book meeting' : 'Назначить встречу';
+            return;
+        }
+        if (data.error) {
+            showErr(data.error);
+            btn.disabled = false;
+            btn.querySelector('span').textContent = isEn ? 'Book meeting' : 'Назначить встречу';
+            return;
+        }
+
+        // Hide form, show result
+        document.getElementById('booking-form').style.display = 'none';
+        document.getElementById('result-block').style.display = '';
+
+        // Apply current language to result block too
+        applyLang();
+
+        document.getElementById('join-link').href = data.join_url;
+
+        // Fill result info
+        const info = document.getElementById('result-info');
+        if (isEn) {
+            info.innerHTML =
+                '<div class="result-row"><span class="result-label">📆 Date</span><span>' + (data.date || '') + '</span></div>' +
+                '<div class="result-row"><span class="result-label">🕐 Time</span><span>' + (data.slot_start || '') + ' – ' + (data.slot_end || '') + '</span></div>' +
+                '<div class="result-row"><span class="result-label">🔗 Link</span><a href="' + data.join_url + '" target="_blank" style="color:#f55;word-break:break-all;">' + data.join_url + '</a></div>';
+        } else {
+            info.innerHTML =
+                '<div class="result-row"><span class="result-label">📆 Дата</span><span>' + (data.date || '') + '</span></div>' +
+                '<div class="result-row"><span class="result-label">🕐 Время</span><span>' + (data.slot_start || '') + ' – ' + (data.slot_end || '') + '</span></div>' +
+                '<div class="result-row"><span class="result-label">🔗 Ссылка</span><a href="' + data.join_url + '" target="_blank" style="color:#f55;word-break:break-all;">' + data.join_url + '</a></div>';
+        }
+
+        // Telegram connect
+        if (data.bot_username) {
+            const deepLink = 'https://t.me/' + data.bot_username + '?start=book_' + data.room_name;
+            document.getElementById('tg-connect-link').href = deepLink;
+            document.getElementById('tg-connect-block').style.display = '';
+        }
+    } catch(e) {
+        showErr((isEn ? 'Error: ' : 'Ошибка: ') + e.message);
+        btn.disabled = false;
+        btn.querySelector('span').textContent = isEn ? 'Book meeting' : 'Назначить встречу';
+    }
+}
+
+function showErr(msg) {
+    const el = document.getElementById('msg-err');
+    el.textContent = msg;
+    el.style.display = '';
+}
+function hideErr() { document.getElementById('msg-err').style.display = 'none'; }
+
+function showRlModal(msg) {
+    if (isEn) {
+        document.getElementById('rl-title').textContent = 'Too many attempts';
+        document.getElementById('rl-text').textContent = msg || 'You have already made a booking recently. Please try again in 3 hours.';
+    } else {
+        document.getElementById('rl-title').textContent = 'Слишком много попыток';
+        document.getElementById('rl-text').textContent = msg || 'Вы уже бронировали встречу недавно. Попробуйте снова через 3 часа.';
+    }
+    document.getElementById('rl-overlay').classList.add('show');
+}
+function closeRlModal(e) {
+    if (e.target === document.getElementById('rl-overlay'))
+        document.getElementById('rl-overlay').classList.remove('show');
+}
+</script>
+</body>
+</html>

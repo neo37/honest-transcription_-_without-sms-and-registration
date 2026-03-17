@@ -69,3 +69,11 @@ htmlcov/
 *.bak
 *.tmp
 .cache/
+
+# External data / backups — never commit
+pg_mcp_export-import-assasin/
+*.sql.gz
+*.sql.bak
+*.sql
+recordings/static/k5_export.xlsx
+chemico_agent/dumps/

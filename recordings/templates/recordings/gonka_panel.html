@@ -1,0 +1,208 @@
+{% extends "recordings/base.html" %}
+{% block title %}Gonka AI{% endblock %}
+{% block extra_css %}
+<style>
+.gonka-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+@media (max-width: 720px) { .gonka-grid { grid-template-columns: 1fr; } }
+.g-card {
+    background: var(--bg-soft); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.25rem;
+}
+.g-card h2 { font-size: 1rem; font-weight: 700; margin: 0 0 1rem; }
+.param-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.param-table tr { border-bottom: 1px solid var(--border); }
+.param-table tr:last-child { border-bottom: none; }
+.param-table td { padding: 0.4rem 0.3rem; vertical-align: top; }
+.param-table td:first-child { color: var(--muted); white-space: nowrap; padding-right: 0.75rem; width: 1%; font-size: 0.8rem; }
+.param-table td:last-child { font-family: monospace; word-break: break-all; font-size: 0.82rem; }
+.val-ok { color: #16a34a; }
+.val-warn { color: #d97706; }
+.val-err { color: #dc2626; }
+.val-na { color: var(--muted); font-style: italic; }
+.node-row { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.5rem; font-size: 0.82rem; }
+.node-url { font-family: monospace; color: var(--muted); font-size: 0.78rem; }
+.node-status { font-size: 0.78rem; font-weight: 600; }
+.test-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-top: 0.75rem; }
+.test-output { font-family: monospace; font-size: 0.82rem; white-space: pre-wrap; word-break: break-word; margin-top: 0.5rem; min-height: 2rem; color: var(--text); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head" style="margin-bottom:1.5rem;">
+    <h1>⛓ Gonka AI</h1>
+    <p class="breadcrumb"><a href="{% url 'recordings:index' %}">← Записи</a></p>
+</div>
+
+<div class="gonka-grid">
+
+<!-- Кошелёк -->
+<div class="g-card">
+    <h2>💼 Кошелёк</h2>
+    <table class="param-table">
+        <tr>
+            <td>EVM адрес</td>
+            <td>{{ evm_address }}</td>
+        </tr>
+        <tr>
+            <td>Gonka адрес</td>
+            <td>{{ gonka_address }}</td>
+        </tr>
+        <tr>
+            <td>Приватный ключ</td>
+            <td>
+                <span id="pk-hidden">{{ pk_masked }}••••••</span>
+                <button onclick="togglePk()" style="font-size:0.72rem;color:var(--muted);background:none;border:none;cursor:pointer;margin-left:0.3rem;">показать</button>
+                <span id="pk-full" style="display:none;">{{ pk_full }}</span>
+            </td>
+        </tr>
+        <tr>
+            <td>Активный нод</td>
+            <td id="active-node" class="val-na">проверяем…</td>
+        </tr>
+        <tr>
+            <td>Модель</td>
+            <td>{{ model }}</td>
+        </tr>
+    </table>
+
+    <div style="margin-top:1rem;padding:0.75rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:0.8rem;line-height:1.6;color:var(--muted);">
+        Для пополнения баланса переведи <strong style="color:var(--text);">GONKA токены</strong> на EVM адрес:<br>
+        <code style="font-size:0.78rem;color:var(--text);">{{ evm_address }}</code>
+    </div>
+</div>
+
+<!-- Ноды -->
+<div class="g-card">
+    <h2>🌐 Ноды сети</h2>
+    {% for node in nodes %}
+    <div class="node-row" id="node-row-{{ forloop.counter }}">
+        <span class="node-url">{{ node }}</span>
+        <span class="node-status val-na" id="node-status-{{ forloop.counter }}">…</span>
+    </div>
+    {% endfor %}
+
+    <div style="margin-top:1rem;">
+        <label style="font-size:0.82rem;color:var(--muted);">Нод для запросов:</label>
+        <form method="POST" style="display:flex;gap:0.5rem;margin-top:0.4rem;flex-wrap:wrap;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="set_node">
+            <select name="node_url" style="flex:1;border:1px solid var(--border);border-radius:8px;padding:0.4rem 0.6rem;font-size:0.82rem;background:var(--bg-soft);color:var(--text);">
+                {% for node in nodes %}
+                <option value="{{ node }}" {% if node == current_node %}selected{% endif %}>{{ node }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn" style="font-size:0.82rem;">Применить</button>
+        </form>
+    </div>
+</div>
+
+</div><!-- /grid -->
+
+<!-- Тест инференса -->
+<div class="g-card" style="margin-top:1.25rem;">
+    <h2>🧪 Тест инференса</h2>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;">
+        <div style="flex:1;min-width:200px;">
+            <input type="text" id="test-prompt" value="Скажи привет одним словом"
+                style="width:100%;border:1px solid var(--border);border-radius:8px;padding:0.4rem 0.75rem;font-size:0.9rem;background:var(--bg-soft);color:var(--text);">
+        </div>
+        <button class="btn btn-primary" onclick="runTest()" id="test-btn">Запустить</button>
+    </div>
+    <div class="test-box" id="test-box" style="display:none;">
+        <div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.3rem;">Ответ модели:</div>
+        <div class="test-output" id="test-output"></div>
+        <div style="font-size:0.75rem;color:var(--muted);margin-top:0.4rem;" id="test-meta"></div>
+    </div>
+</div>
+
+{% if saved %}<div style="background:#dcfce7;color:#15803d;padding:0.5rem 0.75rem;border-radius:8px;font-size:0.85rem;margin-top:1rem;">✓ Сохранено</div>{% endif %}
+{% if error %}<div style="background:#fee2e2;color:#dc2626;padding:0.5rem 0.75rem;border-radius:8px;font-size:0.85rem;margin-top:1rem;">{{ error }}</div>{% endif %}
+
+<script>
+const NODES = {{ nodes_json|safe }};
+
+// Проверяем статус нодов
+async function checkNodes() {
+    for (let i = 0; i < NODES.length; i++) {
+        const el = document.getElementById(`node-status-${i+1}`);
+        try {
+            const r = await fetch('/gonka-panel/api/node-check/', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json','X-CSRFToken': getCsrf()},
+                body: JSON.stringify({node: NODES[i]}),
+            });
+            const d = await r.json();
+            if (d.ok) {
+                el.textContent = `✓ OK (блок ${d.block})`;
+                el.className = 'node-status val-ok';
+                if (!document.getElementById('active-node').textContent.includes('OK')) {
+                    document.getElementById('active-node').textContent = NODES[i];
+                    document.getElementById('active-node').className = 'val-ok';
+                }
+            } else {
+                el.textContent = `✗ ${d.error || 'недоступен'}`;
+                el.className = 'node-status val-err';
+            }
+        } catch(e) {
+            el.textContent = '✗ ошибка';
+            el.className = 'node-status val-err';
+        }
+    }
+}
+
+async function runTest() {
+    const prompt = document.getElementById('test-prompt').value.trim();
+    if (!prompt) return;
+    const btn = document.getElementById('test-btn');
+    btn.disabled = true; btn.textContent = 'Запрос…';
+    const box = document.getElementById('test-box');
+    const out = document.getElementById('test-output');
+    const meta = document.getElementById('test-meta');
+    box.style.display = '';
+    out.textContent = '…';
+    meta.textContent = '';
+    const t0 = Date.now();
+    try {
+        const r = await fetch('/gonka-panel/api/test/', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json','X-CSRFToken': getCsrf()},
+            body: JSON.stringify({prompt}),
+        });
+        const d = await r.json();
+        const ms = Date.now() - t0;
+        if (d.error) {
+            out.textContent = '❌ ' + d.error;
+            out.style.color = '#dc2626';
+        } else {
+            out.textContent = d.result;
+            out.style.color = '';
+            meta.textContent = `${ms} мс · модель: ${d.model} · нод: ${d.node}`;
+        }
+    } catch(e) {
+        out.textContent = '❌ ' + e.message;
+    }
+    btn.disabled = false; btn.textContent = 'Запустить';
+}
+
+function getCsrf() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+}
+
+function togglePk() {
+    const h = document.getElementById('pk-hidden');
+    const f = document.getElementById('pk-full');
+    if (f.style.display === 'none') {
+        f.style.display = '';
+        h.style.display = 'none';
+        event.target.textContent = 'скрыть';
+    } else {
+        f.style.display = 'none';
+        h.style.display = '';
+        event.target.textContent = 'показать';
+    }
+}
+
+checkNodes();
+</script>
+{% endblock %}

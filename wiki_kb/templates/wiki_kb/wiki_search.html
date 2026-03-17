@@ -71,9 +71,35 @@
             </form>
 
             {% if searched %}
+                {% if semantic_results %}
+                <div style="margin-bottom:1.5rem;">
+                    <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.6rem;">
+                        <span style="font-size:0.78rem;font-weight:600;color:var(--accent);letter-spacing:0.04em;text-transform:uppercase;">✦ Смысловой поиск</span>
+                        <span style="font-size:0.75rem;color:var(--muted);">{{ semantic_results|length }} результат{{ semantic_results|length|pluralize:",,ов" }}</span>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                        {% for r in semantic_results %}
+                        <a href="{% url 'wiki_kb:article_detail' slug=r.article.slug %}"
+                           style="display:flex;flex-direction:column;gap:0.25rem;padding:0.9rem 1rem;background:var(--accent-soft);border:1px solid var(--accent);border-radius:var(--radius-sm);text-decoration:none;transition:all var(--transition);opacity:{% if forloop.counter == 1 %}1{% elif forloop.counter == 2 %}0.9{% elif forloop.counter == 3 %}0.82{% else %}0.72{% endif %};"
+                           onmouseover="this.style.opacity='1'"
+                           onmouseout="this.style.opacity='{{ forloop.counter|default:1 }}'">
+                            <span style="font-size:0.95rem;font-weight:600;color:var(--accent);">📄 {{ r.article.title }}</span>
+                            {% if r.excerpt %}
+                            <span style="font-size:0.82rem;color:var(--text-secondary);line-height:1.5;">{{ r.excerpt }}</span>
+                            {% endif %}
+                            <span style="font-size:0.72rem;color:var(--muted);">Релевантность: {{ r.score|floatformat:2 }} · {{ r.article.updated_at|date:"d.m.Y" }}</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
                 {% if results %}
-                <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;">Найдено статей: {{ results|length }}</p>
-                <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.6rem;">
+                    <span style="font-size:0.78rem;font-weight:600;color:var(--muted);letter-spacing:0.04em;text-transform:uppercase;">🔍 Точное совпадение</span>
+                    <span style="font-size:0.75rem;color:var(--muted);">{{ results|length }}</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
                     {% for art in results %}
                     <a href="{% url 'wiki_kb:article_detail' slug=art.slug %}"
                        style="display:flex;flex-direction:column;gap:0.2rem;padding:0.9rem 1rem;background:var(--bg-soft);border:1px solid var(--border);border-radius:var(--radius-sm);text-decoration:none;transition:all var(--transition);"
@@ -87,7 +113,9 @@
                     </a>
                     {% endfor %}
                 </div>
-                {% else %}
+                {% endif %}
+
+                {% if not results and not semantic_results %}
                 <div style="text-align:center;padding:3rem;color:var(--muted);">
                     <div style="font-size:2rem;margin-bottom:0.75rem;">🔍</div>
                     <p>Ничего не найдено. Попробуйте другой запрос.</p>

@@ -1,0 +1,354 @@
+{% extends "admin/base_site.html" %}
+{% block title %}Импорт из Яндекс Вики{% endblock %}
+
+{% block content %}
+<style>
+.yd-wrap { max-width: 860px; }
+.yd-step { display: none; }
+.yd-step.active { display: block; }
+
+/* Шаг 1: форма */
+.yd-field { margin-bottom: 18px; }
+.yd-field label { display: block; font-weight: 600; margin-bottom: 6px; font-size: .9rem; }
+.yd-field input { width: 100%; max-width: 460px; padding: 8px 10px; border: 1px solid #ccc;
+  border-radius: 5px; font-size: .95rem; }
+.yd-hint { font-size: .8rem; color: #888; margin-top: 4px; }
+.yd-hint a { color: #1a73e8; }
+.yd-btn { background: #1a73e8; color: #fff; border: none; padding: 10px 24px;
+  border-radius: 5px; font-size: .95rem; cursor: pointer; }
+.yd-btn:hover { background: #1557b0; }
+.yd-btn:disabled { background: #aaa; cursor: default; }
+.yd-btn-ghost { background: #fff; color: #1a73e8; border: 1px solid #1a73e8;
+  padding: 9px 22px; border-radius: 5px; font-size: .95rem; cursor: pointer; margin-left: 10px; }
+.yd-btn-ghost:hover { background: #f0f5ff; }
+
+/* Шаг 2: дерево */
+.yd-loading { color: #888; font-size: .9rem; padding: 20px 0; }
+.yd-tree { margin: 16px 0; }
+.yd-section { border: 1px solid #e0e0e0; border-radius: 7px; margin-bottom: 10px; overflow: hidden; }
+.yd-section-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 14px; background: #f8f9fa; cursor: pointer;
+  border-bottom: 1px solid #e0e0e0;
+}
+.yd-section-head:hover { background: #eef2ff; }
+.yd-section-head input[type=checkbox] { width: 17px; height: 17px; cursor: pointer; flex-shrink: 0; }
+.yd-section-title { font-weight: 600; font-size: .92rem; flex: 1; }
+.yd-section-slug { font-size: .75rem; color: #aaa; font-family: monospace; }
+.yd-toggle { font-size: .8rem; color: #888; padding: 2px 6px; background: #fff;
+  border: 1px solid #ddd; border-radius: 4px; cursor: pointer; }
+.yd-children { background: #fff; }
+.yd-child { display: flex; align-items: center; gap: 10px;
+  padding: 7px 14px 7px 38px; border-top: 1px solid #f0f0f0; }
+.yd-child:hover { background: #fafbff; }
+.yd-child input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; flex-shrink: 0; }
+.yd-child-title { font-size: .88rem; flex: 1; }
+.yd-child-slug { font-size: .73rem; color: #bbb; font-family: monospace; }
+.yd-children.collapsed { display: none; }
+.yd-sel-info { font-size: .85rem; color: #555; margin: 10px 0; }
+.yd-sel-info b { color: #1a73e8; }
+
+/* Шаг 3: прогресс */
+.yd-progress-wrap { margin: 16px 0; }
+.yd-bar-bg { background: #e0e0e0; border-radius: 10px; height: 14px; overflow: hidden; }
+.yd-bar { background: #1a73e8; height: 100%; width: 0%; transition: width .3s; border-radius: 10px; }
+.yd-bar-label { font-size: .82rem; color: #555; margin-top: 5px; }
+.yd-log { margin-top: 16px; background: #1e1e2e; color: #cdd6f4; border-radius: 8px;
+  padding: 14px 16px; font-family: monospace; font-size: .82rem;
+  max-height: 340px; overflow-y: auto; line-height: 1.7; }
+.yd-log-line.err { color: #f38ba8; }
+.yd-done-box { margin-top: 20px; padding: 16px; background: #e8f5e9; border-radius: 8px;
+  border: 1px solid #a5d6a7; display: none; }
+.yd-done-box a { color: #1a73e8; font-weight: 600; }
+</style>
+
+<div class="yd-wrap">
+  <h1>🗂 Импорт из Яндекс Вики</h1>
+  <p style="color:#666;margin-bottom:20px;font-size:.9rem">
+    Скачивает страницы из Яндекс Вики и добавляет их в базу знаний baza.
+    Создаётся корневая статья «Яндекс ГГГГ-ММ-ДД», внутрь которой помещаются выбранные разделы.
+  </p>
+
+  <!-- ═══════════ ШАГ 1: токен ═══════════ -->
+  <div id="step1" class="yd-step active">
+    <div class="module" style="padding:20px">
+      <h2>Шаг 1 — Подключение к Яндекс Вики</h2>
+
+      <div class="yd-field">
+        <label for="ya-token">OAuth-токен Яндекса</label>
+        <input id="ya-token" type="password" placeholder="y0_AgAAAA..." autocomplete="off">
+        <div class="yd-hint">
+          Получить токен:
+          <a href="https://oauth.yandex.ru/authorize?response_type=token&client_id=5cf2e269eb234741ab7a3f2bd5f0bc71"
+             target="_blank">открыть страницу Яндекса →</a><br>
+          Нажмите «Разрешить» → скопируйте токен из адресной строки
+          (параметр <code>access_token=...</code>)
+        </div>
+      </div>
+
+      <div class="yd-field">
+        <label for="ya-orgid">ID организации (Org-ID)</label>
+        <input id="ya-orgid" type="text" placeholder="123456789">
+        <div class="yd-hint">
+          Найти в
+          <a href="https://admin.yandex.ru/company-info" target="_blank">Яндекс 360 Admin → О компании</a>
+          — поле «ID организации».
+        </div>
+      </div>
+
+      <div id="step1-err" style="color:#c0392b;font-size:.87rem;margin-bottom:12px;display:none"></div>
+      <button class="yd-btn" id="btn-fetch" onclick="fetchTree()">Получить список страниц</button>
+    </div>
+  </div>
+
+  <!-- ═══════════ ШАГ 2: выбор страниц ═══════════ -->
+  <div id="step2" class="yd-step">
+    <div class="module" style="padding:20px">
+      <h2>Шаг 2 — Выберите разделы для импорта</h2>
+      <p class="yd-loading" id="tree-loading">⏳ Загружаю список страниц из Яндекс Вики…</p>
+      <div id="tree-wrap" style="display:none">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+          <button class="yd-toggle" onclick="checkAll(true)">Выбрать всё</button>
+          <button class="yd-toggle" onclick="checkAll(false)">Снять всё</button>
+          <span id="total-count" class="yd-sel-info"></span>
+        </div>
+        <div id="yd-tree" class="yd-tree"></div>
+        <div id="sel-info" class="yd-sel-info">Выбрано разделов: <b id="sel-count">0</b></div>
+        <div id="step2-err" style="color:#c0392b;font-size:.87rem;margin-bottom:12px;display:none"></div>
+        <button class="yd-btn" id="btn-import" onclick="startImport()">Начать импорт</button>
+        <button class="yd-btn-ghost" onclick="goStep(1)">← Назад</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ ШАГ 3: прогресс ═══════════ -->
+  <div id="step3" class="yd-step">
+    <div class="module" style="padding:20px">
+      <h2>Шаг 3 — Импорт</h2>
+      <div class="yd-progress-wrap">
+        <div class="yd-bar-bg"><div class="yd-bar" id="prog-bar"></div></div>
+        <div class="yd-bar-label" id="prog-label">Подготовка…</div>
+      </div>
+      <div class="yd-log" id="yd-log"></div>
+      <div class="yd-done-box" id="done-box">
+        ✅ Импорт завершён!
+        <a id="done-link" href="#">Открыть в базе знаний →</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ─── глобальное состояние ─── */
+let _token = '', _orgId = '', _treeData = [];
+
+function goStep(n) {
+  document.querySelectorAll('.yd-step').forEach(el => el.classList.remove('active'));
+  document.getElementById('step' + n).classList.add('active');
+}
+
+/* ─── ШАГ 1: получить дерево ─── */
+async function fetchTree() {
+  _token  = document.getElementById('ya-token').value.trim();
+  _orgId  = document.getElementById('ya-orgid').value.trim();
+  const errEl = document.getElementById('step1-err');
+  errEl.style.display = 'none';
+
+  if (!_token || !_orgId) {
+    errEl.textContent = 'Заполните оба поля.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('btn-fetch');
+  btn.disabled = true;
+  btn.textContent = '⏳ Загрузка…';
+
+  goStep(2);
+  document.getElementById('tree-loading').style.display = 'block';
+  document.getElementById('tree-wrap').style.display = 'none';
+
+  try {
+    const resp = await fetch('/admin/yadoc-import/fetch-tree/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify({token: _token, org_id: _orgId}),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      goStep(1);
+      errEl.textContent = data.error || 'Ошибка запроса.';
+      errEl.style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Получить список страниц';
+      return;
+    }
+    _treeData = data.tree;
+    renderTree(data.tree, data.total);
+    document.getElementById('tree-loading').style.display = 'none';
+    document.getElementById('tree-wrap').style.display = 'block';
+  } catch (e) {
+    goStep(1);
+    errEl.textContent = 'Сетевая ошибка: ' + e;
+    errEl.style.display = 'block';
+  }
+  btn.disabled = false; btn.textContent = 'Получить список страниц';
+}
+
+/* ─── Рендер дерева с чекбоксами ─── */
+function renderTree(tree, total) {
+  document.getElementById('total-count').innerHTML =
+    'Всего страниц в Яндекс Вики: <b>' + total + '</b>';
+  const wrap = document.getElementById('yd-tree');
+  wrap.innerHTML = '';
+  tree.forEach(section => {
+    const kids = section.children || [];
+    const el = document.createElement('div');
+    el.className = 'yd-section';
+    el.innerHTML = `
+      <div class="yd-section-head" onclick="toggleSection(this)">
+        <input type="checkbox" class="sec-cb" data-id="${section.id}"
+               onchange="onSectionCheck(this)" onclick="event.stopPropagation()">
+        <span class="yd-section-title">${esc(section.title)}</span>
+        <span class="yd-section-slug">${esc(section.slug)}</span>
+        ${kids.length ? `<span class="yd-toggle" onclick="event.stopPropagation();toggleKids(this)">▼ ${kids.length}</span>` : ''}
+      </div>
+      <div class="yd-children ${kids.length ? 'collapsed' : ''}">
+        ${kids.map(c => `
+          <div class="yd-child">
+            <input type="checkbox" class="child-cb" data-id="${c.id}" data-parent="${section.id}"
+                   onchange="updateSelCount()">
+            <span class="yd-child-title">${esc(c.title)}</span>
+            <span class="yd-child-slug">${esc(c.slug)}</span>
+          </div>`).join('')}
+      </div>`;
+    wrap.appendChild(el);
+  });
+  updateSelCount();
+}
+
+function toggleSection(head) {
+  /* клик по заголовку раздела — разворачивает/сворачивает дочерние */
+  const kids = head.nextElementSibling;
+  if (kids) kids.classList.toggle('collapsed');
+}
+
+function toggleKids(btn) {
+  const kids = btn.closest('.yd-section-head').nextElementSibling;
+  kids.classList.toggle('collapsed');
+  btn.textContent = kids.classList.contains('collapsed')
+    ? '▼ ' + btn.textContent.slice(2)
+    : '▲ ' + btn.textContent.slice(2);
+}
+
+function onSectionCheck(cb) {
+  /* выбор раздела → автовыбор всех дочерних */
+  const section = cb.closest('.yd-section');
+  section.querySelectorAll('.child-cb').forEach(c => c.checked = cb.checked);
+  updateSelCount();
+}
+
+function updateSelCount() {
+  const n = document.querySelectorAll('.sec-cb:checked').length;
+  document.getElementById('sel-count').textContent = n;
+}
+
+function checkAll(val) {
+  document.querySelectorAll('.sec-cb, .child-cb').forEach(cb => cb.checked = val);
+  updateSelCount();
+}
+
+/* ─── ШАГ 2 → 3: старт импорта ─── */
+async function startImport() {
+  const selectedIds = [...document.querySelectorAll('.sec-cb:checked')].map(cb => cb.dataset.id);
+  const errEl = document.getElementById('step2-err');
+  if (!selectedIds.length) {
+    errEl.textContent = 'Выберите хотя бы один раздел.';
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+  document.getElementById('btn-import').disabled = true;
+
+  /* Сохраняем задание в сессию */
+  const resp = await fetch('/admin/yadoc-import/start/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+    body: JSON.stringify({token: _token, org_id: _orgId, selected_ids: selectedIds, tree: _treeData}),
+  });
+  if (!resp.ok) {
+    errEl.textContent = 'Ошибка сохранения задания.';
+    errEl.style.display = 'block';
+    document.getElementById('btn-import').disabled = false;
+    return;
+  }
+
+  goStep(3);
+  runStream();
+}
+
+/* ─── SSE прогресс ─── */
+function runStream() {
+  const log   = document.getElementById('yd-log');
+  const bar   = document.getElementById('prog-bar');
+  const label = document.getElementById('prog-label');
+  let total = 0;
+
+  const es = new EventSource('/admin/yadoc-import/stream/');
+
+  es.onmessage = function(e) {
+    const d = JSON.parse(e.data);
+
+    if (d.type === 'total') {
+      total = d.total;
+      label.textContent = `0 / ${total}`;
+    }
+    if (d.type === 'progress') {
+      const pct = total ? Math.round(d.done / total * 100) : 0;
+      bar.style.width = pct + '%';
+      label.textContent = `${d.done} / ${total}  (${pct}%)`;
+      appendLog(d.msg);
+    }
+    if (d.type === 'log') {
+      appendLog(d.msg);
+    }
+    if (d.type === 'error') {
+      appendLog('❌ ' + d.msg, true);
+      es.close();
+    }
+    if (d.type === 'done') {
+      bar.style.width = '100%';
+      label.textContent = d.msg;
+      appendLog(d.msg);
+      const box = document.getElementById('done-box');
+      document.getElementById('done-link').href = d.wiki_url;
+      box.style.display = 'block';
+      es.close();
+    }
+  };
+
+  es.onerror = function() {
+    appendLog('❌ Соединение прервано.', true);
+    es.close();
+  };
+}
+
+function appendLog(msg, isErr) {
+  const log = document.getElementById('yd-log');
+  const line = document.createElement('div');
+  line.className = 'yd-log-line' + (isErr ? ' err' : '');
+  line.textContent = msg;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+}
+
+/* ─── утилиты ─── */
+function getCsrf() {
+  return document.cookie.split(';').map(c => c.trim())
+    .find(c => c.startsWith('csrftoken='))?.split('=')[1] || '';
+}
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+{% endblock %}

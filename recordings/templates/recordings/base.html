@@ -37,11 +37,12 @@
         <nav class="header-nav" id="header-nav" aria-label="Основная навигация">
             <a href="{% url 'recordings:index' %}">Записи</a>
             <a href="{% url 'recordings:meetings_page' %}">Встречи</a>
-            <a href="{% url 'recordings:bot_sessions' %}">Чаты бота</a>
             <a href="{% url 'recordings:uploads' %}">Загрузки</a>
             <a href="{% url 'recordings:ocr' %}">OCR</a>
 {% if current_user and current_user.space %}<a href="{% url 'recordings:space_members' %}">Пространство</a>{% endif %}
             <a href="{% url 'wiki_kb:kb_index' %}">База знаний</a>
+            <a href="{% url 'recordings:dms_index' %}">Чат{% if unread_dms %}&nbsp;<span style="background:#e53935;color:#fff;border-radius:99px;min-width:18px;height:18px;font-size:0.65rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0 4px;vertical-align:middle;line-height:1;">{{ unread_dms }}</span>{% endif %}</a>
+            <a href="{% url 'recordings:bp_chat_index' %}">Чат БП</a>
             <a href="{% url 'recordings:description' %}">О сервисе</a>
 {% if current_user and current_user.space and current_user.space.slug == 'org-bp' %}<a href="{% url 'recordings:system_config' %}">⚙ Настройки</a>{% endif %}
             <button type="button" class="nav-icon theme-toggle" id="theme-toggle" title="Сменить тему" aria-label="Сменить тему">
@@ -58,6 +59,7 @@
                 <span class="cabinet-badge cabinet-badge-premium">★</span>
                 {% endif %}
             </a>
+            <a href="/profile/">Профиль</a>
             {% endif %}
             <form method="post" action="{% url 'recordings:logout' %}" style="display:inline;">
                 {% csrf_token %}
@@ -88,7 +90,7 @@
 
     {% block content %}{% endblock %}
 
-</div>
+</div>{% block fullwidth_content %}{% endblock %}
 
 <!-- ── Модал создания встречи (глобальный) ── -->
 <div class="modal-backdrop" id="global-meeting-modal" style="display:none;position:fixed;inset:0;background:#0009;z-index:3000;align-items:center;justify-content:center;">
@@ -330,5 +332,15 @@
 </script>
 
 {% block extra_js %}{% endblock %}
+{% if current_user %}
+<script>
+// Обновляем last_seen каждые 30 секунд
+(function() {
+    function ping() { fetch('/api/ping/').catch(()=>{}); }
+    ping();
+    setInterval(ping, 180000);
+})();
+</script>
+{% endif %}
 </body>
 </html>

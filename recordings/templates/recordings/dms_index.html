@@ -1,0 +1,69 @@
+{% extends "recordings/base.html" %}
+{% block title %}Чат{% endblock %}
+
+{% block content %}
+<div style="display:flex;flex-direction:column;gap:0.4rem;max-width:600px;">
+    <a href="{% url 'recordings:space_chat' %}"
+       style="display:flex;align-items:center;gap:0.9rem;padding:0.85rem 1rem;
+              background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+              text-decoration:none;color:inherit;transition:box-shadow 0.18s,border-color 0.18s;"
+       onmouseover="this.style.borderColor='var(--accent)';this.style.boxShadow='var(--shadow)'"
+       onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+        <div style="width:42px;height:42px;border-radius:50%;background:var(--accent);
+                    display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;">
+            💬
+        </div>
+        <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;font-size:0.95rem;">Общий чат</div>
+            <div style="font-size:0.78rem;color:var(--muted);">Все участники пространства</div>
+        </div>
+    </a>
+
+    {% for item in contacts %}
+    <a href="{% url 'recordings:dm_conversation' item.user.pk %}"
+       style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.85rem;
+              background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+              text-decoration:none;color:inherit;transition:box-shadow 0.18s,border-color 0.18s;"
+       onmouseover="this.style.borderColor='var(--accent)';this.style.boxShadow='var(--shadow)'"
+       onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+        <!-- Avatar + online dot -->
+        <div style="position:relative;flex-shrink:0;">
+            <div style="width:36px;height:36px;border-radius:50%;background:var(--accent);
+                        display:flex;align-items:center;justify-content:center;
+                        font-size:0.9rem;font-weight:700;color:#fff;">
+                {{ item.user.email|slice:":1"|upper }}
+            </div>
+            {% if item.online %}
+            <span style="position:absolute;bottom:1px;right:1px;width:11px;height:11px;
+                         background:#22c55e;border-radius:50%;border:2px solid var(--card);"></span>
+            {% endif %}
+        </div>
+        <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;font-size:0.92rem;display:flex;align-items:center;gap:0.5rem;">
+                {{ item.user.display_name|default:item.user.email|truncatechars:24 }}
+                {% if item.total %}
+                <span style="background:var(--bg-soft);color:var(--muted);border:1px solid var(--border);
+                             border-radius:99px;font-size:0.68rem;padding:0 0.38rem;">{{ item.total }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;flex-shrink:0;">
+            <span style="font-size:0.72rem;color:var(--muted);">
+                {% if item.last_msg %}{{ item.last_msg.created_at|date:"H:i" }}{% endif %}
+            </span>
+            {% if item.unread %}
+            <span style="background:#e53935;color:#fff;border-radius:50%;
+                         min-width:20px;height:20px;font-size:0.7rem;font-weight:700;
+                         display:flex;align-items:center;justify-content:center;padding:0 4px;">
+                {{ item.unread }}
+            </span>
+            {% endif %}
+        </div>
+    </a>
+    {% empty %}
+    <div style="text-align:center;color:var(--muted);padding:2rem 1rem;font-size:0.9rem;">
+        В вашем пространстве пока нет других участников.
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

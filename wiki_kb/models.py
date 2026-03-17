@@ -38,6 +38,11 @@ class WikiArticle(models.Model):
     updated_at = models.DateTimeField('Изменено', auto_now=True)
     order = models.IntegerField('Порядок', default=0)
     is_deleted = models.BooleanField(default=False)
+    is_personal = models.BooleanField(
+        'Персональный',
+        default=False,
+        help_text='Виден только владельцу (created_by) и его кастомным ботам',
+    )
     share_token = models.UUIDField('Токен публичного доступа', null=True, blank=True, unique=True)
 
     class Meta:
@@ -212,14 +217,16 @@ def index_wiki_article(article: WikiArticle) -> bool:
     return True
 
 
-def wiki_semantic_search(query: str, space=None, article_ids=None, top_k: int = 5) -> list:
+def wiki_semantic_search(query: str, space=None, article_ids=None, top_k: int = 5, owner=None) -> list:
     """
     Семантический поиск по чанкам статей.
     article_ids — ограничить поиск списком pk (для кастомных ботов по разделу).
+    owner — SiteUser: включать его персональные статьи, исключать чужие персональные.
     Возвращает список dict: {article, score, excerpt} — по одному лучшему чанку на статью.
     Безопасен при большом числе статей: всё через numpy, без ORM N+1.
     """
     import numpy as np
+    from django.db.models import Q
 
     qs = WikiArticleChunk.objects.select_related('article').filter(
         article__is_deleted=False,
@@ -228,6 +235,15 @@ def wiki_semantic_search(query: str, space=None, article_ids=None, top_k: int = 
         qs = qs.filter(article__space=space)
     if article_ids is not None:
         qs = qs.filter(article__pk__in=article_ids)
+
+    # Персональные статьи: включаем только свои, чужие исключаем
+    if owner is not None:
+        qs = qs.filter(
+            Q(article__is_personal=False) |
+            Q(article__is_personal=True, article__created_by=owner)
+        )
+    else:
+        qs = qs.filter(article__is_personal=False)
 
     rows = list(qs)
     if not rows:

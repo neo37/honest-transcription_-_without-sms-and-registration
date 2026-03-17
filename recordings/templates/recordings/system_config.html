@@ -81,6 +81,17 @@
     <p class="breadcrumb"><a href="{% url 'recordings:index' %}">← Записи</a></p>
 </div>
 
+{% if messages %}
+<div style="margin-bottom:1rem;">
+{% for msg in messages %}
+<div style="padding:0.5rem 0.75rem;border-radius:8px;font-size:0.85rem;margin-bottom:0.4rem;
+    {% if msg.tags == 'error' %}background:#fee2e2;color:#dc2626;{% else %}background:#dcfce7;color:#15803d;{% endif %}">
+    {{ msg }}
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
 <div class="sysconfig-grid">
 
 <!-- ── GPU / Транскрипция ── -->
@@ -101,10 +112,11 @@
                 {% endif %}
             </div>
         </div>
-        <form method="POST" style="flex-shrink:0;">
+        <form method="POST" style="flex-shrink:0;display:flex;align-items:center;gap:0.4rem;">
             {% csrf_token %}
             <input type="hidden" name="key" value="ocr_gpu_mode">
             <input type="hidden" name="value" value="{% if ocr_gpu_mode %}0{% else %}1{% endif %}">
+            <input type="password" name="confirm_password" placeholder="пароль" style="width:80px;padding:0.25rem 0.5rem;border:1px solid var(--border);border-radius:5px;font-size:0.8rem;background:var(--bg-soft);color:var(--text);">
             <button type="submit" class="btn {% if ocr_gpu_mode %}btn-accent{% endif %}" style="min-width:90px;">
                 {% if ocr_gpu_mode %}Выключить{% else %}Включить{% endif %}
             </button>
@@ -214,30 +226,146 @@
 
 </div><!-- /grid -->
 
+<!-- ── LLM провайдер ── -->
+<div class="config-card" style="margin-top:1.25rem;">
+    <h2>🤖 LLM провайдер (AI-агент)</h2>
+    <p style="font-size:0.82rem;color:var(--muted);margin-bottom:1rem;line-height:1.5;">
+        Выберите, какой LLM использовать для кастомных ботов и ReAct-агента.
+        Активный: <strong>{{ effective_provider }}</strong>
+    </p>
+
+    <div style="display:flex;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+
+        <!-- Gonka AI -->
+        <form method="POST" style="flex:1;min-width:160px;">
+            {% csrf_token %}
+            <input type="hidden" name="key" value="llm_provider">
+            <input type="hidden" name="value" value="gonka">
+            <div style="border:2px solid {% if effective_provider == 'gonka' %}var(--accent){% else %}var(--border){% endif %};border-radius:10px;padding:1rem;background:var(--bg);position:relative;">
+                {% if effective_provider == 'gonka' %}<span style="position:absolute;top:0.5rem;right:0.75rem;font-size:0.75rem;color:var(--accent);font-weight:700;">● Активен</span>{% endif %}
+                <div style="font-weight:700;font-size:0.95rem;margin-bottom:0.35rem;">Gonka AI</div>
+                <div style="font-size:0.78rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.4;">
+                    Децентрализованная сеть инференса.<br>
+                    Приватный ключ из .env (GONKA_PRIVATE_KEY)<br>
+                    Модель: Qwen3-235B-A22B
+                </div>
+                <div style="font-size:0.78rem;margin-bottom:0.75rem;">
+                    Ключ: {% if gonka_key_set %}<span class="val-ok">✓ задан в .env</span>{% else %}<span class="val-warn">✗ не задан</span>{% endif %}
+                </div>
+                <button type="submit" class="btn {% if effective_provider == 'gonka' %}btn-primary{% endif %}" style="width:100%;font-size:0.82rem;">
+                    {% if effective_provider == 'gonka' %}Выбрано{% else %}Выбрать{% endif %}
+                </button>
+            </div>
+        </form>
+
+        <!-- OpenAI -->
+        <form method="POST" style="flex:1;min-width:160px;">
+            {% csrf_token %}
+            <input type="hidden" name="key" value="llm_provider">
+            <input type="hidden" name="value" value="openai">
+            <div style="border:2px solid {% if effective_provider == 'openai' %}var(--accent){% else %}var(--border){% endif %};border-radius:10px;padding:1rem;background:var(--bg);position:relative;">
+                {% if effective_provider == 'openai' %}<span style="position:absolute;top:0.5rem;right:0.75rem;font-size:0.75rem;color:var(--accent);font-weight:700;">● Активен</span>{% endif %}
+                <div style="font-weight:700;font-size:0.95rem;margin-bottom:0.35rem;">OpenAI</div>
+                <div style="font-size:0.78rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.4;">
+                    OpenAI API (gpt-4o-mini по умолчанию).<br>
+                    Ключ задаётся в Django Admin → SystemConfig → openai_api_key
+                </div>
+                <div style="font-size:0.78rem;margin-bottom:0.75rem;">
+                    Ключ: {% if openai_key_set %}<span class="val-ok">✓ задан</span>{% else %}<span class="val-warn">✗ не задан</span>{% endif %}
+                </div>
+                <button type="submit" class="btn {% if effective_provider == 'openai' %}btn-primary{% endif %}" style="width:100%;font-size:0.82rem;">
+                    {% if effective_provider == 'openai' %}Выбрано{% else %}Выбрать{% endif %}
+                </button>
+            </div>
+        </form>
+
+        <!-- Grok -->
+        <form method="POST" style="flex:1;min-width:160px;">
+            {% csrf_token %}
+            <input type="hidden" name="key" value="llm_provider">
+            <input type="hidden" name="value" value="grok">
+            <div style="border:2px solid {% if effective_provider == 'grok' %}var(--accent){% else %}var(--border){% endif %};border-radius:10px;padding:1rem;background:var(--bg);position:relative;">
+                {% if effective_provider == 'grok' %}<span style="position:absolute;top:0.5rem;right:0.75rem;font-size:0.75rem;color:var(--accent);font-weight:700;">● Активен</span>{% endif %}
+                <div style="font-weight:700;font-size:0.95rem;margin-bottom:0.35rem;">Grok (xAI)</div>
+                <div style="font-size:0.78rem;color:var(--muted);margin-bottom:0.75rem;line-height:1.4;">
+                    xAI Grok API.<br>
+                    Ключ задаётся в Django Admin → SystemConfig → grok_api_key
+                </div>
+                <div style="font-size:0.78rem;margin-bottom:0.75rem;">
+                    Ключ: {% if grok_key_set %}<span class="val-ok">✓ задан</span>{% else %}<span class="val-warn">✗ не задан</span>{% endif %}
+                </div>
+                <button type="submit" class="btn {% if effective_provider == 'grok' %}btn-primary{% endif %}" style="width:100%;font-size:0.82rem;">
+                    {% if effective_provider == 'grok' %}Выбрано{% else %}Выбрать{% endif %}
+                </button>
+            </div>
+        </form>
+
+    </div>
+</div>
+
 <!-- ── Фоновые задачи ── -->
 <div class="config-card" style="margin-top:1.25rem;">
-    <h2 style="justify-content:space-between;">
-        <span>⚙️ Фоновые задачи</span>
-        {% if transcribing_now %}
-        <form method="POST" style="margin:0;">
+    <h2>⚙️ Фоновые задачи</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;align-items:flex-end;">
+        <!-- Сбросить зависшие -->
+        <form method="POST" style="margin:0;display:flex;align-items:center;gap:0.4rem;" onsubmit="return confirm('Сбросить зависшие TRANSCRIBING → STABLE и поставить в очередь?')">
             {% csrf_token %}
             <input type="hidden" name="key" value="reset_stuck">
-            <button type="submit" class="btn" style="font-size:0.8rem;padding:0.3rem 0.75rem;" onclick="return confirm('Сбросить все зависшие в PENDING?')">Сбросить зависшие</button>
+            <input type="password" name="confirm_password" placeholder="пароль" style="width:70px;padding:0.25rem 0.5rem;border:1px solid var(--border);border-radius:5px;font-size:0.8rem;background:var(--bg-soft);color:var(--text);">
+            <button type="submit" class="btn" style="font-size:0.8rem;padding:0.3rem 0.75rem;">
+                🔁 Сбросить зависшие{% if transcribing_now %} ({{ transcribing_now|length }}){% endif %}
+            </button>
         </form>
-        {% endif %}
-    </h2>
+        <!-- Поставить в очередь -->
+        <form method="POST" style="margin:0;display:flex;align-items:center;gap:0.4rem;">
+            {% csrf_token %}
+            <input type="hidden" name="key" value="enqueue_missing">
+            <input type="password" name="confirm_password" placeholder="пароль" style="width:70px;padding:0.25rem 0.5rem;border:1px solid var(--border);border-radius:5px;font-size:0.8rem;background:var(--bg-soft);color:var(--text);">
+            <button type="submit" class="btn" style="font-size:0.8rem;padding:0.3rem 0.75rem;"
+                title="Добавить в очередь все STABLE/FAILED записи без транскрипции">
+                ➕ Поставить в очередь (без транскрипции)
+            </button>
+        </form>
+        <!-- Очистить очереди -->
+        <form method="POST" style="margin:0;display:flex;align-items:center;gap:0.4rem;" onsubmit="return confirm('Очистить все очереди (транскрибация + эмбеддинги)?')">
+            {% csrf_token %}
+            <input type="hidden" name="key" value="clear_queues">
+            <input type="password" name="confirm_password" placeholder="пароль" style="width:70px;padding:0.25rem 0.5rem;border:1px solid var(--border);border-radius:5px;font-size:0.8rem;background:var(--bg-soft);color:var(--text);">
+            <button type="submit" class="btn" style="font-size:0.8rem;padding:0.3rem 0.75rem;color:#d97706;border-color:#d97706;">
+                🗑 Очистить очереди
+            </button>
+        </form>
+        <!-- Перезапустить всё -->
+        <form method="POST" style="margin:0;display:flex;align-items:center;gap:0.4rem;" onsubmit="return confirm('Перезапустить весь процесс?\n\nВсе очереди будут очищены. Записи БЕЗ транскрипции встанут в очередь заново.\nЗаписи с готовой транскрипцией НЕ затрагиваются.\n\nПродолжить?')">
+            {% csrf_token %}
+            <input type="hidden" name="key" value="reprocess_all">
+            <input type="password" name="confirm_password" placeholder="пароль" style="width:70px;padding:0.25rem 0.5rem;border:1px solid var(--border);border-radius:5px;font-size:0.8rem;background:var(--bg-soft);color:var(--text);">
+            <button type="submit" class="btn" style="font-size:0.8rem;padding:0.3rem 0.75rem;color:#dc2626;border-color:#dc2626;">
+                🔄 Перезапустить всё
+            </button>
+        </form>
+    </div>
 
     {% if transcribing_now %}
     <p style="font-size:0.82rem;font-weight:600;color:#d97706;margin:0 0 0.5rem;">Сейчас транскрибируется ({{ transcribing_now|length }})</p>
     <table class="param-table" style="margin-bottom:1rem;">
         {% for rec in transcribing_now %}
         <tr>
-            <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                 <a href="{% url 'recordings:recording_detail' rec.pk %}" style="color:inherit;">{{ rec.filename }}</a>
             </td>
             <td>
                 <span style="color:#d97706;">{{ rec.transcription_progress|default:"0" }}%</span>
                 {% if rec.transcription_stage %}<span style="color:var(--muted);font-size:0.78rem;"> — {{ rec.transcription_stage }}</span>{% endif %}
+            </td>
+            <td>
+                <form method="post" style="display:flex;gap:0.4rem;align-items:center;" onsubmit="return checkPwd(this)">
+                    {% csrf_token %}
+                    <input type="hidden" name="key" value="restart_one">
+                    <input type="hidden" name="recording_id" value="{{ rec.pk }}">
+                    <input type="password" name="confirm_password" placeholder="пароль" style="width:80px;padding:0.2rem 0.4rem;border:1px solid var(--border);border-radius:5px;font-size:0.78rem;background:var(--bg-soft);color:var(--text);" required>
+                    <button type="submit" style="padding:0.2rem 0.5rem;font-size:0.78rem;border:1px solid #d97706;border-radius:5px;background:none;color:#d97706;cursor:pointer;">↺ Сбросить</button>
+                </form>
             </td>
         </tr>
         {% endfor %}
@@ -251,8 +379,19 @@
             <table class="param-table">
                 {% for item in transcribe_queue %}
                 <tr>
-                    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ item.recording.filename }}</td>
+                    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                        <a href="{% url 'recordings:recording_detail' item.recording.pk %}" style="color:inherit;">{{ item.recording.filename }}</a>
+                    </td>
                     <td>{% if item.priority %}⬆ приоритет{% else %}обычный{% endif %}</td>
+                    <td>
+                        <form method="post" style="display:flex;gap:0.4rem;align-items:center;" onsubmit="return checkPwd(this)">
+                            {% csrf_token %}
+                            <input type="hidden" name="key" value="restart_one">
+                            <input type="hidden" name="recording_id" value="{{ item.recording.pk }}">
+                            <input type="password" name="confirm_password" placeholder="пароль" style="width:80px;padding:0.2rem 0.4rem;border:1px solid var(--border);border-radius:5px;font-size:0.78rem;background:var(--bg-soft);color:var(--text);" required>
+                            <button type="submit" style="padding:0.2rem 0.5rem;font-size:0.78rem;border:1px solid var(--accent);border-radius:5px;background:none;color:var(--accent);cursor:pointer;">▶ Запустить</button>
+                        </form>
+                    </td>
                 </tr>
                 {% endfor %}
             </table>
@@ -281,7 +420,112 @@
     {% endif %}
 </div>
 
+<!-- ── Необработанные записи ── -->
+<div class="config-card" style="margin-top:1.25rem;">
+    <h2>🎙 Необработанные записи <span style="font-size:0.8rem;font-weight:400;color:var(--muted);" id="unrec-count">({{ unprocessed|length }})</span></h2>
+
+    <!-- Выбор модели по умолчанию -->
+    <form method="POST" style="display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem;flex-wrap:wrap;">
+        {% csrf_token %}
+        <input type="hidden" name="key" value="default_transcription_model">
+        <label style="font-size:0.85rem;color:var(--muted);">Модель по умолчанию:</label>
+        <select name="value" style="padding:0.3rem 0.6rem;border:1px solid var(--border);border-radius:6px;background:var(--bg-soft);color:var(--text);font-size:0.85rem;">
+            {% for m, label in models %}
+            <option value="{{ m }}" {% if m == default_model %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn" style="font-size:0.82rem;padding:0.3rem 0.7rem;">Сохранить</button>
+    </form>
+
+    {% if unprocessed %}
+    <form method="POST" id="bulk-form">
+        {% csrf_token %}
+        <input type="hidden" name="key" value="bulk_enqueue_selected">
+
+        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;flex-wrap:wrap;">
+            <label style="font-size:0.85rem;color:var(--muted);">Модель для запуска:</label>
+            <select name="bulk_model" style="padding:0.3rem 0.6rem;border:1px solid var(--border);border-radius:6px;background:var(--bg-soft);color:var(--text);font-size:0.85rem;">
+                {% for m, label in models %}
+                <option value="{{ m }}" {% if m == default_model %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <input type="password" name="confirm_password" placeholder="пароль" required
+                style="width:80px;padding:0.3rem 0.5rem;border:1px solid var(--border);border-radius:5px;font-size:0.82rem;background:var(--bg-soft);color:var(--text);">
+            <button type="submit" class="btn btn-primary" style="font-size:0.82rem;padding:0.3rem 0.9rem;"
+                onclick="return checkBulk(this)">
+                ▶ Запустить выбранные (<span id="sel-count">0</span>)
+            </button>
+            <button type="button" onclick="toggleAll()" style="background:none;border:none;cursor:pointer;font-size:0.82rem;color:var(--accent);padding:0;">
+                выбрать все
+            </button>
+        </div>
+
+        <div style="overflow-x:auto;">
+        <table class="param-table" style="font-size:0.82rem;">
+            <thead>
+                <tr style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">
+                    <th style="padding:0.3rem;text-align:left;"></th>
+                    <th style="padding:0.3rem;text-align:left;">Файл</th>
+                    <th style="padding:0.3rem;text-align:left;">Пространство</th>
+                    <th style="padding:0.3rem;text-align:left;">Статус</th>
+                    <th style="padding:0.3rem;text-align:left;">Дата</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for rec in unprocessed %}
+            <tr>
+                <td style="padding:0.3rem;width:28px;">
+                    <input type="checkbox" name="rec_ids" value="{{ rec.pk }}" class="rec-cb"
+                        onchange="updateSelCount()" style="cursor:pointer;width:15px;height:15px;">
+                </td>
+                <td style="padding:0.3rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    <a href="{% url 'recordings:recording_detail' rec.pk %}" style="color:inherit;">{{ rec.filename }}</a>
+                </td>
+                <td style="padding:0.3rem;color:var(--muted);">{{ rec.space.name|default:"—" }}</td>
+                <td style="padding:0.3rem;">
+                    <span style="font-size:0.75rem;padding:0.1rem 0.4rem;border-radius:4px;
+                        {% if rec.status == 'transcribing' %}background:#fef3c7;color:#d97706;
+                        {% elif rec.status == 'failed' or rec.status == 'error' %}background:#fee2e2;color:#dc2626;
+                        {% else %}background:var(--bg-soft);color:var(--muted);{% endif %}">
+                        {{ rec.status }}
+                    </span>
+                </td>
+                <td style="padding:0.3rem;color:var(--muted);white-space:nowrap;">{{ rec.created_at|date:"d.m H:i" }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </form>
+    {% else %}
+    <p style="color:#16a34a;font-size:0.85rem;">✓ Все записи обработаны</p>
+    {% endif %}
+</div>
+
 <script>
+function checkPwd(form) {
+    var pwd = form.querySelector('[name=confirm_password]');
+    if (!pwd || !pwd.value) { alert('Введите пароль'); return false; }
+    return true;
+}
+function updateSelCount() {
+    var n = document.querySelectorAll('.rec-cb:checked').length;
+    var el = document.getElementById('sel-count');
+    if (el) el.textContent = n;
+}
+var _allSelected = false;
+function toggleAll() {
+    _allSelected = !_allSelected;
+    document.querySelectorAll('.rec-cb').forEach(cb => { cb.checked = _allSelected; });
+    updateSelCount();
+}
+function checkBulk(btn) {
+    var n = document.querySelectorAll('.rec-cb:checked').length;
+    if (!n) { alert('Выберите хотя бы одну запись'); return false; }
+    var pwd = document.querySelector('#bulk-form [name=confirm_password]');
+    if (!pwd || !pwd.value) { alert('Введите пароль'); return false; }
+    return confirm('Запустить транскрибацию ' + n + ' записей?');
+}
 function toggleSecret(id) {
     var el = document.getElementById(id);
     var btn = el.nextElementSibling;

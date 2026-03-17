@@ -1,0 +1,1620 @@
+{% extends "recordings/base.html" %}
+{% block title %}Excel Studio{% endblock %}
+
+{% block content %}{% endblock %}
+
+{% block fullwidth_content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tabulator-tables@6.4.0/dist/css/tabulator_simple.min.css">
+<script src="https://cdn.jsdelivr.net/npm/tabulator-tables@6.4.0/dist/js/tabulator.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --panel-w: 360px;
+  --sidebar-w: 200px;
+  --step-bar-h: 50px;
+  --primary: #4f6ef7;
+  --primary-dark: #3d5ce0;
+  --primary-bg: #eef1fe;
+  --success: #17b26a;
+  --success-bg: #ecfdf5;
+  --warn: #f59e0b;
+  --error: #f04438;
+  --error-bg: #fef3f2;
+  --bg: #f0f4fa;
+  --surface: #ffffff;
+  --border: #e4e9f2;
+  --border-soft: #f0f4fa;
+  --text: #1a2035;
+  --text-muted: #6b7a99;
+  --text-faint: #a0aec0;
+  --sidebar-dark: #1e2a45;
+  --sidebar-dark-hover: #263354;
+  --radius: 10px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+.dbe-wrap {
+  font-family: 'Inter', system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 57px);
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+}
+/* высота пересчитывается JS-ом после рендера хедера */
+
+/* ── Step bar ── */
+.dbe-step-bar {
+  height: var(--step-bar-h);
+  min-height: var(--step-bar-h);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 2px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  box-shadow: 0 1px 0 var(--border);
+}
+.dbe-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 20px;
+  font-size: .78rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: background .15s, border-color .15s, color .15s;
+  color: var(--text-muted);
+}
+.dbe-step:hover { background: var(--bg); color: var(--text); }
+.dbe-step.active { background: var(--primary-bg); border-color: var(--primary); color: var(--primary); }
+.dbe-step.done { color: var(--success); }
+.dbe-step.done .dbe-step-num { background: var(--success); color: #fff; }
+.dbe-step-num {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #dde3f0;
+  color: var(--text-muted);
+  font-size: .68rem;
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.dbe-step.active .dbe-step-num { background: var(--primary); color: #fff; }
+.dbe-step-sep { color: #c5cee0; font-size: .65rem; flex-shrink: 0; padding: 0 2px; }
+.dbe-step-val {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: .72rem;
+  font-weight: 400;
+  color: var(--text-faint);
+}
+.dbe-step.done .dbe-step-val { color: var(--success); }
+.dbe-step.active .dbe-step-val { color: var(--primary); }
+
+/* ── Body ── */
+.dbe-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── Sidebar ── */
+.dbe-sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  background: var(--sidebar-dark);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.dbe-sidebar-head {
+  padding: 11px 14px;
+  font-size: .68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #5c7099;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+.dbe-col-list { flex: 1; overflow-y: auto; padding: 5px 0; }
+.dbe-col-list::-webkit-scrollbar { width: 4px; }
+.dbe-col-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 2px; }
+.dbe-col-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 13px;
+  cursor: pointer;
+  font-size: .8rem;
+  border-left: 3px solid transparent;
+  transition: background .12s;
+  word-break: break-all;
+  color: #8fa3c8;
+}
+.dbe-col-item:hover { background: var(--sidebar-dark-hover); color: #c8d8f0; }
+.dbe-col-item.active { border-left-color: var(--primary); background: rgba(79,110,247,.12); color: #c8d8f0; }
+.dbe-col-item.configured { border-left-color: var(--primary); }
+.dbe-col-item.filled     { border-left-color: var(--success); }
+.dbe-col-item.error      { border-left-color: var(--error); }
+.dbe-col-item.loading    { border-left-color: var(--warn); }
+.dbe-col-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: #3d4f6e; flex-shrink: 0;
+}
+.configured .dbe-col-dot { background: var(--primary); }
+.filled     .dbe-col-dot { background: var(--success); }
+.error      .dbe-col-dot { background: var(--error); }
+.loading    .dbe-col-dot { background: var(--warn); animation: dbe-pulse .8s infinite; }
+@keyframes dbe-pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+.dbe-sidebar-actions {
+  padding: 10px 10px;
+  border-top: 1px solid rgba(255,255,255,.07);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ── Main ── */
+.dbe-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.dbe-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.dbe-filename {
+  flex: 1; font-size: .82rem; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+  font-weight: 500;
+}
+.dbe-table-wrap {
+  flex: 1; overflow: hidden; position: relative;
+  background: var(--surface); margin: 12px;
+  border-radius: var(--radius);
+  box-shadow: 0 1px 3px rgba(26,32,53,.08), 0 4px 16px rgba(26,32,53,.04);
+  border: 1px solid var(--border);
+}
+.dbe-dropzone {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; gap: 16px; color: var(--text-faint); cursor: pointer;
+  border: 2px dashed #d0daf0; border-radius: var(--radius);
+  transition: border-color .2s, background .2s;
+}
+.dbe-dropzone:hover, .dbe-dropzone.drag-over { border-color: var(--primary); background: var(--primary-bg); }
+.dbe-dropzone svg { opacity: .35; }
+.dbe-dropzone p { margin: 0; font-size: .95rem; color: #4a5578; font-weight: 500; }
+.dbe-dropzone small { font-size: .78rem; color: var(--text-faint); }
+#dbe-file-input { display: none; }
+#dbe-tabulator { width: 100%; height: 100%; font-size: .81rem; }
+
+/* Tabulator overrides */
+.tabulator { background: var(--surface) !important; border: none !important; border-radius: var(--radius); font-family: 'Inter', sans-serif !important; }
+.tabulator .tabulator-header { background: #f6f8fc !important; border-bottom: 1px solid var(--border) !important; }
+.tabulator .tabulator-col { background: #f6f8fc !important; border-right: 1px solid var(--border) !important; color: #4a5578 !important; font-weight: 600 !important; font-size: .75rem !important; text-transform: uppercase; letter-spacing: .04em; }
+.tabulator .tabulator-col.col-configured .tabulator-col-title::after { content: ' ●'; color: var(--primary); }
+.tabulator .tabulator-col.col-filled    .tabulator-col-title::after { content: ' ✓'; color: var(--success); }
+.tabulator .tabulator-col.col-loading   .tabulator-col-title::after { content: ' ⟳'; color: var(--warn); }
+.tabulator .tabulator-col.col-error     .tabulator-col-title::after { content: ' ✕'; color: var(--error); }
+.tabulator .tabulator-row { border-bottom: 1px solid var(--border-soft) !important; color: var(--text) !important; }
+.tabulator .tabulator-row:nth-child(even) { background: #fafbfd !important; }
+.tabulator .tabulator-cell { border-right: 1px solid var(--border-soft) !important; color: var(--text) !important; padding: 6px 9px !important; }
+.tabulator .tabulator-cell.cell-new-flash { background: #d1fae5 !important; transition: background 1s; }
+
+/* ── Right panel ── */
+.dbe-panel {
+  width: var(--panel-w); min-width: var(--panel-w);
+  border-left: 1px solid var(--border); background: var(--surface);
+  display: flex; flex-direction: column;
+  transform: translateX(var(--panel-w));
+  transition: transform .22s ease;
+  box-shadow: -4px 0 20px rgba(26,32,53,.06);
+}
+.dbe-panel.open { transform: translateX(0); }
+.dbe-panel-tabs {
+  display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  background: #f8fafd;
+}
+.dbe-panel-tab {
+  flex: 1; padding: 11px 6px; text-align: center; font-size: .78rem; font-weight: 500;
+  cursor: pointer; color: var(--text-muted); border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s; letter-spacing: .01em;
+}
+.dbe-panel-tab:hover { color: var(--text); }
+.dbe-panel-tab.active { color: var(--primary); border-bottom-color: var(--primary); background: var(--surface); }
+.dbe-panel-tab-content { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+.dbe-panel-tab-content.active { display: flex; }
+
+.dbe-panel-header {
+  padding: 11px 14px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  background: var(--surface);
+}
+.dbe-panel-header h3 { margin: 0; font-size: .88rem; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.dbe-panel-close { background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 1rem; padding: 3px 7px; border-radius: 6px; flex-shrink: 0; transition: background .15s; }
+.dbe-panel-close:hover { background: var(--bg); color: var(--text-muted); }
+
+.dbe-keycol-row {
+  padding: 7px 12px; border-bottom: 1px solid var(--border-soft);
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0; font-size: .76rem; color: var(--text-faint);
+}
+.dbe-keycol-row select {
+  flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: 4px 7px; font-size: .76rem; font-family: inherit;
+}
+.dbe-keycol-row select:focus { outline: none; border-color: var(--primary); }
+
+/* Chat */
+.dbe-chat-messages {
+  flex: 1; overflow-y: auto; padding: 14px 12px;
+  display: flex; flex-direction: column; gap: 10px;
+  background: #fafbfd;
+}
+.dbe-chat-messages::-webkit-scrollbar { width: 4px; }
+.dbe-chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.dbe-chat-empty { color: var(--text-faint); font-size: .82rem; text-align: center; margin-top: 48px; line-height: 1.7; }
+
+.dbe-msg { display: flex; flex-direction: column; max-width: 88%; }
+.dbe-msg.user      { align-self: flex-end;   align-items: flex-end; }
+.dbe-msg.assistant { align-self: flex-start; align-items: flex-start; }
+.dbe-msg.system    { align-self: center; max-width: 100%; }
+
+.dbe-bubble {
+  padding: 9px 13px; border-radius: 14px; font-size: .83rem;
+  line-height: 1.5; word-break: break-word; white-space: pre-wrap;
+}
+.dbe-msg.user      .dbe-bubble { background: var(--primary); color: #fff; border-bottom-right-radius: 3px; box-shadow: 0 2px 8px rgba(79,110,247,.25); }
+.dbe-msg.assistant .dbe-bubble { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-bottom-left-radius: 3px; box-shadow: 0 1px 4px rgba(26,32,53,.06); }
+.dbe-msg.system    .dbe-bubble { background: transparent; color: var(--text-faint); font-size: .74rem; border: none; padding: 2px 0; }
+.dbe-msg.assistant .dbe-bubble.ok  { border-color: #86efac; background: var(--success-bg); color: var(--success); }
+.dbe-msg.assistant .dbe-bubble.err { border-color: #fca5a5; background: var(--error-bg); color: var(--error); }
+
+.dbe-options { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.dbe-opt-chip {
+  padding: 4px 11px; border: 1.5px solid var(--primary); border-radius: 16px;
+  font-size: .76rem; font-weight: 500; color: var(--primary); cursor: pointer; background: var(--primary-bg);
+  transition: background .15s;
+}
+.dbe-opt-chip:hover { background: #dce3fd; }
+.dbe-opt-chip:disabled { opacity: .4; cursor: default; }
+
+.dbe-typing { display: flex; gap: 4px; padding: 8px 13px; align-items: center; }
+.dbe-typing span { width: 6px; height: 6px; background: var(--text-faint); border-radius: 50%; animation: dbe-bounce .9s infinite; }
+.dbe-typing span:nth-child(2) { animation-delay: .15s; }
+.dbe-typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes dbe-bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+
+.dbe-fill-progress { font-size: .74rem; color: var(--text-faint); margin-top: 3px; }
+
+.dbe-chat-input {
+  padding: 9px 10px; border-top: 1px solid var(--border);
+  display: flex; gap: 7px; align-items: flex-end; flex-shrink: 0;
+  background: var(--surface);
+}
+.dbe-chat-input textarea {
+  flex: 1; background: var(--bg); border: 1.5px solid var(--border); color: var(--text);
+  border-radius: 10px; padding: 8px 11px; font-size: .83rem; font-family: inherit;
+  resize: none; min-height: 36px; max-height: 110px; overflow-y: auto; line-height: 1.4;
+  transition: border-color .15s;
+}
+.dbe-chat-input textarea:focus { outline: none; border-color: var(--primary); background: var(--surface); }
+.dbe-chat-send {
+  background: var(--primary); border: none; color: #fff; border-radius: 10px;
+  width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0; transition: background .15s, box-shadow .15s;
+}
+.dbe-chat-send:hover { background: var(--primary-dark); box-shadow: 0 2px 8px rgba(79,110,247,.35); }
+.dbe-chat-send:disabled { background: #c5cee0; cursor: not-allowed; }
+.dbe-chat-send svg { width: 15px; height: 15px; }
+
+/* Global fill progress */
+.dbe-global-prog-bar-wrap { padding: 8px 12px; border-top: 1px solid var(--border-soft); flex-shrink: 0; display: none; }
+.dbe-global-prog-bar-wrap.visible { display: block; }
+.dbe-gpb-label { font-size: .74rem; color: var(--text-muted); margin-bottom: 5px; font-weight: 500; }
+.dbe-gpb { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.dbe-gpb-inner { height: 100%; background: var(--primary); width: 0; transition: width .3s; border-radius: 2px; }
+
+/* ── Buttons ── */
+.btn-dbe {
+  display: inline-flex; align-items: center; gap: 5px; padding: 6px 13px;
+  border-radius: 8px; border: 1.5px solid var(--border); background: var(--surface);
+  color: #4a5578; font-size: .78rem; font-weight: 500; font-family: inherit;
+  cursor: pointer; white-space: nowrap;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.btn-dbe:hover { border-color: var(--primary); background: var(--primary-bg); color: var(--primary); }
+.btn-dbe.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn-dbe.primary:hover { background: var(--primary-dark); box-shadow: 0 2px 8px rgba(79,110,247,.3); }
+.btn-dbe.success { background: var(--success); border-color: var(--success); color: #fff; }
+.btn-dbe.success:hover { background: #14a060; }
+.btn-dbe.secondary { background: var(--surface); border-color: var(--border); color: var(--text-muted); }
+.btn-dbe.secondary:hover { border-color: #a0aec0; color: var(--text); }
+.btn-dbe:disabled { opacity: .4; cursor: not-allowed; pointer-events: none; }
+.btn-dbe.full { width: 100%; justify-content: center; }
+
+/* ── Progress bar (top) ── */
+.dbe-progress { height: 2px; background: var(--border-soft); overflow: hidden; flex-shrink: 0; }
+.dbe-progress-bar { height: 100%; background: var(--primary); width: 0; transition: width .3s; }
+
+/* ── Modal ── */
+.dbe-modal-bg {
+  display: none; position: fixed; inset: 0; background: rgba(10,15,30,.55);
+  z-index: 1000; align-items: center; justify-content: center;
+  backdrop-filter: blur(2px);
+}
+.dbe-modal-bg.open { display: flex; }
+.dbe-modal {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  width: 430px; max-width: 95vw; max-height: 82vh; display: flex; flex-direction: column;
+  box-shadow: 0 24px 64px rgba(10,15,30,.18);
+}
+.dbe-modal-head { padding: 15px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; }
+.dbe-modal-head h3 { margin: 0; flex: 1; font-size: .95rem; font-weight: 600; color: var(--text); }
+.dbe-modal-body { flex: 1; overflow-y: auto; padding: 14px 18px; }
+.dbe-modal-foot { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+.dbe-card {
+  padding: 11px 13px; border: 1.5px solid var(--border); border-radius: 10px;
+  margin-bottom: 8px; cursor: pointer; transition: border-color .15s, box-shadow .15s; background: var(--surface);
+}
+.dbe-card:hover { border-color: var(--primary); box-shadow: 0 2px 10px rgba(79,110,247,.1); }
+.dbe-card strong { display: block; font-size: .88rem; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.dbe-card small { color: var(--text-faint); font-size: .74rem; }
+.dbe-badge {
+  display: inline-block; font-size: .67rem; padding: 2px 7px; border-radius: 12px;
+  font-weight: 600; vertical-align: middle; margin-right: 4px; letter-spacing: .02em;
+}
+.dbe-badge.wiki   { background: var(--primary-bg); color: var(--primary); }
+.dbe-badge.saved  { background: var(--success-bg); color: var(--success); }
+.dbe-badge.preset { background: #f3f0ff; color: #6d4aed; }
+.dbe-modal-body .dbe-field label {
+  display: block; font-size: .72rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--text-faint); margin-bottom: 6px;
+}
+.dbe-modal-body input, .dbe-modal-body select {
+  width: 100%; box-sizing: border-box; background: var(--bg); border: 1.5px solid var(--border);
+  color: var(--text); border-radius: 8px; padding: 8px 10px; font-size: .85rem; font-family: inherit;
+  transition: border-color .15s;
+}
+.dbe-modal-body input:focus, .dbe-modal-body select:focus { outline: none; border-color: var(--primary); background: var(--surface); }
+
+/* Wiki browser modal */
+.bind-modal-inner {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  display: flex; flex-direction: column; width: 100%;
+  max-width: 1000px; height: 100%; max-height: calc(100vh - 40px);
+  overflow: hidden; box-shadow: 0 24px 64px rgba(10,15,30,.18);
+}
+.wiki-content { font-size: .85rem; line-height: 1.75; color: #3d4f6e; }
+.wiki-content h1,.wiki-content h2,.wiki-content h3 { color: var(--text); margin-top: 1.2em; font-weight: 600; }
+.wiki-content code { background: var(--bg); padding: 1px 5px; border-radius: 4px; font-size: .82em; }
+.wiki-content pre { background: #f6f8fc; border: 1px solid var(--border); border-radius: 8px; padding: 10px; overflow-x: auto; }
+
+@media (max-width: 700px) {
+  :root { --panel-w: 100vw; --sidebar-w: 140px; }
+  .dbe-sidebar { display: none; }
+  /* На мобильном панель — оверлей, иначе width:100vw выталкивает main */
+  .dbe-panel {
+    position: fixed;
+    top: 0; right: 0; bottom: 0;
+    z-index: 400;
+  }
+  .dbe-step-val { display: none; }
+}
+</style>
+
+<div class="dbe-wrap">
+
+  <!-- Step bar -->
+  <div class="dbe-step-bar" id="dbe-step-bar">
+    <div class="dbe-step active" id="step-1" onclick="handleStep(1)">
+      <span class="dbe-step-num">1</span> Файл
+      <span class="dbe-step-val" id="step-1-val"></span>
+    </div>
+    <span class="dbe-step-sep">›</span>
+    <div class="dbe-step" id="step-2" onclick="handleStep(2)">
+      <span class="dbe-step-num">2</span> Вики-контекст
+      <span class="dbe-step-val" id="step-2-val">не выбрана</span>
+    </div>
+    <span class="dbe-step-sep">›</span>
+    <div class="dbe-step" id="step-3" onclick="handleStep(3)">
+      <span class="dbe-step-num">3</span> Микропресет
+      <span class="dbe-step-val" id="step-3-val">не выбран</span>
+    </div>
+    <span class="dbe-step-sep">›</span>
+    <div class="dbe-step" id="step-4" onclick="handleStep(4)">
+      <span class="dbe-step-num">4</span> Заполнить таблицу
+    </div>
+    <span class="dbe-step-sep">›</span>
+    <div class="dbe-step" id="step-5" onclick="handleStep(5)">
+      <span class="dbe-step-num">5</span> Доработать
+    </div>
+    <span class="dbe-step-sep">›</span>
+    <div class="dbe-step" id="step-6" onclick="handleStep(6)">
+      <span class="dbe-step-num">6</span> Сохранить
+    </div>
+    <div style="flex:1"></div>
+  </div>
+
+  <!-- Body -->
+  <div class="dbe-body">
+    <!-- Sidebar: column list -->
+    <div class="dbe-sidebar">
+      <div class="dbe-sidebar-head">
+        <span>Столбцы</span>
+        <span id="dbe-filled-count" style="font-size:.72rem;"></span>
+      </div>
+      <div class="dbe-col-list" id="dbe-col-list">
+        <div style="padding:16px 14px;color:#4a5e80;font-size:.8rem;line-height:1.6;">Загрузите файл<br><span style="color:#3d4f6e;font-size:.72rem;">чтобы увидеть столбцы</span></div>
+      </div>
+      <div class="dbe-sidebar-actions">
+        <button class="btn-dbe primary full" id="btn-open-global-chat" disabled style="background:rgba(79,110,247,.15);border-color:rgba(79,110,247,.3);color:#8aabf7;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Общий чат
+        </button>
+        <button class="btn-dbe full" id="btn-fill-all" disabled style="background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.1);color:#5c7099;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Заполнить все
+        </button>
+      </div>
+    </div>
+
+    <!-- Main: toolbar + table/dropzone -->
+    <div class="dbe-main">
+      <div class="dbe-toolbar">
+        <button class="btn-dbe secondary" id="btn-new-file">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Загрузить файл
+        </button>
+        <span class="dbe-filename" id="dbe-filename">—</span>
+        <div style="flex:1"></div>
+        <button class="btn-dbe" id="btn-download" disabled>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Скачать
+        </button>
+      </div>
+      <div class="dbe-progress"><div class="dbe-progress-bar" id="dbe-progress-bar"></div></div>
+      <div class="dbe-table-wrap" id="dbe-table-wrap">
+        <div class="dbe-dropzone" id="dbe-dropzone">
+          <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" style="color:#c5cfe8">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="18" x2="12" y2="12"/>
+            <polyline points="9 15 12 12 15 15"/>
+          </svg>
+          <p>Перетащите .xlsx сюда или нажмите</p>
+          <small>Поддерживаются .xlsx, .xls</small>
+          <button class="btn-dbe primary" style="margin-top:4px;padding:7px 18px;font-size:.82rem;">Выбрать файл</button>
+        </div>
+        <div id="dbe-tabulator" style="display:none"></div>
+      </div>
+      <input type="file" id="dbe-file-input" accept=".xlsx,.xls">
+    </div>
+
+    <!-- Right panel: column chat + global chat -->
+    <div class="dbe-panel" id="dbe-panel">
+      <div class="dbe-panel-tabs" id="panel-tabs">
+        <div class="dbe-panel-tab active" id="tab-col" onclick="switchPanelTab('col')">По столбцу</div>
+        <div class="dbe-panel-tab" id="tab-global" onclick="switchPanelTab('global')">✦ Общий чат</div>
+        <button class="dbe-panel-close" onclick="closePanel()" style="margin-left:auto;margin-right:6px;">✕</button>
+      </div>
+
+      <!-- Column chat tab -->
+      <div class="dbe-panel-tab-content active" id="tab-col-content">
+        <div class="dbe-panel-header">
+          <h3 id="panel-col-name">Столбец</h3>
+        </div>
+        <div class="dbe-keycol-row">
+          <span>Ключ:</span>
+          <select id="panel-key-col"><option value="">— авто —</option></select>
+        </div>
+        <div class="dbe-chat-messages" id="panel-chat-messages">
+          <div class="dbe-chat-empty" id="chat-empty-hint">Напишите что нужно<br>заполнить в этом столбце</div>
+        </div>
+        <div class="dbe-chat-input">
+          <textarea id="panel-chat-input" rows="1" placeholder="Опишите что нужно заполнить..."></textarea>
+          <button class="dbe-chat-send" id="btn-chat-send">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Global chat tab -->
+      <div class="dbe-panel-tab-content" id="tab-global-content">
+        <div class="dbe-panel-header">
+          <h3>Заполнить всю таблицу</h3>
+        </div>
+        <div class="dbe-chat-messages" id="global-chat-messages">
+          <div class="dbe-chat-empty">Опишите что нужно достать<br>из базы данных для всей таблицы</div>
+        </div>
+        <div class="dbe-global-prog-bar-wrap" id="global-prog-wrap">
+          <div class="dbe-gpb-label" id="global-prog-label">Заполняю...</div>
+          <div class="dbe-gpb"><div class="dbe-gpb-inner" id="global-prog-bar"></div></div>
+        </div>
+        <div class="dbe-chat-input">
+          <textarea id="global-chat-input" rows="1" placeholder="Что нужно заполнить из БД?..."></textarea>
+          <button class="dbe-chat-send" id="btn-global-send">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /dbe-body -->
+</div><!-- /dbe-wrap -->
+
+<!-- Wiki browser modal (full-screen) -->
+<div class="dbe-modal-bg" id="bind-tpl-modal" style="align-items:stretch;padding:20px;">
+  <div class="bind-modal-inner">
+    <div style="padding:12px 18px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;flex-shrink:0;">
+      <h3 style="margin:0;flex:1;font-size:.95rem;color:#1e293b;">📖 Выбрать вики-страницу как контекст</h3>
+      <input type="text" id="bind-search-input" placeholder="Поиск..." style="width:200px;background:#f8fafc;border:1px solid #e2e8f0;color:#1e293b;border-radius:6px;padding:6px 10px;font-size:.82rem;">
+      <button class="dbe-panel-close" id="btn-bind-modal-close">✕</button>
+    </div>
+    <div style="flex:1;display:flex;overflow:hidden;min-height:0;">
+      <!-- Tree -->
+      <div style="width:240px;min-width:240px;border-right:1px solid #e2e8f0;overflow-y:auto;padding:6px 0;background:#fafafa;" id="bind-tree-panel">
+        <div style="padding:10px 14px;color:#94a3b8;font-size:.8rem;">Загрузка...</div>
+      </div>
+      <!-- Article -->
+      <div style="flex:1;overflow-y:auto;min-width:0;" id="bind-content-panel">
+        <div style="padding:40px;color:#94a3b8;text-align:center;margin-top:60px;font-size:.9rem;" id="bind-content-empty">Выберите страницу слева</div>
+        <div id="bind-article-view" style="display:none;flex-direction:column;height:100%;">
+          <div style="padding:14px 22px 10px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;flex-shrink:0;">
+            <h2 id="bind-art-title" style="margin:0;font-size:1.02rem;flex:1;color:#1e293b;"></h2>
+            <a id="bind-art-link" href="#" target="_blank" style="font-size:.76rem;color:#94a3b8;">открыть ↗</a>
+          </div>
+          <div id="bind-art-content" style="padding:18px 22px;flex:1;overflow-y:auto;" class="wiki-content"></div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:10px 18px;border-top:1px solid #e2e8f0;display:flex;gap:8px;justify-content:space-between;align-items:center;flex-shrink:0;">
+      <span id="bind-art-status" style="font-size:.8rem;color:#64748b;"></span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-dbe primary" id="btn-bind-select" style="display:none;">✓ Использовать как контекст</button>
+        <button class="btn-dbe secondary" id="btn-bind-modal-close2">Закрыть</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Preset modal -->
+<div class="dbe-modal-bg" id="preset-modal">
+  <div class="dbe-modal">
+    <div class="dbe-modal-head">
+      <h3>Микропресеты</h3>
+      <button class="dbe-panel-close" id="btn-preset-modal-close">✕</button>
+    </div>
+    <div class="dbe-modal-body" id="preset-modal-body">
+      <div style="color:#94a3b8;font-size:.85rem">Загрузка...</div>
+    </div>
+    <div class="dbe-modal-foot">
+      <button class="btn-dbe secondary" id="btn-preset-modal-close2">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<!-- Save preset modal -->
+<div class="dbe-modal-bg" id="save-preset-modal">
+  <div class="dbe-modal">
+    <div class="dbe-modal-head"><h3>Сохранить микропресет</h3></div>
+    <div class="dbe-modal-body">
+      <div class="dbe-field" style="margin-bottom:12px;">
+        <label>Название</label>
+        <input type="text" id="preset-name-input" placeholder="Например: Дебиторка К5">
+      </div>
+      <div class="dbe-field">
+        <label>Описание столбцов</label>
+        <div style="font-size:.8rem;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px;max-height:120px;overflow-y:auto;" id="preset-cols-preview"></div>
+      </div>
+    </div>
+    <div class="dbe-modal-foot">
+      <button class="btn-dbe secondary" id="btn-save-preset-cancel">Отмена</button>
+      <button class="btn-dbe primary" id="btn-save-preset-ok">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── State ──────────────────────────────────────────────────────────────────
+let tableData     = [];
+let tableColumns  = [];
+let colConfigs    = {};   // {colName: {prompt, key_col, chat, status}}
+let colStatuses   = {};   // {colName: 'idle'|'configured'|'loading'|'filled'|'error'}
+let activeCol     = null;
+let tabulatorInst = null;
+let filename      = 'export';
+let chatBusy      = false;
+let globalChatBusy = false;
+let globalChatHistory = [];
+let currentWikiSlug  = '';
+let currentWikiTitle = '';
+let currentPresetId  = null;
+let currentPresetName = '';
+let currentStep = 1;
+
+const URLS = {
+  upload:         '{% url "recordings:db_excel_upload" %}',
+  fillCol:        '{% url "recordings:db_excel_fill_column" %}',
+  fillSSE:        '{% url "recordings:db_excel_fill_sse" %}',
+  colChat:        '{% url "recordings:db_excel_col_chat" %}',
+  globalChat:     '{% url "recordings:db_excel_global_chat" %}',
+  globalFillSSE:  '{% url "recordings:db_excel_global_fill_sse" %}',
+  templates:      '{% url "recordings:db_excel_templates" %}',
+  wikiTpls:       '{% url "recordings:db_excel_wiki_templates" %}',
+  micropresets:   '{% url "recordings:api_micropresets" %}',
+  {% if session_id %}
+  sessionSave: '/db-excel/s/{{ session_id }}/save/',
+  {% endif %}
+};
+const SESSION_ID   = '{{ session_id|default:"" }}';
+const SESSION_INIT = {% if session_json %}{{ session_json|safe }}{% else %}null{% endif %};
+
+// ── Steps ──────────────────────────────────────────────────────────────────
+function handleStep(n) {
+  if (n === 1) { document.getElementById('dbe-file-input').click(); return; }
+  if (n === 2) { openBindModal(); return; }
+  if (n === 3) { openPresetModal(); return; }
+  if (n === 4) { openPanel(); switchPanelTab('global'); return; }
+  if (n === 5 && tableColumns.length) { openPanel(); switchPanelTab('col'); return; }
+  if (n === 6) { savePresetAndDownload(); return; }
+}
+
+function setStep(n) {
+  currentStep = n;
+  [1,2,3,4,5,6].forEach(i => {
+    const el = document.getElementById('step-' + i);
+    if (!el) return;
+    el.classList.remove('active','done');
+    if (i < n) el.classList.add('done');
+    else if (i === n) el.classList.add('active');
+  });
+}
+
+function updateStep2(slug, title) {
+  currentWikiSlug = slug;
+  currentWikiTitle = title;
+  const el = document.getElementById('step-2-val');
+  if (el) el.textContent = title ? title.slice(0,20) : 'не выбрана';
+  document.getElementById('step-2').classList.toggle('done', !!slug);
+}
+
+function updateStep3(id, name) {
+  currentPresetId = id;
+  currentPresetName = name;
+  const el = document.getElementById('step-3-val');
+  if (el) el.textContent = name ? name.slice(0,18) : 'не выбран';
+  document.getElementById('step-3').classList.toggle('done', !!id);
+}
+
+function savePresetAndDownload() {
+  const configured = Object.keys(colConfigs).filter(c => colConfigs[c].prompt);
+  if (configured.length) {
+    document.getElementById('preset-name-input').value = currentPresetName || filename || '';
+    buildPresetColsPreview();
+    document.getElementById('save-preset-modal').classList.add('open');
+  } else {
+    // Just download
+    downloadXlsx();
+  }
+}
+
+// ── Upload ─────────────────────────────────────────────────────────────────
+document.getElementById('btn-new-file').onclick = () => document.getElementById('dbe-file-input').click();
+document.getElementById('dbe-dropzone').onclick = () => document.getElementById('dbe-file-input').click();
+document.getElementById('dbe-file-input').onchange = e => { if (e.target.files[0]) uploadFile(e.target.files[0]); };
+
+const $dropzone = document.getElementById('dbe-dropzone');
+$dropzone.addEventListener('dragover', e => { e.preventDefault(); $dropzone.classList.add('drag-over'); });
+$dropzone.addEventListener('dragleave', () => $dropzone.classList.remove('drag-over'));
+$dropzone.addEventListener('drop', e => {
+  e.preventDefault(); $dropzone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0]; if (f) uploadFile(f);
+});
+
+async function uploadFile(file) {
+  setProgress(10);
+  const fd = new FormData(); fd.append('file', file);
+  try {
+    const r = await fetch(URLS.upload, { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) { alert('Ошибка: ' + (d.error || r.status)); setProgress(0); return; }
+    filename     = d.filename.replace(/\.xlsx?$/i, '');
+    tableColumns = d.columns;
+    tableData    = d.rows;
+    colConfigs   = {};
+    colStatuses  = {};
+    document.getElementById('dbe-filename').textContent = d.filename + '  (' + d.total + ' строк)';
+    const v = document.getElementById('step-1-val');
+    if (v) { v.textContent = d.filename.slice(0,20); document.getElementById('step-1').classList.add('done'); }
+    setProgress(60); renderTable(); renderColList(); setProgress(100);
+    setTimeout(() => setProgress(0), 600);
+    document.getElementById('btn-download').disabled = false;
+    document.getElementById('btn-fill-all').disabled = false;
+    document.getElementById('btn-open-global-chat').disabled = false;
+    setStep(2);
+  } catch(e) { alert('Ошибка загрузки: ' + e); setProgress(0); }
+}
+
+function setProgress(pct) { document.getElementById('dbe-progress-bar').style.width = pct + '%'; }
+
+// ── Tabulator ──────────────────────────────────────────────────────────────
+function renderTable() {
+  document.getElementById('dbe-dropzone').style.display = 'none';
+  document.getElementById('dbe-tabulator').style.display = 'block';
+  const cols = tableColumns.map(c => ({
+    title: c, field: c, minWidth: 110, maxWidth: 280,
+    formatter: cellFormatter,
+    headerClick: (e, col) => openColPanel(col.getField()),
+  }));
+  if (tabulatorInst) {
+    tabulatorInst.setColumns(cols);
+    tabulatorInst.setData(tableData);
+  } else {
+    tabulatorInst = new Tabulator('#dbe-tabulator', {
+      data: tableData, columns: cols, layout: 'fitData',
+      height: '100%', selectable: false, movableColumns: false, placeholder: 'Нет данных',
+      nestedFieldSeparator: false,
+    });
+  }
+  updateColHeaders();
+}
+
+function cellFormatter(cell) {
+  const v = cell.getValue();
+  return v === null || v === undefined ? '<span style="color:#cbd5e1">—</span>' : String(v);
+}
+
+function updateColHeaders() {
+  if (!tabulatorInst) return;
+  tabulatorInst.getColumns().forEach(col => {
+    const f = col.getField(), el = col.getElement();
+    el.classList.remove('col-configured','col-filled','col-loading','col-error');
+    const st = colStatuses[f];
+    if (st === 'configured') el.classList.add('col-configured');
+    else if (st === 'filled')  el.classList.add('col-filled');
+    else if (st === 'loading') el.classList.add('col-loading');
+    else if (st === 'error')   el.classList.add('col-error');
+  });
+  // Update filled count
+  const filled = Object.values(colStatuses).filter(s => s === 'filled').length;
+  const $cnt = document.getElementById('dbe-filled-count');
+  if ($cnt) $cnt.textContent = filled ? filled + '/' + tableColumns.length : '';
+}
+
+// ── Sidebar ────────────────────────────────────────────────────────────────
+function renderColList() {
+  const $list = document.getElementById('dbe-col-list');
+  $list.innerHTML = '';
+  tableColumns.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'dbe-col-item';
+    el.dataset.col = c;
+    const st = colStatuses[c] || 'idle';
+    if (st !== 'idle') el.classList.add(st);
+    if (c === activeCol) el.classList.add('active');
+    el.innerHTML = `<span class="dbe-col-dot"></span><span>${escHtml(c)}</span>`;
+    el.onclick = () => openColPanel(c);
+    $list.appendChild(el);
+  });
+}
+
+function updateColListItem(colName) {
+  const el = document.getElementById('dbe-col-list').querySelector(`[data-col="${CSS.escape(colName)}"]`);
+  if (!el) return;
+  el.className = 'dbe-col-item';
+  const st = colStatuses[colName] || 'idle';
+  if (st !== 'idle') el.classList.add(st);
+  if (colName === activeCol) el.classList.add('active');
+}
+
+// ── Panel ──────────────────────────────────────────────────────────────────
+function openPanel() {
+  document.getElementById('dbe-panel').classList.add('open');
+}
+function closePanel() {
+  document.getElementById('dbe-panel').classList.remove('open');
+  activeCol = null;
+  document.querySelectorAll('.dbe-col-item').forEach(el => el.classList.remove('active'));
+}
+
+function switchPanelTab(tab) {
+  ['col','global'].forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+    document.getElementById('tab-' + t + '-content').classList.toggle('active', t === tab);
+  });
+  // Auto-analyze when opening global chat if table is loaded and chat is empty
+  if (tab === 'global' && tableColumns.length && !globalChatBusy) {
+    const $msgs = document.getElementById('global-chat-messages');
+    const isEmpty = $msgs.querySelector('.dbe-chat-empty') !== null;
+    if (isEmpty) autoAnalyzeTable();
+  }
+}
+
+async function autoAnalyzeTable() {
+  if (!tableColumns.length || globalChatBusy) return;
+  globalChatBusy = true;
+  document.getElementById('btn-global-send').disabled = true;
+  showTyping('global-chat-messages');
+  try {
+    const r = await fetch(URLS.globalChat, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        message: '',  // empty = auto-analyze
+        columns: tableColumns,
+        rows_sample: tableData.slice(0, 5),
+        wiki_slug: currentWikiSlug,
+        history: [],
+      }),
+    });
+    const d = await r.json();
+    hideTyping();
+    if (d.ready && d.plan && d.plan.length) {
+      const colList = d.plan.map(p => '• ' + p.col + ' ← ' + (p.prompt || '').slice(0, 60)).join('\n');
+      appendGlobalMessage({ role: 'assistant', content: (d.summary || 'Могу заполнить:') + '\n' + colList, plan: d.plan });
+    } else if (!d.ready) {
+      appendGlobalMessage({ role: 'assistant', content: d.question || 'Не удалось определить что заполнить.', options: d.options || [] });
+    } else {
+      appendGlobalMessage({ role: 'assistant', content: 'Не нашёл столбцов которые можно заполнить из БД Chemico. Опишите задачу.' });
+    }
+  } catch(e) {
+    hideTyping();
+    appendGlobalMessage({ role: 'assistant', content: 'Ошибка анализа: ' + e, cls: 'err' });
+  }
+  globalChatBusy = false;
+  document.getElementById('btn-global-send').disabled = false;
+}
+
+function openColPanel(colName) {
+  activeCol = colName;
+  document.getElementById('panel-col-name').textContent = colName;
+  chatBusy = false;
+
+  const $key = document.getElementById('panel-key-col');
+  $key.innerHTML = '<option value="">— авто —</option>';
+  tableColumns.forEach(c => {
+    if (c !== colName) {
+      const o = document.createElement('option');
+      o.value = c; o.textContent = c; $key.appendChild(o);
+    }
+  });
+  const cfg = colConfigs[colName] || {};
+  $key.value = cfg.key_col || '';
+
+  renderChat(cfg.chat || []);
+  openPanel();
+  switchPanelTab('col');
+  setStep(5);
+
+  document.querySelectorAll('.dbe-col-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.col === colName)
+  );
+}
+
+document.getElementById('btn-open-global-chat').onclick = () => {
+  openPanel(); switchPanelTab('global'); setStep(4);
+};
+
+// ── Column chat ─────────────────────────────────────────────────────────────
+function renderChat(history) {
+  const $msgs = document.getElementById('panel-chat-messages');
+  $msgs.innerHTML = '';
+  if (!history || !history.length) {
+    $msgs.innerHTML = '<div class="dbe-chat-empty" id="chat-empty-hint">Напишите что нужно<br>заполнить в этом столбце</div>';
+    return;
+  }
+  history.forEach(msg => appendMessage(msg, false));
+  $msgs.scrollTop = $msgs.scrollHeight;
+}
+
+function appendMessage(msg, scroll = true) {
+  const $msgs = document.getElementById('panel-chat-messages');
+  const hint = document.getElementById('chat-empty-hint');
+  if (hint) hint.remove();
+
+  const wrap = document.createElement('div');
+  wrap.className = 'dbe-msg ' + msg.role;
+  const bubble = document.createElement('div');
+  bubble.className = 'dbe-bubble' + (msg.cls ? ' ' + msg.cls : '');
+  bubble.textContent = msg.content;
+  wrap.appendChild(bubble);
+
+  if (msg.options && msg.options.length) {
+    const opts = document.createElement('div');
+    opts.className = 'dbe-options';
+    msg.options.forEach(opt => {
+      const chip = document.createElement('button');
+      chip.className = 'dbe-opt-chip'; chip.textContent = opt;
+      chip.onclick = () => {
+        if (chatBusy) return;
+        opts.querySelectorAll('.dbe-opt-chip').forEach(c => c.disabled = true);
+        sendChatMessage(opt);
+      };
+      opts.appendChild(chip);
+    });
+    wrap.appendChild(opts);
+  }
+
+  if (msg.fillPrompt) {
+    const btn = document.createElement('button');
+    btn.className = 'btn-dbe primary';
+    btn.style.marginTop = '8px';
+    btn.textContent = '▶ Заполнить ' + (tableData.length ? tableData.length + ' строк' : '');
+    btn.onclick = () => { btn.disabled = true; btn.textContent = '⏳...'; runFillSSE(activeCol, msg.fillPrompt); };
+    wrap.appendChild(btn);
+  }
+
+  $msgs.appendChild(wrap);
+  if (scroll) $msgs.scrollTop = $msgs.scrollHeight;
+}
+
+function showTyping(containerId) {
+  const $msgs = document.getElementById(containerId || 'panel-chat-messages');
+  const el = document.createElement('div');
+  el.id = 'dbe-typing-indicator';
+  el.className = 'dbe-msg assistant';
+  el.innerHTML = '<div class="dbe-typing"><span></span><span></span><span></span></div>';
+  $msgs.appendChild(el); $msgs.scrollTop = $msgs.scrollHeight;
+}
+function hideTyping() {
+  const el = document.getElementById('dbe-typing-indicator'); if (el) el.remove();
+}
+
+const $chatInput = document.getElementById('panel-chat-input');
+document.getElementById('btn-chat-send').onclick = () => {
+  const msg = $chatInput.value.trim(); if (!msg || chatBusy) return;
+  $chatInput.value = ''; sendChatMessage(msg);
+};
+$chatInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    const msg = $chatInput.value.trim();
+    if (msg && !chatBusy) { $chatInput.value = ''; sendChatMessage(msg); }
+  }
+});
+$chatInput.addEventListener('input', () => {
+  $chatInput.style.height = 'auto';
+  $chatInput.style.height = Math.min($chatInput.scrollHeight, 110) + 'px';
+});
+
+async function sendChatMessage(text) {
+  if (!activeCol || chatBusy) return;
+  chatBusy = true;
+  document.getElementById('btn-chat-send').disabled = true;
+
+  const userMsg = { role: 'user', content: text };
+  appendMessage(userMsg);
+  if (!colConfigs[activeCol]) colConfigs[activeCol] = {};
+  if (!colConfigs[activeCol].chat) colConfigs[activeCol].chat = [];
+  colConfigs[activeCol].chat.push(userMsg);
+  showTyping();
+
+  try {
+    const history = (colConfigs[activeCol].chat || []).slice(0, -1);
+    const r = await fetch(URLS.colChat, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ col_name: activeCol, message: text, history, columns: tableColumns, rows_sample: tableData.slice(0,3) }),
+    });
+    const d = await r.json();
+    hideTyping();
+
+    if (d.ready) {
+      const aMsg = { role: 'assistant', content: '✓ Готов заполнить «' + activeCol + '»!', fillPrompt: d.prompt };
+      colConfigs[activeCol].chat.push({ role: 'assistant', content: aMsg.content });
+      colConfigs[activeCol].prompt = d.prompt;
+      colConfigs[activeCol].key_col = document.getElementById('panel-key-col').value;
+      colStatuses[activeCol] = 'configured';
+      appendMessage(aMsg);
+      renderColList(); updateColHeaders();
+    } else {
+      const aMsg = { role: 'assistant', content: d.question || 'Нужна информация.', options: d.options || [] };
+      colConfigs[activeCol].chat.push({ role: 'assistant', content: aMsg.content });
+      appendMessage(aMsg);
+    }
+  } catch(e) {
+    hideTyping();
+    appendMessage({ role: 'assistant', content: 'Ошибка: ' + e, cls: 'err' });
+  }
+  chatBusy = false;
+  document.getElementById('btn-chat-send').disabled = false;
+}
+
+// ── Fill column SSE ──────────────────────────────────────────────────────
+async function runFillSSE(colName, prompt) {
+  if (!colName) return;
+  const key_col = document.getElementById('panel-key-col').value;
+  colStatuses[colName] = 'loading';
+  renderColList(); updateColHeaders();
+
+  // Scroll table to the column being filled
+  if (tabulatorInst) {
+    try { tabulatorInst.scrollToColumn(colName, 'left', false); } catch(e) {}
+  }
+
+  const progressMsg = document.createElement('div');
+  progressMsg.className = 'dbe-msg system';
+  progressMsg.innerHTML = '<div class="dbe-bubble">⏳ Агент выполняет запрос...</div>';
+  const $msgs = document.getElementById('panel-chat-messages');
+  $msgs.appendChild(progressMsg); $msgs.scrollTop = 99999;
+  setProgress(10);
+
+  try {
+    const resp = await fetch(URLS.fillSSE, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ rows: tableData, col_name: colName, prompt, key_col }),
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    if (!resp.body) throw new Error('Streaming not supported');
+
+    const reader = resp.body.getReader(), decoder = new TextDecoder();
+    let buffer = '', allValues = [], total = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream:true});
+      const lines = buffer.split('\n'); buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const ev = JSON.parse(line.slice(6));
+          if (ev.type === 'progress') {
+            progressMsg.querySelector('.dbe-bubble').textContent = ev.message;
+          } else if (ev.type === 'chunk') {
+            total = ev.total;
+            setProgress(10 + Math.round((ev.start / ev.total) * 85));
+            allValues.push(...ev.values);
+            if (!tableColumns.includes(colName)) { tableColumns.push(colName); renderTable(); }
+            const tRows = tabulatorInst ? tabulatorInst.getRows() : [];
+            ev.values.forEach((v, i) => {
+              const idx = ev.start + i;
+              if (idx < tableData.length) tableData[idx][colName] = v;
+              if (idx < tRows.length) {
+                tRows[idx].update({[colName]: v});
+                setTimeout(() => {
+                  const cell = tRows[idx].getCell(colName);
+                  if (cell) { cell.getElement().classList.add('cell-new-flash'); setTimeout(() => cell.getElement().classList.remove('cell-new-flash'), 900); }
+                }, 30);
+              }
+            });
+          } else if (ev.type === 'done') {
+            progressMsg.remove();
+            if (!tableColumns.includes(colName)) { tableColumns.push(colName); renderTable(); }
+            colStatuses[colName] = 'filled';
+            appendMessage({ role: 'assistant', content: '✓ Заполнено ' + (total || allValues.length) + ' строк' + (ev.text ? '\n\n' + ev.text : ''), cls: 'ok' });
+            if (colConfigs[colName]) colConfigs[colName].status = 'filled';
+            autoSaveSession(); setProgress(100); setTimeout(() => setProgress(0), 500);
+            renderColList(); updateColHeaders();
+          } else if (ev.type === 'error') {
+            progressMsg.remove();
+            colStatuses[colName] = 'error';
+            appendMessage({ role: 'assistant', content: '✗ Ошибка: ' + ev.message.slice(0,300), cls: 'err',
+              options: ['Уточнить запрос', 'Попробовать снова', 'Изменить ключевой столбец'] });
+            setProgress(0); renderColList(); updateColHeaders();
+          }
+        } catch(e) { /* skip */ }
+      }
+    }
+  } catch(e) {
+    progressMsg.remove(); colStatuses[colName] = 'error';
+    appendMessage({ role: 'assistant', content: '✗ Ошибка: ' + e, cls: 'err' });
+    setProgress(0); renderColList(); updateColHeaders();
+  }
+}
+
+// ── Global chat ───────────────────────────────────────────────────────────
+const $globalInput = document.getElementById('global-chat-input');
+document.getElementById('btn-global-send').onclick = () => {
+  const msg = $globalInput.value.trim(); if (!msg || globalChatBusy) return;
+  $globalInput.value = ''; sendGlobalMessage(msg);
+};
+$globalInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    const msg = $globalInput.value.trim();
+    if (msg && !globalChatBusy) { $globalInput.value = ''; sendGlobalMessage(msg); }
+  }
+});
+$globalInput.addEventListener('input', () => {
+  $globalInput.style.height = 'auto';
+  $globalInput.style.height = Math.min($globalInput.scrollHeight, 110) + 'px';
+});
+
+function appendGlobalMessage(msg, scroll = true) {
+  const $msgs = document.getElementById('global-chat-messages');
+  // Remove empty hint
+  const hint = $msgs.querySelector('.dbe-chat-empty');
+  if (hint) hint.remove();
+  const wrap = document.createElement('div');
+  wrap.className = 'dbe-msg ' + msg.role;
+  const bubble = document.createElement('div');
+  bubble.className = 'dbe-bubble' + (msg.cls ? ' ' + msg.cls : '');
+  bubble.textContent = msg.content;
+  wrap.appendChild(bubble);
+  if (msg.options && msg.options.length) {
+    const opts = document.createElement('div');
+    opts.className = 'dbe-options';
+    msg.options.forEach(opt => {
+      const chip = document.createElement('button');
+      chip.className = 'dbe-opt-chip'; chip.textContent = opt;
+      chip.onclick = () => {
+        if (globalChatBusy) return;
+        opts.querySelectorAll('.dbe-opt-chip').forEach(c => c.disabled = true);
+        sendGlobalMessage(opt);
+      };
+      opts.appendChild(chip);
+    });
+    wrap.appendChild(opts);
+  }
+  if (msg.plan && msg.plan.length) {
+    const btn = document.createElement('button');
+    btn.className = 'btn-dbe primary';
+    btn.style.marginTop = '8px';
+    btn.textContent = '▶ Заполнить ' + msg.plan.length + ' столбц' + (msg.plan.length === 1 ? '' : msg.plan.length < 5 ? 'а' : 'ов');
+    btn.onclick = () => { btn.disabled = true; btn.textContent = '⏳...'; runGlobalFillSSE(msg.plan); };
+    wrap.appendChild(btn);
+  }
+  $msgs.appendChild(wrap);
+  if (scroll) $msgs.scrollTop = $msgs.scrollHeight;
+}
+
+async function sendGlobalMessage(text) {
+  if (!tableColumns.length) { alert('Сначала загрузите файл'); return; }
+  globalChatBusy = true;
+  document.getElementById('btn-global-send').disabled = true;
+
+  const userMsg = { role: 'user', content: text };
+  appendGlobalMessage(userMsg);
+  globalChatHistory.push(userMsg);
+  showTyping('global-chat-messages');
+
+  try {
+    const r = await fetch(URLS.globalChat, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        message: text,
+        columns: tableColumns,
+        rows_sample: tableData.slice(0, 3),
+        wiki_slug: currentWikiSlug,
+        history: globalChatHistory.slice(-6),
+      }),
+    });
+    const d = await r.json();
+    hideTyping();
+
+    if (d.ready && d.plan && d.plan.length) {
+      const colList = d.plan.map(p => '• ' + p.col).join('\n');
+      const aMsg = {
+        role: 'assistant',
+        content: (d.summary || 'Готов заполнить:') + '\n' + colList,
+        plan: d.plan,
+      };
+      globalChatHistory.push({ role: 'assistant', content: aMsg.content });
+      appendGlobalMessage(aMsg);
+    } else if (d.ready && (!d.plan || !d.plan.length)) {
+      appendGlobalMessage({ role: 'assistant', content: d.summary || 'Не могу определить что заполнить из этих столбцов.', cls: 'err' });
+    } else {
+      const aMsg = { role: 'assistant', content: d.question || 'Нужна информация.', options: d.options || [] };
+      globalChatHistory.push({ role: 'assistant', content: aMsg.content });
+      appendGlobalMessage(aMsg);
+    }
+  } catch(e) {
+    hideTyping();
+    appendGlobalMessage({ role: 'assistant', content: 'Ошибка: ' + e, cls: 'err' });
+  }
+  globalChatBusy = false;
+  document.getElementById('btn-global-send').disabled = false;
+}
+
+// ── Global fill SSE ───────────────────────────────────────────────────────
+async function runGlobalFillSSE(plan) {
+  if (!plan || !plan.length) return;
+  globalChatBusy = true;
+  document.getElementById('btn-global-send').disabled = true;
+
+  const $progWrap = document.getElementById('global-prog-wrap');
+  const $progLabel = document.getElementById('global-prog-label');
+  const $progBar   = document.getElementById('global-prog-bar');
+  $progWrap.classList.add('visible');
+
+  // Mark all plan columns as loading
+  plan.forEach(item => {
+    colStatuses[item.col] = 'loading';
+    if (!colConfigs[item.col]) colConfigs[item.col] = {};
+    colConfigs[item.col].prompt = item.prompt;
+    colConfigs[item.col].key_col = item.key_col || '';
+  });
+  renderColList(); updateColHeaders();
+
+  const progressMsg = document.createElement('div');
+  progressMsg.className = 'dbe-msg system';
+  progressMsg.innerHTML = '<div class="dbe-bubble">⏳ Запускаю заполнение...</div>';
+  const $msgs = document.getElementById('global-chat-messages');
+  $msgs.appendChild(progressMsg); $msgs.scrollTop = 99999;
+
+  let doneCount = 0;
+
+  try {
+    const resp = await fetch(URLS.globalFillSSE, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ rows: tableData, plan }),
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+    const reader = resp.body.getReader(), decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream:true});
+      const lines = buffer.split('\n'); buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const ev = JSON.parse(line.slice(6));
+          if (ev.type === 'col_start') {
+            $progLabel.textContent = 'Заполняю «' + ev.col + '»... (' + (ev.index+1) + '/' + ev.total_cols + ')';
+            $progBar.style.width = Math.round((ev.index / ev.total_cols) * 100) + '%';
+            if (tabulatorInst) {
+              try { tabulatorInst.scrollToColumn(ev.col, 'left', false); } catch(e) {}
+            }
+          } else if (ev.type === 'col_progress') {
+            progressMsg.querySelector('.dbe-bubble').textContent = ev.message;
+          } else if (ev.type === 'col_chunk') {
+            const colName = ev.col;
+            if (!tableColumns.includes(colName)) { tableColumns.push(colName); renderTable(); }
+            const tRowsG = tabulatorInst ? tabulatorInst.getRows() : [];
+            ev.values.forEach((v, i) => {
+              const idx = ev.start + i;
+              if (idx < tableData.length) tableData[idx][colName] = v;
+              if (idx < tRowsG.length) {
+                tRowsG[idx].update({[colName]: v});
+                setTimeout(() => {
+                  const cell = tRowsG[idx].getCell(colName);
+                  if (cell) { cell.getElement().classList.add('cell-new-flash'); setTimeout(() => cell.getElement().classList.remove('cell-new-flash'), 900); }
+                }, 30);
+              }
+            });
+          } else if (ev.type === 'col_done') {
+            doneCount++;
+            colStatuses[ev.col] = 'filled';
+            if (colConfigs[ev.col]) colConfigs[ev.col].status = 'filled';
+            $progBar.style.width = Math.round((doneCount / plan.length) * 100) + '%';
+            renderColList(); updateColHeaders();
+          } else if (ev.type === 'col_error') {
+            colStatuses[ev.col] = 'error';
+            renderColList(); updateColHeaders();
+            const errMsg = document.createElement('div');
+            errMsg.className = 'dbe-msg assistant';
+            const reason = ev.message || 'неизвестная ошибка';
+            errMsg.innerHTML = `<div class="dbe-bubble err">⚠ Столбец «${ev.col}» не заполнен.<br><span style="font-size:.8em;opacity:.85">${reason.slice(0,200)}</span></div>`;
+            $msgs.appendChild(errMsg); $msgs.scrollTop = 99999;
+          } else if (ev.type === 'done') {
+            progressMsg.remove();
+            $progWrap.classList.remove('visible');
+            const filledCols = plan.filter(p => colStatuses[p.col] === 'filled').map(p => p.col);
+            const errCols = plan.filter(p => colStatuses[p.col] === 'error').map(p => p.col);
+            let summary = '✓ Заполнено столбцов: ' + filledCols.length;
+            if (filledCols.length) summary += '\n' + filledCols.map(c => '• ' + c).join('\n');
+            if (errCols.length) summary += '\n✗ Ошибки: ' + errCols.join(', ');
+            appendGlobalMessage({ role: 'assistant', content: summary, cls: filledCols.length ? 'ok' : 'err' });
+            setStep(5); autoSaveSession();
+          }
+        } catch(e) { /* skip */ }
+      }
+    }
+  } catch(e) {
+    progressMsg.remove();
+    $progWrap.classList.remove('visible');
+    appendGlobalMessage({ role: 'assistant', content: '✗ Ошибка соединения: ' + e, cls: 'err' });
+    plan.forEach(item => { if (colStatuses[item.col] === 'loading') colStatuses[item.col] = 'error'; });
+    renderColList(); updateColHeaders();
+  }
+  globalChatBusy = false;
+  document.getElementById('btn-global-send').disabled = false;
+}
+
+// ── Fill all configured ──────────────────────────────────────────────────
+document.getElementById('btn-fill-all').onclick = async () => {
+  const configured = tableColumns.filter(c => colConfigs[c] && colConfigs[c].prompt);
+  if (!configured.length) { alert('Настройте хотя бы один столбец через чат'); return; }
+  const plan = configured.map(c => ({ col: c, prompt: colConfigs[c].prompt, key_col: colConfigs[c].key_col || '' }));
+  openPanel(); switchPanelTab('global');
+  await runGlobalFillSSE(plan);
+};
+
+// ── Download ──────────────────────────────────────────────────────────────
+document.getElementById('btn-download').onclick = downloadXlsx;
+function downloadXlsx() {
+  if (!tableData.length) return;
+  const ws = XLSX.utils.json_to_sheet(tableData, { header: tableColumns });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Данные');
+  XLSX.writeFile(wb, filename + '_enriched.xlsx');
+}
+
+// ── Session ───────────────────────────────────────────────────────────────
+if (SESSION_INIT) {
+  filename     = SESSION_INIT.filename || 'export';
+  tableColumns = SESSION_INIT.columns  || [];
+  tableData    = SESSION_INIT.rows     || [];
+  const savedCfg = SESSION_INIT.col_configs || {};
+  Object.entries(savedCfg).forEach(([col, cfg]) => {
+    colConfigs[col]  = cfg;
+    colStatuses[col] = cfg.status || 'configured';
+  });
+  document.getElementById('dbe-filename').textContent =
+    filename + '  (' + tableData.length + ' строк) — сессия из Telegram';
+  document.getElementById('btn-download').disabled = false;
+  document.getElementById('btn-fill-all').disabled = false;
+  document.getElementById('btn-open-global-chat').disabled = false;
+  const v = document.getElementById('step-1-val');
+  if (v) { v.textContent = filename.slice(0,20); document.getElementById('step-1').classList.add('done'); }
+  renderTable(); renderColList(); setStep(2);
+}
+
+async function autoSaveSession() {
+  if (!SESSION_ID) return;
+  try {
+    await fetch(URLS.sessionSave, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ rows: tableData, columns: tableColumns, col_configs: colConfigs }),
+    });
+  } catch(e) { /* silent */ }
+}
+
+// ── Wiki browser ──────────────────────────────────────────────────────────
+let bindCurrentSlug = '', bindSearchTimer = null;
+
+document.getElementById('btn-bind-modal-close').onclick  = closeBindModal;
+document.getElementById('btn-bind-modal-close2').onclick = closeBindModal;
+
+function openBindModal() {
+  bindCurrentSlug = '';
+  document.getElementById('bind-article-view').style.display = 'none';
+  document.getElementById('bind-content-empty').style.display = 'block';
+  document.getElementById('bind-art-status').textContent = '';
+  document.getElementById('btn-bind-select').style.display = 'none';
+  document.getElementById('bind-search-input').value = '';
+  document.getElementById('bind-tpl-modal').classList.add('open');
+  loadWikiTree('');
+}
+function closeBindModal() { document.getElementById('bind-tpl-modal').classList.remove('open'); }
+
+document.getElementById('bind-search-input').addEventListener('input', e => {
+  clearTimeout(bindSearchTimer);
+  bindSearchTimer = setTimeout(() => loadWikiTree(e.target.value.trim()), 300);
+});
+
+async function loadWikiTree(query) {
+  const $tree = document.getElementById('bind-tree-panel');
+  $tree.innerHTML = '<div style="padding:10px 14px;color:#94a3b8;font-size:.8rem;">Загрузка...</div>';
+  try {
+    let data;
+    if (query) {
+      const r = await fetch(URLS.wikiTpls + '?q=' + encodeURIComponent(query));
+      const d = await r.json();
+      data = { tree: (d.results || []).map(a => ({slug: a.slug, title: a.title, children: []})) };
+    } else {
+      const r = await fetch('/kb/api/tree/');
+      data = await r.json();
+    }
+    $tree.innerHTML = '';
+    renderWikiTree(data.tree || [], $tree, 0);
+    if (!$tree.children.length) $tree.innerHTML = '<div style="padding:10px 14px;color:#94a3b8;font-size:.8rem;">Пусто</div>';
+  } catch(e) {
+    $tree.innerHTML = '<div style="padding:10px 14px;color:#dc2626;font-size:.8rem;">Ошибка: ' + e + '</div>';
+  }
+}
+
+function renderWikiTree(nodes, $container, depth) {
+  nodes.forEach(node => {
+    const wrap = document.createElement('div');
+    const row  = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;padding:5px 12px 5px ' + (12 + depth*12) + 'px;cursor:pointer;font-size:.82rem;gap:5px;';
+    row.dataset.slug = node.slug;
+    const hasKids = node.children && node.children.length;
+    const icon = document.createElement('span');
+    icon.style.cssText = 'font-size:.62rem;color:#94a3b8;flex-shrink:0;transition:transform .15s;width:10px;';
+    icon.textContent = hasKids ? '▶' : '';
+    row.appendChild(icon);
+    const label = document.createElement('span');
+    label.textContent = node.title;
+    label.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;color:#334155;';
+    row.appendChild(label);
+    row.onmouseover = () => { if (node.slug !== bindCurrentSlug) row.style.background = '#f1f5f9'; };
+    row.onmouseout  = () => { if (node.slug !== bindCurrentSlug) row.style.background = ''; };
+    row.onclick = e => {
+      e.stopPropagation();
+      if (hasKids) {
+        const cw = wrap.querySelector('.tree-children');
+        const open = cw && cw.style.display !== 'none';
+        if (cw) cw.style.display = open ? 'none' : 'block';
+        icon.style.transform = (!open && hasKids) ? 'rotate(90deg)' : '';
+      }
+      loadWikiArticle(node.slug, row);
+    };
+    wrap.appendChild(row);
+    if (hasKids) {
+      const cw = document.createElement('div');
+      cw.className = 'tree-children'; cw.style.display = 'none';
+      renderWikiTree(node.children, cw, depth + 1);
+      wrap.appendChild(cw);
+    }
+    $container.appendChild(wrap);
+  });
+}
+
+async function loadWikiArticle(slug, rowEl) {
+  document.querySelectorAll('#bind-tree-panel [data-slug]').forEach(el => {
+    el.style.background = '';
+  });
+  if (rowEl) rowEl.style.background = '#eff6ff';
+  bindCurrentSlug = slug;
+  document.getElementById('bind-content-empty').style.display = 'none';
+  const av = document.getElementById('bind-article-view');
+  av.style.display = 'flex';
+  document.getElementById('bind-art-title').textContent = '⏳ Загрузка...';
+  document.getElementById('bind-art-content').innerHTML = '';
+  document.getElementById('btn-bind-select').style.display = 'none';
+
+  try {
+    const r = await fetch('/kb/api/article/' + encodeURIComponent(slug) + '/');
+    if (!r.ok) { document.getElementById('bind-art-title').textContent = 'Не найдено'; return; }
+    const d = await r.json();
+    document.getElementById('bind-art-title').textContent = d.title;
+    document.getElementById('bind-art-link').href = d.url;
+    document.getElementById('bind-art-content').innerHTML = d.content_html;
+    document.getElementById('bind-art-status').textContent = 'Страница «' + d.title + '» будет использована как контекст для агента';
+    document.getElementById('btn-bind-select').style.display = 'inline-flex';
+    document.getElementById('btn-bind-select').dataset.slug  = slug;
+    document.getElementById('btn-bind-select').dataset.title = d.title;
+  } catch(e) {
+    document.getElementById('bind-art-title').textContent = 'Ошибка: ' + e;
+  }
+}
+
+document.getElementById('btn-bind-select').onclick = function() {
+  const slug  = this.dataset.slug;
+  const title = this.dataset.title;
+  updateStep2(slug, title);
+  closeBindModal();
+  showToast('✓ Вики-контекст: «' + title + '»', '#16a34a');
+  setStep(3);
+};
+
+// ── Micropreset modal ─────────────────────────────────────────────────────
+document.getElementById('btn-preset-modal-close').onclick  = () => document.getElementById('preset-modal').classList.remove('open');
+document.getElementById('btn-preset-modal-close2').onclick = () => document.getElementById('preset-modal').classList.remove('open');
+
+async function openPresetModal() {
+  document.getElementById('preset-modal').classList.add('open');
+  const body = document.getElementById('preset-modal-body');
+  body.innerHTML = '<div style="color:#94a3b8;font-size:.85rem">Загрузка...</div>';
+  try {
+    const r = await fetch(URLS.micropresets);
+    const d = await r.json();
+    const presets = d.presets || [];
+    body.innerHTML = '';
+    if (!presets.length) {
+      body.innerHTML = '<div style="color:#94a3b8;font-size:.85rem;text-align:center;padding:20px;">Нет сохранённых пресетов.<br>Настройте столбцы через чат и сохраните пресет.</div>';
+    } else {
+      presets.forEach(p => {
+        const el = document.createElement('div');
+        el.className = 'dbe-card';
+        const wikiNote = p.wiki_slug ? '<br><small style="color:#94a3b8">вики: ' + escHtml(p.wiki_slug) + '</small>' : '';
+        el.innerHTML = `<strong><span class="dbe-badge preset">пресет</span> ${escHtml(p.name)}</strong>
+          <small>${p.col_count} столбцов · ${new Date(p.updated_at).toLocaleDateString('ru')}</small>${wikiNote}`;
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn-dbe'; delBtn.style.cssText = 'font-size:.72rem;padding:2px 8px;margin-top:6px;float:right;';
+        delBtn.textContent = '✕ удалить';
+        delBtn.onclick = async (ev) => {
+          ev.stopPropagation();
+          await fetch(URLS.micropresets + '?id=' + p.id, { method: 'DELETE' });
+          openPresetModal();
+        };
+        el.appendChild(delBtn);
+        el.onclick = () => {
+          applyPreset(p);
+          document.getElementById('preset-modal').classList.remove('open');
+        };
+        body.appendChild(el);
+      });
+    }
+  } catch(e) { body.innerHTML = '<div style="color:#dc2626">Ошибка загрузки</div>'; }
+}
+
+function applyPreset(preset) {
+  Object.entries(preset.col_configs || {}).forEach(([col, cfg]) => {
+    colConfigs[col] = Object.assign(colConfigs[col] || {}, cfg);
+    if (tableColumns.includes(col)) colStatuses[col] = 'configured';
+  });
+  if (preset.wiki_slug && !currentWikiSlug) {
+    currentWikiSlug = preset.wiki_slug;
+    document.getElementById('step-2-val').textContent = preset.wiki_slug.slice(0,20);
+    document.getElementById('step-2').classList.add('done');
+  }
+  updateStep3(preset.id, preset.name);
+  renderColList(); updateColHeaders();
+  showToast('✓ Пресет «' + preset.name + '» применён', '#7c3aed');
+  setStep(4);
+}
+
+// ── Save preset modal ─────────────────────────────────────────────────────
+function buildPresetColsPreview() {
+  const cols = Object.keys(colConfigs).filter(c => colConfigs[c].prompt);
+  document.getElementById('preset-cols-preview').textContent =
+    cols.map(c => c + ': ' + (colConfigs[c].prompt || '').slice(0, 60)).join('\n');
+}
+document.getElementById('btn-save-preset-cancel').onclick = () => document.getElementById('save-preset-modal').classList.remove('open');
+document.getElementById('btn-save-preset-ok').onclick = async () => {
+  const name = document.getElementById('preset-name-input').value.trim();
+  if (!name) { alert('Введите название'); return; }
+  const config = {};
+  Object.keys(colConfigs).forEach(c => { if (colConfigs[c].prompt) config[c] = colConfigs[c]; });
+  try {
+    const r = await fetch(URLS.micropresets, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ name, wiki_slug: currentWikiSlug, col_configs: config, id: currentPresetId }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      currentPresetId = d.id; currentPresetName = name;
+      document.getElementById('save-preset-modal').classList.remove('open');
+      updateStep3(d.id, name);
+      showToast('✓ Пресет «' + name + '» сохранён', '#16a34a');
+      // Then download
+      downloadXlsx();
+    } else { alert('Ошибка: ' + (d.error || '?')); }
+  } catch(e) { alert('Ошибка: ' + e); }
+};
+
+// ── Utilities ─────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function showToast(msg, color) {
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;bottom:20px;right:20px;background:' + (color||'#334155') + ';color:#fff;padding:10px 18px;border-radius:8px;font-size:.85rem;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.18);';
+  t.textContent = msg; document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+/* ── Пересчёт высоты dbe-wrap под реальный хедер ── */
+(function() {
+  var wrap = document.querySelector('.dbe-wrap');
+  var container = document.querySelector('.container');
+  if (!wrap || !container) return;
+  function resize() {
+    var off = Math.round(container.getBoundingClientRect().bottom);
+    wrap.style.height = (window.innerHeight - off) + 'px';
+  }
+  resize();
+  window.addEventListener('resize', resize);
+})();
+</script>
+{% endblock %}

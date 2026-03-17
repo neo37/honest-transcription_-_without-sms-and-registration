@@ -69,6 +69,12 @@ class SiteUser(models.Model):
     tg_verify_expires = models.DateTimeField('Срок действия кода TG', null=True, blank=True)
     tg_verified = models.BooleanField('TG верифицирован', default=False)
     tg_chat_id = models.BigIntegerField('Telegram Chat ID', null=True, blank=True)
+    tg_username = models.CharField('Telegram username', max_length=100, blank=True, default='')
+    google_calendar_token = models.JSONField('Google Calendar токен', null=True, blank=True)
+    display_name = models.CharField('Отображаемое имя', max_length=100, blank=True, default='')
+    avatar_url = models.CharField('Аватар URL', max_length=500, blank=True, default='')
+    timezone = models.CharField('Часовой пояс', max_length=60, default='Europe/Moscow')
+    last_seen = models.DateTimeField('Последняя активность', null=True, blank=True)
     created_at = models.DateTimeField('Создано', auto_now_add=True)
 
     class Meta:
@@ -134,6 +140,7 @@ class Recording(models.Model):
     speaker_embeddings = models.JSONField('Эмбеддинги спикеров', default=dict, blank=True)
     transcription_progress = models.PositiveSmallIntegerField('Прогресс транскрибации (%)', default=0)
     transcription_stage = models.CharField('Этап транскрибации', max_length=100, blank=True)
+    transcription_log = models.JSONField('Лог транскрибации', default=list, blank=True)
     ai_title = models.CharField('AI Название', max_length=255, blank=True)
     ai_summary = models.TextField('AI Саммари', blank=True)
     transcribed_at = models.DateTimeField('Транскбировано', null=True, blank=True)
@@ -143,6 +150,11 @@ class Recording(models.Model):
         Space, null=True, blank=True, on_delete=models.SET_NULL,
         verbose_name='Пространство', related_name='recordings',
     )
+    owner = models.ForeignKey(
+        'SiteUser', null=True, blank=True, on_delete=models.SET_NULL,
+        verbose_name='Владелец', related_name='owned_recordings',
+    )
+    is_personal = models.BooleanField('Личная запись', default=False, db_index=True)
     created_at = models.DateTimeField('Создано', auto_now_add=True)
     updated_at = models.DateTimeField('Обновлено', auto_now=True)
 
@@ -302,15 +314,19 @@ class AccessLog(models.Model):
     """Лог входов и просмотров записей."""
     EVENT_LOGIN = 'login'
     EVENT_VIEW = 'view'
+    EVENT_DOWNLOAD = 'download'
     EVENT_CHOICES = [
         ('login', 'Вход'),
         ('view', 'Просмотр записи'),
+        ('download', 'Скачивание записи'),
     ]
     username = models.CharField('Пользователь', max_length=150, blank=True)
     ip = models.GenericIPAddressField('IP адрес', null=True, blank=True)
     user_agent = models.TextField('User-Agent', blank=True)
     os_name = models.CharField('ОС', max_length=200, blank=True)
     screen = models.CharField('Разрешение экрана', max_length=30, blank=True)
+    tg_chat_id = models.BigIntegerField('Telegram Chat ID', null=True, blank=True)
+    tg_username = models.CharField('Telegram username', max_length=100, blank=True, default='')
     event = models.CharField('Событие', max_length=20, choices=EVENT_CHOICES, db_index=True)
     recording = models.ForeignKey(
         Recording, on_delete=models.SET_NULL,
@@ -522,6 +538,13 @@ class MascotTask(models.Model):
 
 class MeetingRoom(models.Model):
     """Встреча с LiveKit — опциональный голосовой маскот, приглашения через Telegram."""
+    REPEAT_NONE = ''
+    REPEAT_WEEKLY = 'weekly'
+    REPEAT_CHOICES = [
+        ('', 'Не повторяется'),
+        ('weekly', 'Еженедельно'),
+    ]
+
     room_name = models.CharField('ID комнаты', max_length=100, unique=True)
     title = models.CharField('Название встречи', max_length=200)
     with_mascot = models.BooleanField('С маскотом', default=False)
@@ -532,7 +555,12 @@ class MeetingRoom(models.Model):
         Space, on_delete=models.SET_NULL, null=True, blank=True, related_name='meetings'
     )
     ended_at = models.DateTimeField('Завершена', null=True, blank=True)
+    scheduled_at = models.DateTimeField('Запланировано', null=True, blank=True)
+    repeat = models.CharField('Повтор', max_length=20, choices=REPEAT_CHOICES, default='', blank=True)
+    join_url = models.URLField('Ссылка на встречу', max_length=500, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    google_event_id = models.CharField('Google Event ID', max_length=200, null=True, blank=True, db_index=True)
+    guest_tg_chat_id = models.BigIntegerField('Telegram гостя', null=True, blank=True)
 
     class Meta:
         verbose_name = 'Встреча'
@@ -563,7 +591,35 @@ class CustomBot(models.Model):
         verbose_name='Раздел вики',
     )
     webhook_secret = models.CharField('Webhook secret', max_length=64, blank=True, default='')
+    system_prompt = models.TextField('Системный промт', blank=True, default='',
+                                     help_text='Если заполнено — заменяет стандартный промт бота')
+
+    REPLY_AUTO = 'auto'
+    REPLY_AFTER_DELAY = 'after_delay'
+    REPLY_TRIGGER = 'trigger'
+    REPLY_OFF = 'off'
+    REPLY_MODE_CHOICES = [
+        (REPLY_AUTO, 'Авто — отвечать на все сообщения'),
+        (REPLY_AFTER_DELAY, 'После паузы — если владелец молчит N минут'),
+        (REPLY_TRIGGER, 'По слову — только если есть ключевое слово'),
+        (REPLY_OFF, 'Выключен — не отвечать'),
+    ]
+    reply_mode = models.CharField(
+        'Режим ответа', max_length=20, choices=REPLY_MODE_CHOICES, default=REPLY_AUTO,
+    )
+    reply_delay_m = models.PositiveIntegerField(
+        'Пауза (мин)', default=5,
+        help_text='Для режима «после паузы»: бот отвечает если владелец молчал N минут',
+    )
+    trigger_word = models.CharField(
+        'Ключевое слово', max_length=100, blank=True, default='',
+        help_text='Для режима «по слову»: бот отвечает только если сообщение содержит это слово',
+    )
+
     is_active = models.BooleanField('Активен', default=True)
+    public_chat_token = models.UUIDField(
+        'Токен публичного чата', default=_uuid.uuid4, unique=True, editable=False
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -625,6 +681,92 @@ class BotChatHistory(models.Model):
         cls.objects.filter(chat_id=chat_id, bot_id=bot_id).delete()
 
 
+class BotContact(models.Model):
+    """Контакт (клиент), с которым работал кастомный бот через Business Mode."""
+    bot = models.ForeignKey(
+        'CustomBot', on_delete=models.CASCADE, related_name='contacts',
+        verbose_name='Бот',
+    )
+    tg_user_id = models.BigIntegerField('Telegram user_id')
+    first_name = models.CharField('Имя', max_length=200, blank=True, default='')
+    last_name = models.CharField('Фамилия', max_length=200, blank=True, default='')
+    username = models.CharField('Username', max_length=100, blank=True, default='')
+    first_seen = models.DateTimeField('Первый контакт', auto_now_add=True)
+    last_seen = models.DateTimeField('Последний контакт', auto_now=True)
+    note = models.TextField('Заметка', blank=True, default='',
+                            help_text='Личная заметка владельца об этом контакте')
+
+    class Meta:
+        verbose_name = 'Контакт бота'
+        verbose_name_plural = 'Контакты ботов'
+        unique_together = [('bot', 'tg_user_id')]
+        ordering = ['-last_seen']
+
+    def __str__(self):
+        name = ' '.join(filter(None, [self.first_name, self.last_name])) or f'user_{self.tg_user_id}'
+        return f'{name} ({self.bot})'
+
+    @property
+    def display_name(self):
+        name = ' '.join(filter(None, [self.first_name, self.last_name]))
+        if self.username:
+            return f'{name} (@{self.username})' if name else f'@{self.username}'
+        return name or str(self.tg_user_id)
+
+
+class MeetingAttendee(models.Model):
+    """Участие пользователя во встрече + настройки уведомлений."""
+    user = models.ForeignKey(SiteUser, on_delete=models.CASCADE, related_name='meeting_attendances')
+    meeting = models.ForeignKey(MeetingRoom, on_delete=models.CASCADE, related_name='attendees')
+    notify_before_minutes = models.IntegerField('Уведомить за (мин)', default=15)
+    repeat_every_minutes = models.IntegerField('Повторять каждые (мин)', default=1)
+    confirmed_at = models.DateTimeField('Подтверждено', null=True, blank=True)
+    last_notified_at = models.DateTimeField('Последнее уведомление', null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Участник встречи'
+        verbose_name_plural = 'Участники встреч'
+        unique_together = [('user', 'meeting')]
+
+    def __str__(self):
+        return f'{self.user.email} @ {self.meeting}'
+
+
+class DayShareLink(models.Model):
+    """Ссылка на доступные слоты дня — владелец отмечает занятые встречи, гость видит свободное время."""
+    owner = models.ForeignKey(
+        SiteUser, on_delete=models.CASCADE, related_name='day_shares',
+        verbose_name='Владелец',
+    )
+    date = models.DateField('Дата', null=True, blank=True)
+    is_permanent = models.BooleanField('Постоянная (всегда завтра)', default=False)
+    share_token = models.UUIDField('Токен', default=_uuid.uuid4, unique=True, editable=False)
+    # Занятые слоты: [{start: "HH:MM", end: "HH:MM", title: str}]
+    busy_slots = models.JSONField('Занятые слоты', default=list)
+    slot_duration_minutes = models.IntegerField('Длительность слота (мин)', default=30)
+    day_start = models.CharField('Начало дня', max_length=5, default='09:00')
+    day_end = models.CharField('Конец дня', max_length=5, default='18:00')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Ссылка-поделиться днём'
+        verbose_name_plural = 'Ссылки-поделиться днём'
+
+    def __str__(self):
+        return f'{self.owner.email} / {self.date}'
+
+
+class BookingAttempt(models.Model):
+    """Лог попыток бронирования для защиты от злоупотреблений."""
+    ip = models.GenericIPAddressField('IP')
+    fingerprint = models.CharField('Fingerprint', max_length=64, blank=True)  # md5(ua+resolution+os)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = 'Попытка бронирования'
+
+
 class BotSetupState(models.Model):
     """Временное состояние multi-step setup wizard в главном боте."""
     STATE_IDLE = ''
@@ -660,6 +802,35 @@ class BotSetupState(models.Model):
         self.save()
 
 
+class RecurringBusyTime(models.Model):
+    """Повторяющийся занятый интервал времени пользователя (напр. обед, статус-митинг)."""
+    REPEAT_DAILY = 'daily'
+    REPEAT_WEEKDAYS = 'weekdays'
+    REPEAT_CHOICES = [
+        ('daily', 'Ежедневно'),
+        ('weekdays', 'По будням (пн–пт)'),
+    ]
+
+    owner = models.ForeignKey(
+        SiteUser, on_delete=models.CASCADE, related_name='recurring_busy_times',
+        verbose_name='Владелец',
+    )
+    title = models.CharField('Название', max_length=100)
+    start_time = models.TimeField('Начало')
+    end_time = models.TimeField('Конец')
+    repeat = models.CharField('Повтор', max_length=20, choices=REPEAT_CHOICES, default=REPEAT_DAILY)
+    is_active = models.BooleanField('Активно', default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Повторяющееся занятое время'
+        verbose_name_plural = 'Повторяющееся занятое время'
+        ordering = ['start_time']
+
+    def __str__(self):
+        return f'{self.title} {self.start_time:%H:%M}–{self.end_time:%H:%M} ({self.get_repeat_display()})'
+
+
 # Эмбеддинг для семантического поиска (PostgreSQL + pgvector)
 try:
     from pgvector.django import VectorField
@@ -679,3 +850,108 @@ try:
             verbose_name_plural = 'Эмбеддинги записей'
 except ImportError:
     pass
+
+
+class ExcelSession(models.Model):
+    """Сессия Excel Studio — хранит таблицу и конфиги столбцов."""
+    id = models.UUIDField(primary_key=True, default=_uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        SiteUser, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='excel_sessions',
+    )
+    space = models.ForeignKey(
+        Space, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='excel_sessions',
+    )
+    filename = models.CharField(max_length=256, default='export')
+    columns = models.JSONField(default=list)   # [str, ...]
+    rows = models.JSONField(default=list)       # [{col: val}, ...]
+    # {colName: {prompt, key_col, status, source, wiki_tpl_slug}}
+    col_configs = models.JSONField(default=dict)
+    tg_chat_id = models.BigIntegerField(null=True, blank=True)
+    created_via = models.CharField(max_length=32, default='web')  # 'web'|'telegram'
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Excel-сессия'
+        verbose_name_plural = 'Excel-сессии'
+        ordering = ['-created_at']
+
+
+class MicroPreset(models.Model):
+    """Микропресет Excel Studio — сохранённые конфиги столбцов для повторного использования."""
+    user = models.ForeignKey(SiteUser, on_delete=models.CASCADE, related_name='micropresets')
+    name = models.CharField(max_length=200)
+    wiki_slug = models.CharField(max_length=300, blank=True)  # контекстная вики-страница
+    col_configs = models.JSONField(default=dict)  # {colName: {prompt, key_col, ...}}
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Микропресет'
+        verbose_name_plural = 'Микропресеты'
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f'{self.name} ({self.user})'
+
+
+class DirectMessage(models.Model):
+    """Личное сообщение между участниками пространства."""
+    sender = models.ForeignKey(SiteUser, on_delete=models.CASCADE, related_name='sent_dms')
+    recipient = models.ForeignKey(SiteUser, on_delete=models.CASCADE, related_name='received_dms')
+    space = models.ForeignKey(Space, on_delete=models.CASCADE, related_name='dms', null=True, blank=True)
+    text = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Личное сообщение'
+        verbose_name_plural = 'Личные сообщения'
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f'{self.sender} → {self.recipient}: {self.text[:40]}'
+
+
+class BPChatTopic(models.Model):
+    """Топик группы BP в Telegram."""
+    thread_id = models.IntegerField('Thread ID', unique=True)
+    name = models.CharField('Название', max_length=200)
+    icon_color = models.IntegerField('Цвет иконки', default=0)
+    created_at = models.DateTimeField('Создано', auto_now_add=True)
+    last_message_at = models.DateTimeField('Последнее сообщение', null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Топик БП'
+        verbose_name_plural = 'Топики БП'
+        ordering = ['-last_message_at']
+
+    def __str__(self):
+        return self.name
+
+
+class BPChatMessage(models.Model):
+    """Сообщение из группы BP."""
+    topic = models.ForeignKey(BPChatTopic, on_delete=models.CASCADE, related_name='bp_messages')
+    tg_message_id = models.BigIntegerField('TG message_id', unique=True)
+    from_name = models.CharField('Имя отправителя', max_length=200)
+    from_tg_id = models.BigIntegerField('TG user_id', null=True, blank=True)
+    from_username = models.CharField('TG username', max_length=100, blank=True)
+    from_site_user = models.ForeignKey(
+        SiteUser, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='bp_messages', verbose_name='Пользователь сайта',
+    )
+    text = models.TextField('Текст')
+    created_at = models.DateTimeField('Отправлено', auto_now_add=True)
+    tg_date = models.DateTimeField('Дата TG', null=True, blank=True)
+    via_site = models.BooleanField('Отправлено с сайта', default=False)
+
+    class Meta:
+        verbose_name = 'Сообщение БП'
+        verbose_name_plural = 'Сообщения БП'
+        ordering = ['tg_date', 'created_at']
+
+    def __str__(self):
+        return f'{self.from_name}: {self.text[:40]}'

@@ -71,13 +71,13 @@ def _article_dict(art: WikiArticle, include_content=True) -> dict:
 
 def _tree_node(art: WikiArticle) -> dict:
     node = _article_dict(art, include_content=False)
-    node["children"] = [_tree_node(c) for c in art.get_children()]
+    node["children"] = [_tree_node(c) for c in art.get_children().filter(is_personal=False)]
     return node
 
 
 def _space_qs(space: Space):
-    """Queryset статей пространства (только не удалённые)."""
-    return WikiArticle.objects.filter(is_deleted=False, space=space)
+    """Queryset статей пространства (только не удалённые и не персональные)."""
+    return WikiArticle.objects.filter(is_deleted=False, space=space, is_personal=False)
 
 
 # ── Auth decorator ────────────────────────────────────────────────────────────

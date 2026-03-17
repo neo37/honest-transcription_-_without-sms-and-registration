@@ -1,10 +1,11 @@
-{% with children=node.get_children %}
+{% load wiki_tags %}
+{% with children=node|children_for_user:current_user %}
 <li>
     <div class="wiki-tree-item">
         <button class="wiki-tree-toggle {% if not children %}hidden{% endif %}" aria-label="Раскрыть" type="button">▶</button>
         <a href="{% url 'wiki_kb:article_detail' slug=node.slug %}"
            class="wiki-tree-link {% if current and current.slug == node.slug %}active{% endif %}">
-            {{ node.title }}
+            {% if node.is_personal %}<span title="Персональный раздел">🔒</span> {% endif %}{{ node.title }}
         </a>
     </div>
     {% if children %}

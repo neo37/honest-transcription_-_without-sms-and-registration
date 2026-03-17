@@ -1,0 +1,51 @@
+{% extends "recordings/base.html" %}
+{% block title %}Чат БП{% endblock %}
+
+{% block content %}
+<div class="page-head" style="margin-bottom:1.2rem;">
+    <h1 style="font-size:1.3rem;font-weight:700;margin:0;">Чат БП</h1>
+    <p style="color:var(--muted);font-size:0.85rem;margin:0.25rem 0 0;">Топики группы BusinessPad</p>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:0.4rem;max-width:600px;">
+    {% for item in topic_data %}
+    <a href="{% url 'recordings:bp_chat_topic' item.topic.thread_id %}"
+       style="display:flex;align-items:center;gap:0.75rem;padding:0.7rem 1rem;
+              background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+              text-decoration:none;color:inherit;transition:box-shadow 0.18s,border-color 0.18s;"
+       onmouseover="this.style.borderColor='var(--accent)';this.style.boxShadow='var(--shadow)'"
+       onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+        <div style="width:40px;height:40px;border-radius:50%;flex-shrink:0;
+                    display:flex;align-items:center;justify-content:center;font-size:1.1rem;
+                    {% if item.topic.icon_color %}background:#{{ item.topic.icon_color|stringformat:'06x' }};{% else %}background:var(--accent);{% endif %}">
+            #
+        </div>
+        <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;font-size:0.92rem;display:flex;align-items:center;gap:0.5rem;">
+                {{ item.topic.name }}
+                {% if item.count %}
+                <span style="background:var(--bg-soft);color:var(--muted);border:1px solid var(--border);
+                             border-radius:99px;font-size:0.68rem;padding:0 0.38rem;">{{ item.count }}</span>
+                {% endif %}
+            </div>
+            {% if item.last %}
+            <div style="font-size:0.78rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:0.1rem;">
+                {{ item.last.from_name }}: {{ item.last.text|truncatechars:45 }}
+            </div>
+            {% else %}
+            <div style="font-size:0.78rem;color:var(--muted);margin-top:0.1rem;">Нет сообщений</div>
+            {% endif %}
+        </div>
+        {% if item.last and item.last.tg_date %}
+        <div style="font-size:0.72rem;color:var(--muted);flex-shrink:0;">
+            {{ item.last.tg_date|date:"H:i" }}
+        </div>
+        {% endif %}
+    </a>
+    {% empty %}
+    <div style="text-align:center;color:var(--muted);padding:3rem 1rem;font-size:0.9rem;">
+        Сообщений пока нет. Как только кто-то напишет в группе — они появятся здесь.
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

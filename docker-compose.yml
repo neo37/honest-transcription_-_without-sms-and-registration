@@ -42,7 +42,7 @@ services:
     environment:
       - DATABASE_URL=postgres://meetrec:meetrec@db:5432/meetrec
       - MEDIA_ROOT=/app/data/media
-      - DEBUG=True
+      - DEBUG=False
       - DJANGO_SUPERUSER_USERNAME=${DJANGO_SUPERUSER_USERNAME:-admin}
       - DJANGO_SUPERUSER_PASSWORD=${DJANGO_SUPERUSER_PASSWORD:-}
       - DJANGO_SUPERUSER_EMAIL=${DJANGO_SUPERUSER_EMAIL:-admin@example.com}
@@ -69,6 +69,7 @@ services:
 
   poller:
     build: .
+    restart: unless-stopped
     env_file: .env
     environment:
       - DATABASE_URL=postgres://meetrec:meetrec@db:5432/meetrec
@@ -88,6 +89,22 @@ services:
         condition: service_healthy
       web:
         condition: service_started
+
+  mcp:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgres://meetrec:meetrec@db:5432/meetrec
+      - MCP_PORT=3001
+    ports:
+      - "127.0.0.1:3001:3001"
+    command: python mcp_server/meetings_mcp.py
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_healthy
 
   livekit:
     image: livekit/livekit-server:latest
@@ -126,7 +143,23 @@ services:
       - livekit
     restart: unless-stopped
 
+  chemico_db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: chemico
+      POSTGRES_PASSWORD: chemico
+      POSTGRES_DB: chemico
+    volumes:
+      - chemico_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chemico -d chemico"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   app_data:
   pgdata:
   tts_cache:
+  chemico_pgdata:

@@ -1,0 +1,209 @@
+{% extends "recordings/base.html" %}
+{% block title %}{{ topic.name }} — Чат БП{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
+    <a href="{% url 'recordings:bp_chat_index' %}" style="color:var(--muted);text-decoration:none;font-size:1.2rem;line-height:1;">←</a>
+    <div style="width:36px;height:36px;border-radius:50%;flex-shrink:0;
+                display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:700;color:#fff;
+                {% if topic.icon_color %}background:#{{ topic.icon_color|stringformat:'06x' }};{% else %}background:var(--accent);{% endif %}">
+        #
+    </div>
+    <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:0.98rem;">{{ topic.name }}</div>
+        <div style="font-size:0.75rem;color:var(--muted);">Топик группы BP · Telegram</div>
+    </div>
+    <!-- Topic switcher -->
+    <div style="position:relative;">
+        <button onclick="document.getElementById('topic-menu').classList.toggle('open')"
+            style="background:none;border:1px solid var(--border);border-radius:8px;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.8rem;color:var(--text);">
+            Топики ▾
+        </button>
+        <div id="topic-menu" style="display:none;position:absolute;right:0;top:calc(100% + 4px);
+             background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+             box-shadow:var(--shadow);z-index:50;min-width:160px;padding:0.3rem 0;">
+            {% for t in all_topics %}
+            <a href="{% url 'recordings:bp_chat_topic' t.thread_id %}"
+               style="display:block;padding:0.45rem 0.85rem;font-size:0.85rem;text-decoration:none;
+                      color:{% if t.pk == topic.pk %}var(--accent){% else %}var(--text){% endif %};
+                      font-weight:{% if t.pk == topic.pk %}700{% else %}400{% endif %};">
+                # {{ t.name }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<style>
+#topic-menu.open { display:block !important; }
+.bp-msg {
+    display:flex;flex-direction:column;gap:0.08rem;
+    padding:0.45rem 0.7rem;border-radius:12px;max-width:76%;
+    font-size:0.9rem;line-height:1.55;word-break:break-word;
+    animation: msgIn 0.22s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes msgIn { from{opacity:0;transform:translateY(6px) scale(0.97)} to{opacity:1;transform:none} }
+.bp-msg.mine { background:var(--accent);color:#fff;align-self:flex-end;border-bottom-right-radius:3px; }
+.bp-msg.theirs { background:var(--bg-soft);color:var(--text);align-self:flex-start;border-bottom-left-radius:3px;border:1px solid var(--border); }
+.bp-msg-from { font-size:0.72rem;font-weight:600;opacity:0.75;margin-bottom:0.1rem; }
+.bp-msg.mine .bp-msg-from { display:none; }
+.bp-msg-text { white-space:pre-wrap; }
+.bp-msg-time { font-size:0.68rem;opacity:0.6;align-self:flex-end; }
+#chat-messages::-webkit-scrollbar { width:4px; }
+#chat-messages::-webkit-scrollbar-thumb { background:var(--border);border-radius:2px; }
+.tg-badge { font-size:0.65rem;background:rgba(0,136,204,0.15);color:#0088cc;border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:middle; }
+</style>
+
+<div id="chat-wrap" style="display:flex;flex-direction:column;
+    height:calc(100vh - 210px);min-height:300px;
+    background:var(--card);border:1px solid var(--border);
+    border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;">
+
+    <div id="chat-messages" style="flex:1;overflow-y:auto;padding:1rem;display:flex;flex-direction:column;gap:0.4rem;">
+        {% for m in chat_msgs %}
+        <div class="bp-msg {% if m.via_site and m.from_site_user == current_user %}mine{% else %}theirs{% endif %}" data-id="{{ m.pk }}">
+            <div class="bp-msg-from">
+                {{ m.from_name }}
+                {% if not m.via_site %}<span class="tg-badge">TG</span>{% endif %}
+            </div>
+            <div class="bp-msg-text">{{ m.text }}</div>
+            <div class="bp-msg-time">{{ m.tg_date|date:"H:i" }}</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div style="border-top:1px solid var(--border);padding:0.6rem 0.75rem;display:flex;gap:0.5rem;align-items:flex-end;background:var(--bg-soft);">
+        <button id="emoji-btn" onclick="toggleEmoji()" type="button"
+            style="flex-shrink:0;background:none;border:none;cursor:pointer;font-size:1.2rem;padding:0.2rem;color:var(--muted);">😊</button>
+        <div id="emoji-picker" style="display:none;position:absolute;bottom:70px;left:0;
+             background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+             padding:0.6rem;box-shadow:var(--shadow);z-index:100;flex-wrap:wrap;gap:0.2rem;max-width:280px;"></div>
+        <textarea id="bp-input" placeholder="Написать в # {{ topic.name }}…" rows="1"
+            style="flex:1;resize:none;border:1px solid var(--border);border-radius:10px;
+                   padding:0.5rem 0.8rem;font-family:inherit;font-size:0.93rem;
+                   background:var(--card);color:var(--text);outline:none;
+                   max-height:120px;overflow-y:auto;line-height:1.5;transition:border-color 0.2s;"
+            onfocus="this.style.borderColor='var(--accent)'"
+            onblur="this.style.borderColor='var(--border)'"
+        ></textarea>
+        <button onclick="sendMsg()" type="button"
+            style="flex-shrink:0;padding:0.5rem 1rem;background:var(--accent);color:#fff;
+                   border:none;border-radius:10px;cursor:pointer;font-size:0.9rem;font-weight:600;align-self:flex-end;">➤</button>
+    </div>
+</div>
+
+<script>
+const THREAD_ID = {{ topic.thread_id }};
+const MY_EMAIL = '{{ current_user.email|escapejs }}';
+const msgsEl = document.getElementById('chat-messages');
+const inputEl = document.getElementById('bp-input');
+let lastId = {% with chat_msgs.last as lm %}{% if lm %}{{ lm.pk }}{% else %}0{% endif %}{% endwith %};
+let isAtBottom = true;
+let sseSource = null;
+
+// Emoji picker
+const EMOJIS = ['😀','😂','😍','🥰','😎','🤔','😢','😡','🤣','🥺','😊','👍','👎','❤️','🔥','💯','✅','❌','🎉','👏','🙏','💪','💡','📌','🤦','🤷'];
+const picker = document.getElementById('emoji-picker');
+EMOJIS.forEach(e => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = e;
+    btn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:1.3rem;padding:0.15rem;border-radius:4px;';
+    btn.onclick = () => { insertEmoji(e); };
+    picker.appendChild(btn);
+});
+function toggleEmoji() { picker.style.display = picker.style.display === 'flex' ? 'none' : 'flex'; }
+function insertEmoji(e) {
+    const p = inputEl.selectionStart, v = inputEl.value;
+    inputEl.value = v.slice(0,p) + e + v.slice(p);
+    inputEl.selectionStart = inputEl.selectionEnd = p + e.length;
+    inputEl.focus(); picker.style.display = 'none';
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight,120)+'px';
+}
+document.addEventListener('click', e => {
+    if (!e.target.closest('#emoji-btn') && !e.target.closest('#emoji-picker')) picker.style.display = 'none';
+    if (!e.target.closest('.relative') && !e.target.closest('#topic-menu')) {
+        document.getElementById('topic-menu').classList.remove('open');
+    }
+});
+
+inputEl.addEventListener('input', () => {
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight,120)+'px';
+});
+inputEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+});
+msgsEl.addEventListener('scroll', () => {
+    isAtBottom = msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight < 60;
+});
+
+function scrollToBottom(force) {
+    if (force || isAtBottom) msgsEl.scrollTop = msgsEl.scrollHeight;
+}
+
+function appendMsg(m) {
+    const isMine = m.via_site && MY_EMAIL !== '';
+    const div = document.createElement('div');
+    div.className = 'bp-msg ' + (isMine ? 'mine' : 'theirs');
+    div.dataset.id = m.id;
+    const d = m.tg_date ? new Date(m.tg_date) : new Date();
+    const t = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+    const tgBadge = !m.via_site ? '<span class="tg-badge">TG</span>' : '';
+    div.innerHTML = `
+        <div class="bp-msg-from">${esc(m.from_name)}${tgBadge}</div>
+        <div class="bp-msg-text">${esc(m.text)}</div>
+        <div class="bp-msg-time">${t}</div>`;
+    msgsEl.appendChild(div);
+}
+
+function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function startSSE() {
+    if (sseSource) sseSource.close();
+    sseSource = new EventSource(`/bp-chat/${THREAD_ID}/stream/?after=${lastId}`);
+    sseSource.onmessage = e => {
+        if (!e.data || e.data === '{}') return;
+        try {
+            const m = JSON.parse(e.data);
+            if (m.id && m.id > lastId) {
+                appendMsg(m);
+                lastId = m.id;
+                scrollToBottom(m.via_site);
+            }
+        } catch(_) {}
+    };
+    sseSource.onerror = () => { sseSource.close(); setTimeout(startSSE, 3000); };
+}
+
+async function sendMsg() {
+    const text = inputEl.value.trim();
+    if (!text) return;
+    const btn = document.querySelector('#chat-wrap button:last-child');
+    btn.disabled = true;
+    inputEl.value = '';
+    inputEl.style.height = 'auto';
+    try {
+        const resp = await fetch(`/bp-chat/${THREAD_ID}/send/`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json','X-CSRFToken': getCsrf()},
+            body: JSON.stringify({text}),
+        });
+        const data = await resp.json();
+        if (!data.ok) { inputEl.value = text; alert('Ошибка: ' + (data.error || '?')); }
+    } catch(e) { inputEl.value = text; alert('Ошибка отправки'); }
+    finally { btn.disabled = false; inputEl.focus(); }
+}
+
+function getCsrf() {
+    return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='))?.split('=')[1]||'';
+}
+
+scrollToBottom(true);
+startSSE();
+</script>
+{% endblock %}

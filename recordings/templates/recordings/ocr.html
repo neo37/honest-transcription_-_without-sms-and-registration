@@ -19,14 +19,14 @@
         {% csrf_token %}
         <input type="hidden" name="method" id="ocr-method" value="auto">
         <div style="margin-bottom: 1rem;">
-            <input type="file" name="document" accept=".pdf,.png,.jpg,.jpeg,image/png,image/jpeg,application/pdf" required>
+            <input type="file" name="documents" accept=".pdf,.png,.jpg,.jpeg,image/png,image/jpeg,application/pdf" multiple required>
         </div>
         <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
             <button type="button" class="btn btn-create" onclick="submitOcr('tesseract')">Tesseract (быстро)</button>
             <button type="button" class="btn" onclick="submitOcr('olmocr')">olmOCR (GPU, точнее)</button>
         </div>
         <p style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--muted);">
-            Tesseract — работает всегда, olmOCR — использует GPU для более точного распознавания.
+            Можно выбрать несколько файлов сразу — они встанут в очередь и обработаются последовательно. Tesseract — быстро, olmOCR — точнее.
         </p>
     </form>
     <script>
@@ -95,7 +95,7 @@
         <li style="padding: 0.5rem 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
             <div>
                 <a href="{% url 'recordings:ocr_job_detail' job.id %}">{{ job.original_filename }}</a>
-                <span class="muted"> — {{ job.get_status_display }}, {{ job.created_at|date:"d.m.Y H:i" }}</span>
+                <span class="muted ocr-job-status" data-status="{{ job.status }}"> — {{ job.get_status_display }}, {{ job.created_at|date:"d.m.Y H:i" }}</span>
             </div>
             {% if job.is_public %}<span style="font-size: 0.75rem; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0.1rem 0.4rem;">публичный</span>{% endif %}
         </li>
@@ -104,5 +104,13 @@
     {% else %}
     <p class="muted">{% if ocr_q or ocr_date or ocr_date_to %}Ничего не найдено.{% else %}Задач пока нет.{% endif %}</p>
     {% endif %}
+    <script>
+    (function(){
+        var rows = document.querySelectorAll('.ocr-job-status');
+        var hasPending = false;
+        rows.forEach(function(el){ if(el.dataset.status==='pending'||el.dataset.status==='processing') hasPending=true; });
+        if(hasPending) setTimeout(function(){ location.reload(); }, 4000);
+    })();
+    </script>
 </div>
 {% endblock %}

@@ -10,6 +10,7 @@ from .models import (
     TagDefinition, AccessLog, ShareToken, Space, SiteUser, AIConfig,
     SystemConfig, SpeakerProfile, OcrJob, MagicLoginToken, OrgRegistration,
     MascotLog, MascotTask, MeetingRoom, CustomBot, BotChatHistory, BotSetupState,
+    MeetingAttendee, DayShareLink, BookingAttempt, RecurringBusyTime, BotContact,
 )
 from .queue_services import enqueue_transcribe, enqueue_embedding
 from .s3_client import delete_mp3_from_s3
@@ -162,10 +163,10 @@ class TagDefinitionAdmin(admin.ModelAdmin):
 
 @admin.register(AccessLog)
 class AccessLogAdmin(admin.ModelAdmin):
-    list_display = ('created_at', 'event', 'username', 'ip', 'os_name', 'screen', 'recording_link')
+    list_display = ('created_at', 'event', 'username', 'tg_username', 'ip', 'os_name', 'screen', 'recording_link')
     list_filter = ('event', 'os_name')
-    search_fields = ('username', 'ip', 'user_agent')
-    readonly_fields = ('username', 'ip', 'user_agent', 'os_name', 'screen', 'event', 'recording', 'created_at')
+    search_fields = ('username', 'ip', 'user_agent', 'tg_username')
+    readonly_fields = ('username', 'ip', 'user_agent', 'os_name', 'screen', 'tg_chat_id', 'tg_username', 'event', 'recording', 'created_at')
     date_hierarchy = 'created_at'
 
     def recording_link(self, obj):
@@ -453,12 +454,30 @@ class MeetingRoomAdmin(admin.ModelAdmin):
 
 @admin.register(CustomBot)
 class CustomBotAdmin(admin.ModelAdmin):
-    list_display = ('name', 'username', 'owner', 'space', 'root_article', 'is_active', 'created_at')
-    list_filter = ('is_active', 'space')
+    list_display = ('name', 'username', 'owner', 'space', 'root_article', 'reply_mode', 'is_active', 'created_at')
+    list_filter = ('is_active', 'space', 'reply_mode')
     search_fields = ('name', 'username', 'owner__email')
     raw_id_fields = ('owner', 'space', 'root_article')
     readonly_fields = ('webhook_secret', 'created_at')
     list_editable = ('is_active',)
+    fieldsets = (
+        ('Основное', {'fields': ('owner', 'space', 'token', 'name', 'username', 'root_article', 'is_active', 'created_at', 'webhook_secret')}),
+        ('Режим ответа (Business Mode)', {'fields': ('reply_mode', 'reply_delay_m', 'trigger_word')}),
+        ('Системный промт', {'fields': ('system_prompt',), 'classes': ('wide',)}),
+    )
+
+
+@admin.register(BotContact)
+class BotContactAdmin(admin.ModelAdmin):
+    list_display = ('display_name', 'bot', 'username', 'first_seen', 'last_seen')
+    list_filter = ('bot',)
+    search_fields = ('first_name', 'last_name', 'username', 'tg_user_id')
+    readonly_fields = ('tg_user_id', 'first_seen', 'last_seen')
+    fields = ('bot', 'tg_user_id', 'first_name', 'last_name', 'username', 'note', 'first_seen', 'last_seen')
+
+    def display_name(self, obj):
+        return obj.display_name
+    display_name.short_description = 'Имя'
 
 
 @admin.register(BotChatHistory)
@@ -485,6 +504,48 @@ class BotSetupStateAdmin(admin.ModelAdmin):
     list_display = ('chat_id', 'state', 'pending_bot_pk', 'updated_at')
     search_fields = ('chat_id',)
     readonly_fields = ('updated_at',)
+
+
+@admin.register(MeetingAttendee)
+class MeetingAttendeeAdmin(admin.ModelAdmin):
+    list_display = ('user', 'meeting', 'notify_before_minutes', 'confirmed_at', 'last_notified_at', 'created_at')
+    list_filter = ('meeting__space',)
+    search_fields = ('user__email', 'meeting__title', 'meeting__room_name')
+    raw_id_fields = ('user', 'meeting')
+    readonly_fields = ('created_at',)
+
+
+@admin.register(DayShareLink)
+class DayShareLinkAdmin(admin.ModelAdmin):
+    list_display = ('owner', 'date', 'is_permanent', 'slot_duration_minutes', 'day_start', 'day_end', 'share_token', 'created_at')
+    list_filter = ('is_permanent',)
+    search_fields = ('owner__email',)
+    raw_id_fields = ('owner',)
+    readonly_fields = ('share_token', 'created_at')
+
+
+@admin.register(BookingAttempt)
+class BookingAttemptAdmin(admin.ModelAdmin):
+    list_display = ('ip', 'fingerprint', 'created_at')
+    search_fields = ('ip', 'fingerprint')
+    readonly_fields = ('created_at',)
+    date_hierarchy = 'created_at'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(RecurringBusyTime)
+class RecurringBusyTimeAdmin(admin.ModelAdmin):
+    list_display = ('owner', 'title', 'start_time', 'end_time', 'repeat', 'is_active', 'created_at')
+    list_filter = ('repeat', 'is_active')
+    search_fields = ('owner__email', 'title')
+    raw_id_fields = ('owner',)
+    readonly_fields = ('created_at',)
+    list_editable = ('is_active',)
 
 
 # Регистрация кастомного URL в админке

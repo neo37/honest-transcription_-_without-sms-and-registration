@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import bp_chat_views
 
 app_name = 'recordings'
 
@@ -12,6 +13,7 @@ urlpatterns = [
     path('pilot_integration/', views.pilot_integration, name='pilot_integration'),
     path('pilot-login/', views.pilot_login, name='pilot_login'),
     path('smarty-login/', views.smarty_login, name='smarty_login'),
+    path('api/check-smarty-email/', views.api_check_smarty_email, name='api_check_smarty_email'),
     path('smarty-register/', views.smarty_register, name='smarty_register'),
     path('admin-passwords/', views.admin_passwords, name='admin_passwords'),
     path('api/check-email/', views.api_check_email, name='api_check_email'),
@@ -53,6 +55,8 @@ urlpatterns = [
     path('api/v1/ocr/<int:task_id>/', views.api_v1_ocr_status, name='api_v1_ocr_status'),
     path('magic-login/<uuid:token>/', views.magic_login, name='magic_login'),
     path('cabinet/', views.cabinet, name='cabinet'),
+    path('profile/', views.profile_settings, name='profile_settings'),
+    path('calendar-settings/', views.calendar_settings, name='calendar_settings'),
     path('api/dadata-suggest/', views.api_dadata_suggest, name='api_dadata_suggest'),
     # Регистрация организаций и Telegram webhook
     path('org-register/', views.org_register, name='org_register'),
@@ -76,15 +80,72 @@ urlpatterns = [
     path('api/calendar-events/', views.api_calendar_events, name='api_calendar_events'),
     path('meetings/', views.meetings_page, name='meetings_page'),
     path('meetings/create/', views.create_meeting, name='create_meeting'),
+    path('meetings/export-csv/', views.meetings_export_csv, name='meetings_export_csv'),
+    path('meetings/import-csv/', views.meetings_import_csv, name='meetings_import_csv'),
+    path('meetings/csv-sample/', views.meetings_csv_sample, name='meetings_csv_sample'),
+    path('meetings/share-day/', views.share_day_create, name='share_day_create'),
+    path('meetings/busy-times/', views.recurring_busy_times, name='recurring_busy_times'),
+    path('meetings/busy-times/<int:pk>/delete/', views.delete_recurring_busy_time, name='delete_recurring_busy_time'),
+    path('meetings/book/<uuid:token>/', views.booking_page, name='booking_page'),
+    path('meetings/book/<uuid:token>/book/', views.book_slot, name='book_slot'),
+    path('meetings/google-auth/', views.google_calendar_auth, name='google_calendar_auth'),
+    path('meetings/google-callback/', views.google_calendar_callback, name='google_calendar_callback'),
+    path('meetings/google-import/', views.google_calendar_import, name='google_calendar_import'),
     path('meetings/<str:room_name>/', views.meeting_room, name='meeting_room'),
     path('meetings/<str:room_name>/invite/', views.meeting_invite, name='meeting_invite'),
     path('meetings/<str:room_name>/end/', views.end_meeting, name='end_meeting'),
+    path('meetings/<str:room_name>/delete/', views.delete_meeting, name='delete_meeting'),
+    path('meetings/<str:room_name>/edit/', views.edit_meeting, name='edit_meeting'),
     path('meetings/<str:room_name>/invite-mascot/', views.invite_mascot, name='invite_mascot'),
     path('api/room-config/<str:room_name>/', views.api_room_config, name='api_room_config'),
     path('api/active-meetings/', views.api_active_meetings, name='api_active_meetings'),
+    path('api/space-members/', views.api_space_members, name='api_space_members'),
     path('bot-history/', views.bot_history, name='bot_history'),
     path('bot-history/<int:history_id>/insert-transcription/', views.bot_history_insert_transcription, name='bot_history_insert_transcription'),
     path('bot-sessions/', views.bot_sessions, name='bot_sessions'),
     path('bot-history/<int:history_id>/insert-ocr/', views.bot_history_insert_ocr, name='bot_history_insert_ocr'),
     path('bot-history/<int:history_id>/delete/', views.bot_history_delete_entry, name='bot_history_delete_entry'),
+    # Gonka AI panel (secret, BP only)
+    path('gonka-panel/', views.gonka_panel, name='gonka_panel'),
+    path('gonka-panel/api/node-check/', views.gonka_api_node_check, name='gonka_api_node_check'),
+    path('gonka-panel/api/test/', views.gonka_api_test, name='gonka_api_test'),
+    # DB agent Excel exports
+    path('db-export/<str:filename>', views.db_export_download, name='db_export_download'),
+    # Excel Studio
+    path('db-excel/', views.db_excel_page, name='db_excel'),
+    path('db-excel/upload/', views.db_excel_upload, name='db_excel_upload'),
+    path('db-excel/fill-column/', views.db_excel_fill_column, name='db_excel_fill_column'),
+    path('db-excel/col-chat/', views.db_excel_col_chat, name='db_excel_col_chat'),
+    path('db-excel/fill-sse/', views.db_excel_fill_sse, name='db_excel_fill_sse'),
+    path('db-excel/global-chat/', views.db_excel_global_chat, name='db_excel_global_chat'),
+    path('db-excel/global-fill-sse/', views.db_excel_global_fill_sse, name='db_excel_global_fill_sse'),
+    path('api/micropresets/', views.api_micropresets, name='api_micropresets'),
+    path('db-excel/templates/', views.db_excel_templates, name='db_excel_templates'),
+    path('db-excel/wiki-templates/', views.db_excel_wiki_templates, name='db_excel_wiki_templates'),
+    path('db-excel/s/<uuid:session_id>/', views.db_excel_session, name='db_excel_session'),
+    path('db-excel/s/<uuid:session_id>/save/', views.db_excel_session_save, name='db_excel_session_save'),
+    # Space chat (Supabase)
+    path('space-chat/', views.space_chat, name='space_chat'),
+    path('space-chat/send/', views.space_chat_send, name='space_chat_send'),
+    path('space-chat/stream/', views.space_chat_stream, name='space_chat_stream'),
+    path('space-chat/messages/', views.space_chat_messages, name='space_chat_messages'),
+    path('api/ping/', views.api_ping, name='api_ping'),
+    # Direct Messages (тет-а-тет)
+    path('dms/', views.dms_index, name='dms_index'),
+    path('dms/<int:user_id>/', views.dm_conversation, name='dm_conversation'),
+    path('dms/<int:user_id>/send/', views.dm_send, name='dm_send'),
+    path('dms/<int:user_id>/messages/', views.dm_messages, name='dm_messages'),
+    path('dms/<int:user_id>/stream/', views.dm_stream, name='dm_stream'),
+    # BP Group Chat
+    path('bp-chat/', bp_chat_views.bp_chat_index, name='bp_chat_index'),
+    path('bp-chat/<int:thread_id>/', bp_chat_views.bp_chat_topic, name='bp_chat_topic'),
+    path('bp-chat/<int:thread_id>/send/', bp_chat_views.bp_chat_send, name='bp_chat_send'),
+    path('bp-chat/<int:thread_id>/poll/', bp_chat_views.bp_chat_poll, name='bp_chat_poll'),
+    path('bp-chat/<int:thread_id>/stream/', bp_chat_views.bp_chat_stream, name='bp_chat_stream'),
+    path('tg-bp-webhook/<str:secret>/', bp_chat_views.bp_webhook, name='bp_webhook'),
+    # Web chat
+    path('chat/<uuid:token>/', views.chat_page, name='chat_page'),
+    path('chat/<uuid:token>/send/', views.chat_send, name='chat_send'),
+    path('chat/<uuid:token>/upload/', views.chat_upload, name='chat_upload'),
+    path('chat/<uuid:token>/messages/', views.chat_history, name='chat_history'),
 ]

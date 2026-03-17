@@ -20,16 +20,26 @@ def _space_filter(space):
     return Q(space=space) | Q(space__isnull=True)
 
 
-def _get_tree(space):
+def _personal_filter(user):
+    """Фильтр персональных статей: не персональные, или персональные но свои."""
+    if user:
+        return Q(is_personal=False) | Q(is_personal=True, created_by=user)
+    return Q(is_personal=False)
+
+
+def _get_tree(space, user=None):
     """Корневые статьи для боковой панели."""
     return WikiArticle.objects.filter(
-        _space_filter(space), is_deleted=False, parent__isnull=True
+        _space_filter(space), _personal_filter(user),
+        is_deleted=False, parent__isnull=True,
     ).order_by('order', 'title')
 
 
-def _wiki_qs(space):
+def _wiki_qs(space, user=None):
     """Базовый queryset статей пространства пользователя + глобальных."""
-    return WikiArticle.objects.filter(_space_filter(space), is_deleted=False)
+    return WikiArticle.objects.filter(
+        _space_filter(space), _personal_filter(user), is_deleted=False,
+    )
 
 
 def _unique_slug(title):
@@ -42,14 +52,15 @@ def _unique_slug(title):
     return slug
 
 
-def _get_article_choices(space, exclude_ids=None):
+def _get_article_choices(space, exclude_ids=None, user=None):
     """Плоский список (article, depth) для пикера иерархии — только пространство пользователя."""
     exclude_ids = set(exclude_ids or [])
     result = []
 
     def traverse(parent_id, depth):
         qs = WikiArticle.objects.filter(
-            is_deleted=False, parent_id=parent_id, space=space
+            _personal_filter(user),
+            is_deleted=False, parent_id=parent_id, space=space,
         ).exclude(pk__in=exclude_ids).order_by('order', 'title')
         for art in qs:
             result.append((art, depth))
@@ -104,8 +115,8 @@ def generate_wiki_content(recording):
 def kb_index(request):
     user = get_current_user(request)
     space = user.space if user else None
-    roots = _get_tree(space)
-    first = _wiki_qs(space).order_by('order', 'title').first()
+    roots = _get_tree(space, user=user)
+    first = _wiki_qs(space, user=user).order_by('order', 'title').first()
     if first:
         return redirect('wiki_kb:article_detail', slug=first.slug)
     return render(request, 'wiki_kb/article_detail.html', {
@@ -121,9 +132,9 @@ def kb_index(request):
 def article_detail(request, slug):
     user = get_current_user(request)
     space = user.space if user else None
-    article = get_object_or_404(_wiki_qs(space), slug=slug)
+    article = get_object_or_404(_wiki_qs(space, user=user), slug=slug)
     content_html = _render_md(article.content)
-    roots = _get_tree(space)
+    roots = _get_tree(space, user=user)
     ancestors = article.get_ancestors()
     linked_recordings = article.recordings.all().order_by('-created_at')
     from wiki_kb.models import WikiArticleChunk
@@ -155,7 +166,7 @@ def article_create(request):
     parent = None
     parent_slug = request.GET.get('parent')
     if parent_slug:
-        parent = _wiki_qs(space).filter(slug=parent_slug).first()
+        parent = _wiki_qs(space, user=user).filter(slug=parent_slug).first()
 
     # OCR pre-fill
     prefill_title = ''
@@ -177,7 +188,7 @@ def article_create(request):
         parent_id = request.POST.get('parent_id') or None
 
         if not title:
-            roots = _get_tree(space)
+            roots = _get_tree(space, user=user)
             return render(request, 'wiki_kb/article_edit.html', {
                 'roots': roots,
                 'error': 'Заголовок обязателен',
@@ -188,7 +199,7 @@ def article_create(request):
 
         parent_obj = None
         if parent_id:
-            parent_obj = _wiki_qs(space).filter(pk=parent_id).first()
+            parent_obj = _wiki_qs(space, user=user).filter(pk=parent_id).first()
 
         article = WikiArticle.objects.create(
             title=title,
@@ -202,7 +213,7 @@ def article_create(request):
         WikiRevision.objects.create(article=article, content=content, revised_by=user)
         return redirect('wiki_kb:article_detail', slug=article.slug)
 
-    roots = _get_tree(space)
+    roots = _get_tree(space, user=user)
     return render(request, 'wiki_kb/article_edit.html', {
         'roots': roots,
         'parent': parent,
@@ -215,14 +226,14 @@ def article_create(request):
 def article_edit(request, slug):
     user = get_current_user(request)
     space = user.space if user else None
-    article = get_object_or_404(_wiki_qs(space), slug=slug)
+    article = get_object_or_404(_wiki_qs(space, user=user), slug=slug)
 
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
         content = request.POST.get('content', '')
 
         if not title:
-            roots = _get_tree(space)
+            roots = _get_tree(space, user=user)
             return render(request, 'wiki_kb/article_edit.html', {
                 'roots': roots,
                 'article': article,
@@ -244,7 +255,7 @@ def article_edit(request, slug):
         article.save()
         return redirect('wiki_kb:article_detail', slug=article.slug)
 
-    roots = _get_tree(space)
+    roots = _get_tree(space, user=user)
     return render(request, 'wiki_kb/article_edit.html', {
         'roots': roots,
         'article': article,
@@ -257,14 +268,14 @@ def article_edit(request, slug):
 def article_delete(request, slug):
     user = get_current_user(request)
     space = user.space if user else None
-    article = get_object_or_404(_wiki_qs(space), slug=slug)
+    article = get_object_or_404(_wiki_qs(space, user=user), slug=slug)
 
     if request.method == 'POST':
         article.is_deleted = True
         article.save()
         return redirect('wiki_kb:kb_index')
 
-    roots = _get_tree(space)
+    roots = _get_tree(space, user=user)
     return render(request, 'wiki_kb/article_delete.html', {
         'roots': roots,
         'article': article,
@@ -275,9 +286,9 @@ def article_delete(request, slug):
 def article_history(request, slug):
     user = get_current_user(request)
     space = user.space if user else None
-    article = get_object_or_404(_wiki_qs(space), slug=slug)
+    article = get_object_or_404(_wiki_qs(space, user=user), slug=slug)
     revisions = article.revisions.all()[:30]
-    roots = _get_tree(space)
+    roots = _get_tree(space, user=user)
     return render(request, 'wiki_kb/article_history.html', {
         'roots': roots,
         'article': article,
@@ -292,12 +303,41 @@ def article_share_toggle(request, slug):
         return redirect('wiki_kb:article_detail', slug=slug)
     user = get_current_user(request)
     space = user.space if user else None
-    article = get_object_or_404(_wiki_qs(space), slug=slug)
+    article = get_object_or_404(_wiki_qs(space, user=user), slug=slug)
     if article.share_token:
         article.share_token = None
     else:
         article.share_token = uuid.uuid4()
     article.save(update_fields=['share_token'])
+    return redirect('wiki_kb:article_detail', slug=slug)
+
+
+@site_login_required
+def article_toggle_personal(request, slug):
+    """Сделать статью (и все дочерние) персональной / общей. POST-only."""
+    if request.method != 'POST':
+        return redirect('wiki_kb:article_detail', slug=slug)
+    user = get_current_user(request)
+    space = user.space if user else None
+    article = get_object_or_404(_wiki_qs(space, user=user), slug=slug)
+
+    # Только владелец (created_by) может менять персональность своих статей
+    if article.created_by and article.created_by != user:
+        return redirect('wiki_kb:article_detail', slug=slug)
+
+    new_value = not article.is_personal
+
+    # Применяем к статье и ко всем потомкам рекурсивно
+    def set_personal(art, value):
+        art.is_personal = value
+        # Если у статьи нет создателя — назначаем текущего пользователя
+        if value and not art.created_by:
+            art.created_by = user
+        art.save(update_fields=['is_personal', 'created_by'])
+        for child in WikiArticle.objects.filter(parent=art, is_deleted=False):
+            set_personal(child, value)
+
+    set_personal(article, new_value)
     return redirect('wiki_kb:article_detail', slug=slug)
 
 
@@ -310,7 +350,7 @@ def article_pick_recordings(request, slug):
 
     user = get_current_user(request)
     space = user.space if user else None
-    article = get_object_or_404(_wiki_qs(space), slug=slug)
+    article = get_object_or_404(_wiki_qs(space, user=user), slug=slug)
 
     bp_slug = getattr(settings, 'BP_SPACE_SLUG', 'org-bp')
     if user and user.space:
@@ -373,7 +413,7 @@ def wiki_from_recording(request, recording_id):
         parent_id = request.POST.get('parent_id') or None
         parent = None
         if parent_id:
-            parent = _wiki_qs(space).filter(pk=parent_id).first()
+            parent = _wiki_qs(space, user=user).filter(pk=parent_id).first()
 
         title = recording.ai_title or recording.filename
         content = generate_wiki_content(recording)
@@ -391,7 +431,7 @@ def wiki_from_recording(request, recording_id):
         WikiRevision.objects.create(article=article, content=content, revised_by=user, comment='создано из записи')
         return redirect('wiki_kb:article_detail', slug=article.slug)
 
-    article_choices = _get_article_choices(space)
+    article_choices = _get_article_choices(space, user=user)
     return render(request, 'wiki_kb/hierarchy_picker.html', {
         'mode': 'create_from_recording',
         'recording': recording,
@@ -406,12 +446,12 @@ def article_move(request, slug):
     """Перенести статью в другое место иерархии."""
     user = get_current_user(request)
     space = user.space if user else None
-    article = get_object_or_404(_wiki_qs(space), slug=slug)
+    article = get_object_or_404(_wiki_qs(space, user=user), slug=slug)
 
     if request.method == 'POST':
         parent_id = request.POST.get('parent_id') or None
         if parent_id:
-            parent = _wiki_qs(space).filter(pk=parent_id).first()
+            parent = _wiki_qs(space, user=user).filter(pk=parent_id).first()
             if parent and parent.pk != article.pk:
                 article.parent = parent
                 article.save(update_fields=['parent'])
@@ -421,7 +461,7 @@ def article_move(request, slug):
         return redirect('wiki_kb:article_detail', slug=article.slug)
 
     exclude_ids = [article.pk] + article.get_all_descendants_ids()
-    article_choices = _get_article_choices(space, exclude_ids=exclude_ids)
+    article_choices = _get_article_choices(space, exclude_ids=exclude_ids, user=user)
     return render(request, 'wiki_kb/hierarchy_picker.html', {
         'mode': 'move',
         'article': article,
@@ -471,16 +511,16 @@ def article_merge(request, slug):
     """Объединить эту статью с другой через LLM."""
     user = get_current_user(request)
     space = user.space if user else None
-    article = get_object_or_404(_wiki_qs(space), slug=slug)
+    article = get_object_or_404(_wiki_qs(space, user=user), slug=slug)
 
     if request.method == 'POST':
         target_id = request.POST.get('target_id') or None
         target = None
         if target_id:
-            target = _wiki_qs(space).filter(pk=target_id).exclude(pk=article.pk).first()
+            target = _wiki_qs(space, user=user).filter(pk=target_id).exclude(pk=article.pk).first()
 
         if not target:
-            article_choices = _get_article_choices(space, exclude_ids=[article.pk])
+            article_choices = _get_article_choices(space, exclude_ids=[article.pk], user=user)
             return render(request, 'wiki_kb/hierarchy_picker.html', {
                 'mode': 'merge',
                 'article': article,
@@ -492,7 +532,7 @@ def article_merge(request, slug):
         merged_content, error = generate_merged_content(article, target)
 
         if error:
-            article_choices = _get_article_choices(space, exclude_ids=[article.pk])
+            article_choices = _get_article_choices(space, exclude_ids=[article.pk], user=user)
             return render(request, 'wiki_kb/hierarchy_picker.html', {
                 'mode': 'merge',
                 'article': article,
@@ -525,7 +565,7 @@ def article_merge(request, slug):
 
         return redirect('wiki_kb:article_detail', slug=target.slug)
 
-    article_choices = _get_article_choices(space, exclude_ids=[article.pk])
+    article_choices = _get_article_choices(space, exclude_ids=[article.pk], user=user)
     return render(request, 'wiki_kb/hierarchy_picker.html', {
         'mode': 'merge',
         'article': article,
@@ -545,10 +585,12 @@ def wiki_search(request):
     q = request.GET.get('q', '').strip()
     date_str = request.GET.get('date', '').strip()
     date_to_str = request.GET.get('date_to', '').strip()
+    search_mode = request.GET.get('mode', 'text')  # 'text' or 'semantic'
 
     results = []
+    semantic_results = []
     if q or date_str or date_to_str:
-        qs = _wiki_qs(space)
+        qs = _wiki_qs(space, user=user)
         if q:
             qs = qs.filter(Q(title__icontains=q) | Q(content__icontains=q))
         if date_str:
@@ -565,10 +607,16 @@ def wiki_search(request):
                 pass
         results = list(qs.order_by('-updated_at')[:200])
 
-    roots = _get_tree(space)
+        # Семантический поиск — дополнительно если есть текстовый запрос
+        if q:
+            from .models import wiki_semantic_search
+            semantic_results = wiki_semantic_search(q, space=space, top_k=8, owner=user)
+
+    roots = _get_tree(space, user=user)
     return render(request, 'wiki_kb/wiki_search.html', {
         'roots': roots,
         'results': results,
+        'semantic_results': semantic_results,
         'q': q,
         'date_str': date_str,
         'date_to_str': date_to_str,
@@ -587,4 +635,50 @@ def article_public(request, token):
         'content_html': content_html,
         'ancestors': ancestors,
         'linked_recordings': linked_recordings,
+    })
+
+
+@site_login_required
+def api_tree(request):
+    """JSON: полное дерево вики для пикера в Excel Studio."""
+    user = get_current_user(request)
+    space = user.space if user else None
+
+    def serialize(parent_id):
+        qs = WikiArticle.objects.filter(
+            _space_filter(space), _personal_filter(user),
+            is_deleted=False, parent_id=parent_id,
+        ).order_by('order', 'title')
+        return [
+            {'id': a.id, 'slug': a.slug, 'title': a.title, 'children': serialize(a.id)}
+            for a in qs
+        ]
+
+    return JsonResponse({'tree': serialize(None)})
+
+
+@site_login_required
+def api_article(request, slug):
+    """JSON: содержимое статьи для встроенного просмотра."""
+    user = get_current_user(request)
+    space = user.space if user else None
+    try:
+        article = _wiki_qs(space, user=user).get(slug=slug)
+    except WikiArticle.DoesNotExist:
+        return JsonResponse({'error': 'not found'}, status=404)
+    import json as _json
+    col_configs = {}
+    content = (article.content or '').strip()
+    if content.startswith('{'):
+        try:
+            col_configs = _json.loads(content)
+        except Exception:
+            pass
+    return JsonResponse({
+        'slug': article.slug,
+        'title': article.title,
+        'content_html': _render_md(article.content or ''),
+        'col_configs': col_configs,
+        'has_configs': bool(col_configs),
+        'url': f'/kb/{article.slug}/',
     })
